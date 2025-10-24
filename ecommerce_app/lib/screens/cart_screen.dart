@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart';
+import '../utils/currency.dart';
 import 'checkout_screen.dart';
+import 'auth_screen.dart';
 
 class CartScreen extends StatelessWidget {
   static const routeName = '/cart';
@@ -49,7 +52,7 @@ class CartScreen extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text(
-                      '\$${p.price.toStringAsFixed(2)} x ${item.quantity} = \$${item.totalPrice.toStringAsFixed(2)}',
+                      '${formatINR(p.price)} x ${item.quantity} = ${formatINR(item.totalPrice)}',
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -98,7 +101,7 @@ class CartScreen extends StatelessWidget {
                         style: TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                       Text(
-                        '\$${cart.totalAmount.toStringAsFixed(2)}',
+                        formatINR(cart.totalAmount),
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
@@ -111,10 +114,21 @@ class CartScreen extends StatelessWidget {
                   onPressed: cart.isEmpty
                       ? null
                       : () {
-                          Navigator.pushNamed(
-                            context,
-                            CheckoutScreen.routeName,
-                          );
+                          final auth = context.read<AuthProvider>();
+                          if (!auth.isLoggedIn) {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const AuthScreen(
+                                  redirectRouteName: CheckoutScreen.routeName,
+                                ),
+                              ),
+                            );
+                          } else {
+                            Navigator.pushNamed(
+                              context,
+                              CheckoutScreen.routeName,
+                            );
+                          }
                         },
                   child: const Text('Proceed to Checkout'),
                 ),

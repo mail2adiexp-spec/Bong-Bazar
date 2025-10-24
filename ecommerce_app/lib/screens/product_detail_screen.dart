@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/product_model.dart';
 import '../providers/cart_provider.dart';
+import '../utils/currency.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   static const routeName = '/product';
@@ -41,7 +42,7 @@ class ProductDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '\$${product.price.toStringAsFixed(2)}',
+              formatINR(product.price),
               style: TextStyle(fontSize: 18, color: Colors.grey[800]),
             ),
             const SizedBox(height: 16),

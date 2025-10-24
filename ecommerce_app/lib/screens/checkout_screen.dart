@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
+import '../utils/currency.dart';
 
 class CheckoutScreen extends StatelessWidget {
   static const routeName = '/checkout';
@@ -23,7 +24,7 @@ class CheckoutScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Total Amount: \$${cart.totalAmount.toStringAsFixed(2)}',
+                'Total Amount: ${formatINR(cart.totalAmount)}',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,

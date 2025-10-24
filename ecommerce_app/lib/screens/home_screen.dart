@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../models/product_model.dart';
 import '../widgets/product_card.dart';
 import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart';
 import 'cart_screen.dart';
+import 'account_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -81,6 +83,17 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('E-Commerce Home'),
         actions: [
+          Consumer<AuthProvider>(
+            builder: (_, auth, __) => IconButton(
+              tooltip: auth.isLoggedIn
+                  ? 'Account (${auth.currentUser!.name})'
+                  : 'Sign In',
+              icon: const Icon(Icons.person),
+              onPressed: () {
+                Navigator.pushNamed(context, AccountScreen.routeName);
+              },
+            ),
+          ),
           Stack(
             alignment: Alignment.center,
             children: [
