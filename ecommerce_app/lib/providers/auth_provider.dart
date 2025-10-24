@@ -1,11 +1,20 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 
 class AppUser {
   final String email;
   final String name;
+  final String? phoneNumber;
+  final String? photoURL;
 
-  AppUser({required this.email, required this.name});
+  AppUser({
+    required this.email,
+    required this.name,
+    this.phoneNumber,
+    this.photoURL,
+  });
 }
 
 class AuthProvider extends ChangeNotifier {
@@ -27,6 +36,8 @@ class AuthProvider extends ChangeNotifier {
             firebaseUser.displayName ??
             firebaseUser.email?.split('@').first ??
             'User',
+        phoneNumber: firebaseUser.phoneNumber,
+        photoURL: firebaseUser.photoURL,
       );
     } else {
       _currentUser = null;
@@ -80,5 +91,99 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  Future<void> updateProfile({required String name}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user signed in');
+      await user.updateDisplayName(name.trim());
+      await user.reload();
+      // Trigger state change to update UI
+      _onAuthStateChanged(_auth.currentUser);
+    } on FirebaseAuthException catch (e) {
+      throw Exception(e.message ?? 'Update failed');
+    } catch (e) {
+      throw Exception('Update failed: $e');
+    }
+  }
+
+  Future<void> updateEmail({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user signed in');
+
+      // Re-authenticate user before email change
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      // Update email
+      await user.verifyBeforeUpdateEmail(email.trim());
+      throw Exception(
+        'Verification email sent. Please check your new email and verify it.',
+      );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        throw Exception('This email is already registered');
+      } else if (e.code == 'invalid-email') {
+        throw Exception('Invalid email format');
+      } else if (e.code == 'wrong-password') {
+        throw Exception('Incorrect password');
+      }
+      throw Exception(e.message ?? 'Email update failed');
+    } catch (e) {
+      throw Exception(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> updatePhoneNumber({required String phoneNumber}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user signed in');
+
+      // Note: Phone number verification requires SMS and platform-specific setup
+      // For now, we'll store it in display name or use a custom solution
+      // In production, use Firebase Phone Auth with proper verification
+
+      // Since Firebase Auth doesn't directly support phone number updates without verification,
+      // we'll need to implement this via Firestore or another database
+      // For this demo, we'll throw a message
+      throw Exception(
+        'Phone number update requires additional setup. Coming soon!',
+      );
+    } catch (e) {
+      throw Exception(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> updateProfileImage({required File imageFile}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user signed in');
+
+      // Upload to Firebase Storage
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('profile_images')
+          .child('${user.uid}.jpg');
+
+      await storageRef.putFile(imageFile);
+      final downloadURL = await storageRef.getDownloadURL();
+
+      // Update user profile
+      await user.updatePhotoURL(downloadURL);
+      await user.reload();
+      _onAuthStateChanged(_auth.currentUser);
+    } on FirebaseException catch (e) {
+      throw Exception(e.message ?? 'Image upload failed');
+    } catch (e) {
+      throw Exception('Image upload failed: $e');
+    }
   }
 }

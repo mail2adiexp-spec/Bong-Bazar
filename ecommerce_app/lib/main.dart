@@ -7,6 +7,7 @@ import 'package:ecommerce_app/screens/checkout_screen.dart';
 import 'package:ecommerce_app/screens/product_detail_screen.dart';
 import 'package:ecommerce_app/screens/auth_screen.dart';
 import 'package:ecommerce_app/screens/account_screen.dart';
+import 'package:ecommerce_app/screens/edit_profile_screen.dart';
 import 'package:ecommerce_app/models/product_model.dart';
 import 'package:ecommerce_app/providers/cart_provider.dart';
 import 'package:ecommerce_app/providers/auth_provider.dart';
@@ -40,6 +41,7 @@ class MyApp extends StatelessWidget {
           CheckoutScreen.routeName: (_) => const CheckoutScreen(),
           AuthScreen.routeName: (ctx) => const AuthScreen(),
           AccountScreen.routeName: (ctx) => const AccountScreen(),
+          EditProfileScreen.routeName: (ctx) => const EditProfileScreen(),
         },
         // For routes needing arguments
         onGenerateRoute: (settings) {
