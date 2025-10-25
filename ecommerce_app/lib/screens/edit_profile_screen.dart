@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
@@ -22,6 +23,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _passwordController = TextEditingController();
 
   File? _imageFile;
+  Uint8List? _imageBytes;
   String? _imageUrl;
   bool _isLoading = false;
   bool _showPasswordField = false;
@@ -58,16 +60,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
       if (pickedFile != null) {
-        setState(() {
-          if (!kIsWeb) {
+        if (kIsWeb) {
+          // Web: read as bytes
+          final bytes = await pickedFile.readAsBytes();
+          setState(() {
+            _imageBytes = bytes;
+          });
+        } else {
+          // Mobile/Desktop: use File
+          setState(() {
             _imageFile = File(pickedFile.path);
-          }
-        });
+          });
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      }
     }
   }
 
@@ -104,8 +115,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
 
       // Update profile image if selected
-      if (_imageFile != null && !kIsWeb) {
-        await auth.updateProfileImage(imageFile: _imageFile!);
+      if (_imageFile != null || _imageBytes != null) {
+        await auth.updateProfileImage(
+          imageFile: _imageFile,
+          imageBytes: _imageBytes,
+        );
       }
 
       if (mounted) {
@@ -157,7 +171,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           key: _formKey,
           child: Column(
             children: [
-              // Profile Image
+              // Profile Image with error handling
               Center(
                 child: Stack(
                   children: [
@@ -166,13 +180,62 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       backgroundColor: Theme.of(
                         context,
                       ).colorScheme.primaryContainer,
-                      backgroundImage: _imageFile != null && !kIsWeb
-                          ? FileImage(_imageFile!)
+                      child: _imageBytes != null
+                          ? ClipOval(
+                              child: Image.memory(
+                                _imageBytes!,
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : _imageFile != null && !kIsWeb
+                          ? ClipOval(
+                              child: Image.file(
+                                _imageFile!,
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                              ),
+                            )
                           : _imageUrl != null
-                          ? NetworkImage(_imageUrl!)
-                          : null,
-                      child: _imageFile == null && _imageUrl == null
-                          ? Text(
+                          ? ClipOval(
+                              child: Image.network(
+                                _imageUrl!.replaceFirst(
+                                  '.firebasestorage.app',
+                                  '.appspot.com',
+                                ),
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Text(
+                                    _nameController.text.isNotEmpty
+                                        ? _nameController.text[0].toUpperCase()
+                                        : 'U',
+                                    style: TextStyle(
+                                      fontSize: 48,
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                  );
+                                },
+                                loadingBuilder:
+                                    (context, child, loadingProgress) {
+                                      if (loadingProgress == null) {
+                                        return child;
+                                      }
+                                      return const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      );
+                                    },
+                              ),
+                            )
+                          : Text(
                               _nameController.text.isNotEmpty
                                   ? _nameController.text[0].toUpperCase()
                                   : 'U',
@@ -181,8 +244,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 fontWeight: FontWeight.bold,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
-                            )
-                          : null,
+                            ),
                     ),
                     Positioned(
                       bottom: 0,
@@ -198,17 +260,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             color: Colors.white,
                             size: 20,
                           ),
-                          onPressed: kIsWeb
-                              ? () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Image upload not supported on web yet',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              : _pickImage,
+                          onPressed: _pickImage,
                         ),
                       ),
                     ),

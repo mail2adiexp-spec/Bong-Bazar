@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'dart:typed_data';
 
 class AppUser {
   final String email;
@@ -162,18 +163,37 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> updateProfileImage({required File imageFile}) async {
+  Future<void> updateProfileImage({
+    File? imageFile,
+    Uint8List? imageBytes,
+    String? fileName,
+  }) async {
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('No user signed in');
 
+      if (imageFile == null && imageBytes == null) {
+        throw Exception('No image provided');
+      }
+
       // Upload to Firebase Storage
       final storageRef = FirebaseStorage.instance
           .ref()
-          .child('profile_images')
+          .child('user_images')
           .child('${user.uid}.jpg');
 
-      await storageRef.putFile(imageFile);
+      // Upload based on platform
+      if (imageBytes != null) {
+        // Web upload using bytes
+        await storageRef.putData(
+          imageBytes,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+      } else if (imageFile != null) {
+        // Mobile/Desktop upload using File
+        await storageRef.putFile(imageFile);
+      }
+
       final downloadURL = await storageRef.getDownloadURL();
 
       // Update user profile

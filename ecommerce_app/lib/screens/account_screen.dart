@@ -34,15 +34,49 @@ class AccountScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 40),
                       child: Column(
                         children: [
-                          // Avatar
+                          // Avatar with error handling
                           CircleAvatar(
                             radius: 50,
                             backgroundColor: Colors.white,
-                            backgroundImage: auth.currentUser!.photoURL != null
-                                ? NetworkImage(auth.currentUser!.photoURL!)
-                                : null,
-                            child: auth.currentUser!.photoURL == null
-                                ? Text(
+                            child: auth.currentUser!.photoURL != null
+                                ? ClipOval(
+                                    child: Image.network(
+                                      auth.currentUser!.photoURL!.replaceFirst(
+                                        '.firebasestorage.app',
+                                        '.appspot.com',
+                                      ),
+                                      width: 100,
+                                      height: 100,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                            return Text(
+                                              auth.currentUser!.name.isNotEmpty
+                                                  ? auth.currentUser!.name[0]
+                                                        .toUpperCase()
+                                                  : 'U',
+                                              style: TextStyle(
+                                                fontSize: 36,
+                                                fontWeight: FontWeight.bold,
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.primary,
+                                              ),
+                                            );
+                                          },
+                                      loadingBuilder:
+                                          (context, child, loadingProgress) {
+                                            if (loadingProgress == null)
+                                              return child;
+                                            return const Center(
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            );
+                                          },
+                                    ),
+                                  )
+                                : Text(
                                     auth.currentUser!.name.isNotEmpty
                                         ? auth.currentUser!.name[0]
                                               .toUpperCase()
@@ -54,8 +88,7 @@ class AccountScreen extends StatelessWidget {
                                         context,
                                       ).colorScheme.primary,
                                     ),
-                                  )
-                                : null,
+                                  ),
                           ),
                           const SizedBox(height: 16),
                           Text(
