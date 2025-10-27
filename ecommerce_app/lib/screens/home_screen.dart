@@ -15,7 +15,20 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _searchQuery = '';
+  late final TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController()
+      ..addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   // Sample product data
   final List<Product> _products = [
@@ -63,36 +76,43 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ];
 
-  List<Product> get _filteredProducts {
-    if (_searchQuery.isEmpty) {
-      return _products;
-    }
-    return _products.where((product) {
-      return product.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          product.description.toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          );
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final filteredProducts = _filteredProducts;
+    final filteredProducts = () {
+      final query = _searchController.text;
+      if (query.isEmpty) {
+        return _products;
+      }
+      return _products.where((product) {
+        final lowerQuery = query.toLowerCase();
+        return product.name.toLowerCase().contains(lowerQuery) ||
+            product.description.toLowerCase().contains(lowerQuery);
+      }).toList();
+    }();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('E-Commerce Home'),
+        // AppBar actions with profile icon and cart
         actions: [
           Consumer<AuthProvider>(
-            builder: (_, auth, __) => IconButton(
-              tooltip: auth.isLoggedIn
-                  ? 'Account (${auth.currentUser!.name})'
-                  : 'Sign In',
-              icon: const Icon(Icons.person),
-              onPressed: () {
-                Navigator.pushNamed(context, AccountScreen.routeName);
-              },
-            ),
+            builder: (context, auth, _) {
+              final user = auth.currentUser;
+              return IconButton(
+                tooltip: user != null ? 'Account (${user.name})' : 'Sign In',
+                onPressed: () =>
+                    Navigator.pushNamed(context, AccountScreen.routeName),
+                icon: user?.photoURL != null
+                    ? CircleAvatar(
+                        radius: 16,
+                        backgroundImage: NetworkImage(user!.photoURL!),
+                        // Force rebuild on URL change
+                        key: ValueKey(user.photoURL),
+                        backgroundColor: Colors.grey[200],
+                      )
+                    : const Icon(Icons.person),
+              );
+            },
           ),
           Stack(
             alignment: Alignment.center,
@@ -138,30 +158,20 @@ class _HomeScreenState extends State<HomeScreen> {
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
+              controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search products...',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchQuery.isNotEmpty
+                suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
+                        onPressed: () => _searchController.clear(),
                       )
                     : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                filled: true,
-                fillColor: Colors.grey[100],
               ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
             ),
           ),
           Expanded(
@@ -183,13 +193,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: Colors.grey[600],
                           ),
                         ),
-                        if (_searchQuery.isNotEmpty)
+                        if (_searchController.text.isNotEmpty)
                           TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _searchQuery = '';
-                              });
-                            },
+                            onPressed: () => _searchController.clear(),
                             child: const Text('Clear search'),
                           ),
                       ],

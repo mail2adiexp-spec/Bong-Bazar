@@ -31,11 +31,16 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _onSuccess(BuildContext context) {
     final redirect = widget.redirectRouteName;
-    if (redirect != null && redirect.isNotEmpty) {
-      Navigator.pushReplacementNamed(context, redirect);
-    } else {
-      Navigator.of(context).pop();
-    }
+    // Defer navigation until next frame to avoid disposing during an active
+    // frame which on Web can trigger 'render a disposed EngineFlutterView'.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (redirect != null && redirect.isNotEmpty) {
+        Navigator.pushReplacementNamed(context, redirect);
+      } else {
+        Navigator.of(context).pop();
+      }
+    });
   }
 
   @override

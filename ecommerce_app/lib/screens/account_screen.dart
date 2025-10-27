@@ -9,6 +9,60 @@ class AccountScreen extends StatelessWidget {
   static const routeName = '/account';
   const AccountScreen({super.key});
 
+  Widget _buildNetworkAvatar(
+    String imageUrl,
+    String fallbackInitial,
+    BuildContext context,
+  ) {
+    print('🖼️ Building avatar for URL: $imageUrl');
+    return ClipOval(
+      child: Image.network(
+        imageUrl,
+        width: 100,
+        height: 100,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          print('🔴 Avatar image load error: $error');
+          print('📸 Failed URL: $imageUrl');
+          print('Stack: $stackTrace');
+          return Container(
+            width: 100,
+            height: 100,
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: Center(
+              child: Text(
+                fallbackInitial,
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            print('✅ Avatar image loaded successfully!');
+            return child;
+          }
+          final progress =
+              loadingProgress.cumulativeBytesLoaded /
+              (loadingProgress.expectedTotalBytes ?? 1);
+          print('⏳ Loading avatar: ${(progress * 100).toStringAsFixed(0)}%');
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? progress
+                  : null,
+              strokeWidth: 2,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
@@ -37,44 +91,16 @@ class AccountScreen extends StatelessWidget {
                           // Avatar with error handling
                           CircleAvatar(
                             radius: 50,
+                            key: ValueKey(auth.currentUser!.photoURL),
                             backgroundColor: Colors.white,
                             child: auth.currentUser!.photoURL != null
-                                ? ClipOval(
-                                    child: Image.network(
-                                      auth.currentUser!.photoURL!.replaceFirst(
-                                        '.firebasestorage.app',
-                                        '.appspot.com',
-                                      ),
-                                      width: 100,
-                                      height: 100,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                            return Text(
-                                              auth.currentUser!.name.isNotEmpty
-                                                  ? auth.currentUser!.name[0]
-                                                        .toUpperCase()
-                                                  : 'U',
-                                              style: TextStyle(
-                                                fontSize: 36,
-                                                fontWeight: FontWeight.bold,
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.primary,
-                                              ),
-                                            );
-                                          },
-                                      loadingBuilder:
-                                          (context, child, loadingProgress) {
-                                            if (loadingProgress == null)
-                                              return child;
-                                            return const Center(
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            );
-                                          },
-                                    ),
+                                ? _buildNetworkAvatar(
+                                    auth.currentUser!.photoURL!,
+                                    auth.currentUser!.name.isNotEmpty
+                                        ? auth.currentUser!.name[0]
+                                              .toUpperCase()
+                                        : 'U',
+                                    context,
                                   )
                                 : Text(
                                     auth.currentUser!.name.isNotEmpty

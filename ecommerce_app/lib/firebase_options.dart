@@ -40,7 +40,7 @@ class DefaultFirebaseOptions {
     projectId: 'bong-bazar-3659f',
     authDomain: 'bong-bazar-3659f.firebaseapp.com',
     databaseURL: 'https://bong-bazar-3659f-default-rtdb.firebaseio.com',
-    storageBucket: 'bong-bazar-3659f.appspot.com',
+    storageBucket: 'bong-bazar-3659f.firebasestorage.app',
     measurementId: 'G-W6B150JE42',
   );
 
@@ -50,7 +50,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '110161971301',
     projectId: 'bong-bazar-3659f',
     databaseURL: 'https://bong-bazar-3659f-default-rtdb.firebaseio.com',
-    storageBucket: 'bong-bazar-3659f.appspot.com',
+    storageBucket: 'bong-bazar-3659f.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -59,7 +59,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '110161971301',
     projectId: 'bong-bazar-3659f',
     databaseURL: 'https://bong-bazar-3659f-default-rtdb.firebaseio.com',
-    storageBucket: 'bong-bazar-3659f.appspot.com',
+    storageBucket: 'bong-bazar-3659f.firebasestorage.app',
     iosBundleId: 'com.example.ecommerceApp',
   );
 
@@ -69,7 +69,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '110161971301',
     projectId: 'bong-bazar-3659f',
     databaseURL: 'https://bong-bazar-3659f-default-rtdb.firebaseio.com',
-    storageBucket: 'bong-bazar-3659f.appspot.com',
+    storageBucket: 'bong-bazar-3659f.firebasestorage.app',
     iosBundleId: 'com.example.ecommerceApp',
   );
 
@@ -80,7 +80,7 @@ class DefaultFirebaseOptions {
     projectId: 'bong-bazar-3659f',
     authDomain: 'bong-bazar-3659f.firebaseapp.com',
     databaseURL: 'https://bong-bazar-3659f-default-rtdb.firebaseio.com',
-    storageBucket: 'bong-bazar-3659f.appspot.com',
+    storageBucket: 'bong-bazar-3659f.firebasestorage.app',
     measurementId: 'G-89K9RTPEV1',
   );
 }

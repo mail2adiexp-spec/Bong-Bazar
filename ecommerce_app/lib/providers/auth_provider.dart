@@ -31,6 +31,8 @@ class AuthProvider extends ChangeNotifier {
 
   void _onAuthStateChanged(User? firebaseUser) {
     if (firebaseUser != null) {
+      print('🔄 Auth state changed for user: ${firebaseUser.uid}');
+      print('📸 PhotoURL: ${firebaseUser.photoURL}');
       _currentUser = AppUser(
         email: firebaseUser.email ?? '',
         name:
@@ -40,6 +42,7 @@ class AuthProvider extends ChangeNotifier {
         phoneNumber: firebaseUser.phoneNumber,
         photoURL: firebaseUser.photoURL,
       );
+      print('✅ Current user updated with photoURL: ${_currentUser?.photoURL}');
     } else {
       _currentUser = null;
     }
@@ -169,40 +172,97 @@ class AuthProvider extends ChangeNotifier {
     String? fileName,
   }) async {
     try {
+      print('🔵 Starting image upload...');
       final user = _auth.currentUser;
-      if (user == null) throw Exception('No user signed in');
+      if (user == null) {
+        print('❌ No user signed in');
+        throw Exception('No user signed in');
+      }
+      print('✅ User authenticated: ${user.uid}');
 
       if (imageFile == null && imageBytes == null) {
+        print('❌ No image provided');
         throw Exception('No image provided');
       }
 
-      // Upload to Firebase Storage
-      final storageRef = FirebaseStorage.instance
+      final imageSize = imageBytes?.length ?? await imageFile!.length();
+      print('📦 Image size: ${(imageSize / 1024).toStringAsFixed(2)} KB');
+
+      // Upload to Firebase Storage with explicit bucket
+      final storage = FirebaseStorage.instanceFor(
+        bucket: 'gs://bong-bazar-3659f.firebasestorage.app',
+      );
+      final storageRef = storage
           .ref()
           .child('user_images')
           .child('${user.uid}.jpg');
+      print('📁 Upload path: user_images/${user.uid}.jpg');
+      print('🪣 Bucket: gs://bong-bazar-3659f.firebasestorage.app');
+
+      // Decide content type from filename if available
+      String contentType = 'image/jpeg';
+      if (fileName != null) {
+        final lower = fileName.toLowerCase();
+        if (lower.endsWith('.png')) contentType = 'image/png';
+        if (lower.endsWith('.webp')) contentType = 'image/webp';
+      }
+      print('📝 Content-Type: $contentType');
 
       // Upload based on platform
+      UploadTask uploadTask;
       if (imageBytes != null) {
-        // Web upload using bytes
-        await storageRef.putData(
+        print('🌐 Uploading via bytes (Web)...');
+        uploadTask = storageRef.putData(
           imageBytes,
-          SettableMetadata(contentType: 'image/jpeg'),
+          SettableMetadata(
+            contentType: contentType,
+            cacheControl: 'public, max-age=3600',
+          ),
         );
-      } else if (imageFile != null) {
-        // Mobile/Desktop upload using File
-        await storageRef.putFile(imageFile);
+      } else {
+        print('📱 Uploading via file (Mobile/Desktop)...');
+        uploadTask = storageRef.putFile(
+          imageFile!,
+          SettableMetadata(
+            contentType: contentType,
+            cacheControl: 'public, max-age=3600',
+          ),
+        );
       }
 
-      final downloadURL = await storageRef.getDownloadURL();
+      print('⏳ Waiting for upload to complete...');
+      final TaskSnapshot snapshot = await uploadTask;
+      print('📊 Upload state: ${snapshot.state.name}');
 
-      // Update user profile
+      if (snapshot.state != TaskState.success) {
+        print('❌ Upload failed with state: ${snapshot.state.name}');
+        throw Exception('Upload failed: ${snapshot.state.name}');
+      }
+
+      print('✅ Upload successful! Getting download URL...');
+      final downloadURL = await storageRef.getDownloadURL().timeout(
+        const Duration(seconds: 20),
+        onTimeout: () {
+          print('❌ Download URL fetch timeout');
+          throw Exception('Failed to get download URL: timeout');
+        },
+      );
+      print('🔗 Download URL: $downloadURL');
+
+      print('💾 Updating user profile with photo URL...');
+      // Update the photo URL on Firebase Auth
       await user.updatePhotoURL(downloadURL);
+      // Reload the user to get the latest data from Firebase
       await user.reload();
+      print('✅ Profile updated successfully!');
+      // Manually trigger the state change with the reloaded user object
       _onAuthStateChanged(_auth.currentUser);
+      print('🔄 Auth state refreshed');
     } on FirebaseException catch (e) {
-      throw Exception(e.message ?? 'Image upload failed');
+      print('❌ Firebase error: ${e.code} - ${e.message}');
+      throw Exception('Firebase error: ${e.code} - ${e.message}');
     } catch (e) {
+      print('❌ Upload error: $e');
       throw Exception('Image upload failed: $e');
     }
   }

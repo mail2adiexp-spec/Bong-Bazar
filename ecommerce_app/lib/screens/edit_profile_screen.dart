@@ -25,6 +25,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   File? _imageFile;
   Uint8List? _imageBytes;
   String? _imageUrl;
+  String? _pickedFileName;
   bool _isLoading = false;
   bool _showPasswordField = false;
 
@@ -60,6 +61,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
       if (pickedFile != null) {
+        _pickedFileName = pickedFile.name;
         if (kIsWeb) {
           // Web: read as bytes
           final bytes = await pickedFile.readAsBytes();
@@ -101,10 +103,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (_passwordController.text.isEmpty) {
           throw Exception('Password required for email change');
         }
-        await auth.updateEmail(
-          email: _emailController.text,
-          password: _passwordController.text,
-        );
+        try {
+          await auth.updateEmail(
+            email: _emailController.text,
+            password: _passwordController.text,
+          );
+        } catch (e) {
+          final msg = e.toString();
+          // If it's the verification info message, show it and continue
+          if (msg.contains('Verification email sent')) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(msg.replaceFirst('Exception: ', ''))),
+              );
+            }
+          } else {
+            rethrow;
+          }
+        }
       }
 
       // Update phone number if changed
@@ -119,6 +135,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         await auth.updateProfileImage(
           imageFile: _imageFile,
           imageBytes: _imageBytes,
+          fileName: _pickedFileName,
         );
       }
 
@@ -126,7 +143,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated successfully!')),
         );
-        Navigator.pop(context);
+        // Defer pop to the next frame to avoid popping during an active frame
+        // which can lead to rendering a disposed view on Flutter Web.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) Navigator.of(context).pop();
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -201,14 +222,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           : _imageUrl != null
                           ? ClipOval(
                               child: Image.network(
-                                _imageUrl!.replaceFirst(
-                                  '.firebasestorage.app',
-                                  '.appspot.com',
-                                ),
+                                _imageUrl!,
                                 width: 120,
                                 height: 120,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) {
+                                  print('🔴 Edit profile image error: $error');
+                                  print('📸 Failed URL: $_imageUrl');
                                   return Text(
                                     _nameController.text.isNotEmpty
                                         ? _nameController.text[0].toUpperCase()
@@ -225,6 +245,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 loadingBuilder:
                                     (context, child, loadingProgress) {
                                       if (loadingProgress == null) {
+                                        print('✅ Edit profile image loaded!');
                                         return child;
                                       }
                                       return const Center(
