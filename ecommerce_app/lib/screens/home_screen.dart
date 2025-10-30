@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/product_model.dart';
+import '../providers/product_provider.dart';
 import '../widgets/product_card.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
@@ -30,65 +31,25 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Sample product data
-  final List<Product> _products = [
-    Product(
-      id: 'p1',
-      name: 'Laptop',
-      description: 'A high-end gaming laptop.',
-      price: 1200.00,
-      imageUrl: 'https://picsum.photos/seed/p1/400/300',
-    ),
-    Product(
-      id: 'p2',
-      name: 'Smartphone',
-      description: 'A latest model smartphone.',
-      price: 800.00,
-      imageUrl: 'https://picsum.photos/seed/p2/400/300',
-    ),
-    Product(
-      id: 'p3',
-      name: 'Headphones',
-      description: 'Noise-cancelling headphones.',
-      price: 150.00,
-      imageUrl: 'https://picsum.photos/seed/p3/400/300',
-    ),
-    Product(
-      id: 'p4',
-      name: 'Keyboard',
-      description: 'A mechanical keyboard.',
-      price: 90.00,
-      imageUrl: 'https://picsum.photos/seed/p4/400/300',
-    ),
-    Product(
-      id: 'p5',
-      name: 'Mouse',
-      description: 'A wireless gaming mouse.',
-      price: 60.00,
-      imageUrl: 'https://picsum.photos/seed/p5/400/300',
-    ),
-    Product(
-      id: 'p6',
-      name: 'Monitor',
-      description: 'A 27-inch 4K monitor.',
-      price: 450.00,
-      imageUrl: 'https://picsum.photos/seed/p6/400/300',
-    ),
-  ];
+  // Selected category filter (null = All)
+  String? _selectedCategory;
 
   @override
   Widget build(BuildContext context) {
-    final filteredProducts = () {
-      final query = _searchController.text;
-      if (query.isEmpty) {
-        return _products;
-      }
-      return _products.where((product) {
-        final lowerQuery = query.toLowerCase();
-        return product.name.toLowerCase().contains(lowerQuery) ||
-            product.description.toLowerCase().contains(lowerQuery);
-      }).toList();
-    }();
+    final productProvider = context.watch<ProductProvider>();
+    List<Product> source = productProvider.products;
+    // Apply category filter
+    if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+      source = source.where((p) => p.category == _selectedCategory).toList();
+    }
+    // Apply search filter
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredProducts = query.isEmpty
+        ? source
+        : source.where((p) {
+            return p.name.toLowerCase().contains(query) ||
+                p.description.toLowerCase().contains(query);
+          }).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -174,8 +135,39 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+          // Category filter chips
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: const Text('All'),
+                    selected: _selectedCategory == null,
+                    onSelected: (_) => setState(() => _selectedCategory = null),
+                  ),
+                ),
+                ...ProductCategory.all.map(
+                  (cat) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(cat),
+                      selected: _selectedCategory == cat,
+                      onSelected: (_) =>
+                          setState(() => _selectedCategory = cat),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           Expanded(
-            child: filteredProducts.isEmpty
+            child: productProvider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : filteredProducts.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -187,7 +179,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No products found',
+                          _selectedCategory == null &&
+                                  _searchController.text.isEmpty
+                              ? 'No products yet'
+                              : 'No products found',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[600],
