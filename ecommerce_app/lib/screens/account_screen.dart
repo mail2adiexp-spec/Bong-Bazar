@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'auth_screen.dart';
 import 'edit_profile_screen.dart';
+import 'admin_panel_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   static const routeName = '/account';
@@ -183,6 +184,19 @@ class AccountScreen extends StatelessWidget {
                                 const SnackBar(
                                   content: Text('Order history coming soon!'),
                                 ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          _buildProfileCard(
+                            context: context,
+                            icon: Icons.admin_panel_settings,
+                            title: 'Admin Panel',
+                            subtitle: 'Manage products and inventory',
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                AdminPanelScreen.routeName,
                               );
                             },
                           ),

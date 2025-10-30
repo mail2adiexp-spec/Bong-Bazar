@@ -1,0 +1,66 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check user role
+    function isAdmin() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isSellerOrAdmin() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'seller'];
+    }
+    
+    // Users collection - users can read/write their own data, admins can read all
+    match /users/{userId} {
+      allow read: if request.auth != null && 
+                    (request.auth.uid == userId || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && 
+                      (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    // Products collection - everyone can read, sellers/admins can write
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isSellerOrAdmin() && 
+                      request.resource.data.keys().hasAll(['name', 'price', 'imageUrl', 'description']) &&
+                      request.resource.data.price is number &&
+                      request.resource.data.price >= 0;
+      allow update: if isSellerOrAdmin();
+      allow delete: if isSellerOrAdmin();
+    }
+    
+    // Orders collection - users can read their own orders, admins can read all
+    match /orders/{orderId} {
+      allow read: if request.auth != null && 
+                    (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Categories collection - everyone can read, only admins can write
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Cart collection - users can manage their own cart
+    match /carts/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Reviews collection - authenticated users can create, authors can update/delete
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+                              (resource.data.userId == request.auth.uid || isAdmin());
+    }
+  }
+}

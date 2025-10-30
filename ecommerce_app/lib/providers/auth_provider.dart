@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -53,6 +54,7 @@ class AuthProvider extends ChangeNotifier {
     required String name,
     required String email,
     required String password,
+    String role = 'seller', // Default role is seller for new signups
   }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
@@ -61,6 +63,21 @@ class AuthProvider extends ChangeNotifier {
       );
       await credential.user?.updateDisplayName(name.trim());
       await credential.user?.reload();
+
+      // Save user to Firestore with role
+      if (credential.user != null) {
+        final firestore = FirebaseFirestore.instance;
+        await firestore.collection('users').doc(credential.user!.uid).set({
+          'id': credential.user!.uid,
+          'email': email.trim(),
+          'name': name.trim(),
+          'role': role,
+          'createdAt': FieldValue.serverTimestamp(),
+          'photoURL': null,
+          'phoneNumber': null,
+        });
+        print('✅ User created in Firestore with role: $role');
+      }
     } on FirebaseAuthException catch (e) {
       if (e.code == 'weak-password') {
         throw Exception('The password provided is too weak');

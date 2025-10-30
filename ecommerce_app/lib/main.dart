@@ -8,9 +8,11 @@ import 'package:ecommerce_app/screens/product_detail_screen.dart';
 import 'package:ecommerce_app/screens/auth_screen.dart';
 import 'package:ecommerce_app/screens/account_screen.dart';
 import 'package:ecommerce_app/screens/edit_profile_screen.dart';
+import 'package:ecommerce_app/screens/admin_panel_screen.dart';
 import 'package:ecommerce_app/models/product_model.dart';
 import 'package:ecommerce_app/providers/cart_provider.dart';
 import 'package:ecommerce_app/providers/auth_provider.dart';
+import 'package:ecommerce_app/providers/product_provider.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -28,6 +30,13 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = ProductProvider();
+            provider.startListening();
+            return provider;
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'E-Commerce App',
@@ -42,6 +51,7 @@ class MyApp extends StatelessWidget {
           AuthScreen.routeName: (ctx) => const AuthScreen(),
           AccountScreen.routeName: (ctx) => const AccountScreen(),
           EditProfileScreen.routeName: (ctx) => const EditProfileScreen(),
+          AdminPanelScreen.routeName: (ctx) => const AdminPanelScreen(),
         },
         // For routes needing arguments
         onGenerateRoute: (settings) {
