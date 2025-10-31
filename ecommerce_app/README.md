@@ -50,6 +50,15 @@ If you see a Flutter SDK not found error on Windows, add Flutter to PATH (Contro
 
 ## Changelog
 
+- v1.3.0
+	- AppBar redesign: user icon left, centered app name, theme toggle + cart on right
+	- Theme mode toggle with persistence via SharedPreferences
+	- Search bar redesign: smaller, rounded, camera capture hook (rear camera)
+	- Categories on Home from Firestore with images and ordering
+	- Admin Panel: Categories tab with add/edit/delete, reorder, and image upload to Storage
+	- Firebase rules guidance for dev (Firestore/Storage) to allow category management
+	- Auth flow: after login/sign-up, returns to Home
+	- UI polish for category grid (card sizing, label outside, larger bold text)
 - v1.2.1
 	- Home wired to Firestore-backed products via ProductProvider
 	- Category filter chips and live search on Home
