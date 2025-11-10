@@ -56,6 +56,7 @@ class ProductCategory {
   static const String dailyNeeds = 'Daily Needs';
   static const String customerChoice = 'Customer Choice';
   static const String hotDeals = 'Hot Deals';
+  static const String gifts = 'Gifts';
   static const String riceAta = 'Rice & Ata';
   static const String cookingOils = 'Cooking Oils';
   static const String fastFood = 'Fast Food';
@@ -66,6 +67,7 @@ class ProductCategory {
     dailyNeeds,
     customerChoice,
     hotDeals,
+    gifts,
     riceAta,
     cookingOils,
     fastFood,

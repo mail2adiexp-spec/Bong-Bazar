@@ -3,64 +3,236 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check user role
+    // ==================== HELPER FUNCTIONS ====================
+    
+    // Helper function to get user role safely
+    function getUserRole() {
+      return request.auth != null && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+    }
+    
+    // Helper function to check if user is admin (5. Admin - all permissions)
     function isAdmin() {
-      return request.auth != null && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth != null && (
+             request.auth.token.email == 'mail2adiexp@gmail.com' ||
+             (getUserRole() != null && getUserRole().role == 'admin')
+      );
     }
     
-    function isSellerOrAdmin() {
+    // Helper function to check if user is seller (2. Seller)
+    function isSeller() {
       return request.auth != null && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'seller'];
+             getUserRole() != null && 
+             getUserRole().role == 'seller';
     }
     
-    // Users collection - users can read/write their own data, admins can read all
+    // Helper function to check if user is service provider (3. Service Provider)
+    function isServiceProvider() {
+      return request.auth != null && 
+             getUserRole() != null && 
+             getUserRole().role == 'service_provider';
+    }
+    
+    // Helper function to check if user is core staff (4. Core Staff)
+    function isCoreStaff() {
+      return request.auth != null && 
+             getUserRole() != null && 
+             getUserRole().role == 'core_staff';
+    }
+    
+    // Helper function to check if user is authenticated (1. User)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ==================== USERS COLLECTION ====================
+    // All roles can read users, only owner/admin can update
     match /users/{userId} {
-      allow read: if request.auth != null && 
-                    (request.auth.uid == userId || isAdmin());
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && 
-                      (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
     
-    // Products collection - everyone can read, sellers/admins can write
+    // ==================== PRODUCTS COLLECTION ====================
+    // Read: Everyone (public)
+    // Write: Seller + Admin
     match /products/{productId} {
       allow read: if true;
-      allow create: if isSellerOrAdmin() && 
+      allow create: if (isSeller() || isAdmin()) && 
                       request.resource.data.keys().hasAll(['name', 'price', 'imageUrl', 'description']) &&
                       request.resource.data.price is number &&
                       request.resource.data.price >= 0;
-      allow update: if isSellerOrAdmin();
-      allow delete: if isSellerOrAdmin();
+      allow update: if isSeller() || isAdmin();
+      allow delete: if isSeller() || isAdmin();
     }
     
-    // Orders collection - users can read their own orders, admins can read all
+    // ==================== ORDERS COLLECTION ====================
+    // Read: Own orders + Seller + Admin
+    // Create: Any authenticated user
+    // Update: Admin (status changes)
     match /orders/{orderId} {
-      allow read: if request.auth != null && 
-                    (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if request.auth != null;
-      allow update: if isAdmin();
+      allow read: if isAuthenticated() && 
+                    (resource.data.userId == request.auth.uid || isSeller() || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isSeller();
       allow delete: if isAdmin();
     }
     
-    // Categories collection - everyone can read, only admins can write
+    // ==================== CATEGORIES COLLECTION ====================
+    // Read: Everyone (public)
+    // Write: Admin + Core Staff
     match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin() || isCoreStaff();
+    }
+    
+    // ==================== SERVICE CATEGORIES COLLECTION ====================
+    // Read: Everyone (public)
+    // Write: Admin only
+    match /service_categories/{categoryId} {
       allow read: if true;
       allow write: if isAdmin();
     }
     
-    // Cart collection - users can manage their own cart
-    match /carts/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // ==================== SERVICES COLLECTION ====================
+    // Read: Everyone (public)
+    // Write: Service Provider + Admin
+    match /services/{serviceId} {
+      allow read: if true;
+      allow create: if isServiceProvider() || isAdmin();
+      allow update: if isServiceProvider() || isAdmin();
+      allow delete: if isServiceProvider() || isAdmin();
     }
     
-    // Reviews collection - authenticated users can create, authors can update/delete
+    // ==================== SERVICE BOOKINGS COLLECTION ====================
+    // Read: Own bookings + Service Provider + Admin
+    // Create: Any authenticated user
+    // Update: Service Provider (status) + Admin
+    match /service_bookings/{bookingId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isServiceProvider() ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isServiceProvider() || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ==================== CART COLLECTION ====================
+    // Read/Write: Only own cart
+    match /carts/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    match /carts/{userId}/items/{itemId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // ==================== WISHLIST COLLECTION ====================
+    // Read/Write: Only own wishlist
+    match /wishlists/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    match /wishlists/{userId}/items/{itemId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // ==================== REVIEWS COLLECTION ====================
+    // Read: Everyone
+    // Create: Authenticated users
+    // Update/Delete: Own review + Admin
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && 
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && 
                               (resource.data.userId == request.auth.uid || isAdmin());
+    }
+    
+    // ==================== FEATURED SECTIONS COLLECTION ====================
+    // Read: Everyone (public)
+    // Write: Admin + Core Staff
+    match /featured_sections/{sectionId} {
+      allow read: if true;
+      allow write: if isAdmin() || isCoreStaff();
+    }
+    
+    // ==================== PARTNER REQUESTS COLLECTION ====================
+    // Read: Own request + Admin
+    // Create: Any authenticated user
+    // Update/Delete: Admin only
+    match /partner_requests/{requestId} {
+      allow read: if isAuthenticated() && (
+        resource.data.email == request.auth.token.email ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ==================== PENDING SELLERS COLLECTION ====================
+    // Read: Own request + Admin
+    // Create: Authenticated users
+    // Update/Delete: Admin only
+    match /pending_sellers/{sellerId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ==================== NOTIFICATIONS COLLECTION ====================
+    // Read: Own notifications
+    // Create: Sellers, Service Providers, Core Staff, Admin
+    // Update/Delete: Own notification + Admin
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAdmin() || isSeller() || isServiceProvider() || isCoreStaff();
+      allow update, delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // ==================== BANNERS/PROMOTIONS COLLECTION ====================
+    // Read: Everyone (public)
+    // Write: Admin + Core Staff
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isAdmin() || isCoreStaff();
+    }
+    
+    match /promotions/{promotionId} {
+      allow read: if true;
+      allow write: if isAdmin() || isCoreStaff();
+    }
+    
+    // ==================== ANALYTICS/REPORTS COLLECTION ====================
+    // Read/Write: Admin + Core Staff only
+    match /analytics/{documentId} {
+      allow read, write: if isAdmin() || isCoreStaff();
+    }
+    
+    match /reports/{reportId} {
+      allow read, write: if isAdmin() || isCoreStaff();
+    }
+    
+    // ==================== ADMIN FALLBACK ====================
+    // 5. Admin gets full access to everything
+    match /{document=**} {
+      allow read, write: if isAdmin();
     }
   }
 }

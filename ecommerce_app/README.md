@@ -11,11 +11,14 @@ A Flutter e-commerce app with Firebase integration: realtime product catalog fro
 - Add to Cart from product cards or details
 - Cart screen with quantity controls (+/−), remove item, and total amount
 - Checkout screen with basic address fields and “Place Order” flow (clears cart)
+- Role-based dashboards (Seller, Service Provider, etc.)
+- Partner request flow with service category assignment
+- Admin user management: edit, role change, delete (Cloud Function + Firestore fallback)
 
 ## Tech
 
 - Flutter (Material 3)
-- Firebase (Core, Auth, Firestore, Storage)
+- Firebase (Core, Auth, Firestore, Storage, optional Cloud Functions)
 - Provider for app state (`CartProvider`, `ProductProvider`) with SharedPreferences persistence
 
 ## Run locally
@@ -36,6 +39,70 @@ flutter test
 
 If you see a Flutter SDK not found error on Windows, add Flutter to PATH (Control Panel → System → Advanced System Settings → Environment Variables) and restart your terminal.
 
+## Cloud Functions (optional advanced setup)
+
+To enable full user deletion (Auth + Firestore) and secure role updates, deploy the callable functions in `functions/index.js`.
+
+### 1. Prerequisites
+Install Node.js (>= 18), Firebase CLI, and authenticate:
+```powershell
+npm install -g firebase-tools
+firebase login
+```
+
+### 2. Initialize (if needed)
+If the `functions/` folder wasn't created by `firebase init`:
+```powershell
+firebase init functions
+```
+Choose JavaScript and keep existing `index.js` (do not overwrite).
+
+### 3. Set project & region
+```powershell
+firebase use your-project-id
+```
+Default region assumed: `us-central1`. If you deploy elsewhere, update the region in `admin_panel_screen.dart`.
+
+### 4. Deploy
+```powershell
+firebase deploy --only functions:deleteUserAccount,functions:updateUserRole
+```
+
+### 5. Test via shell
+```powershell
+firebase functions:shell
+```
+Then:
+```
+deleteUserAccount({ userId: "UID", email: "user@example.com" })
+```
+
+### 6. Refresh custom claims
+After role change to admin:
+```dart
+await FirebaseAuth.instance.currentUser?.getIdToken(true);
+```
+
+### 7. Fallback behavior
+If the callable fails (UNIMPLEMENTED / permission / region mismatch), the app deletes Firestore documents only, leaving the Auth record.
+
+### 8. Emulator (optional)
+```powershell
+firebase emulators:start --only functions,firestore,auth
+```
+
+### 9. Common errors
+| Error | Cause | Fix |
+|-------|-------|-----|
+| UNIMPLEMENTED | Wrong region / not deployed | Deploy & match region |
+| permission-denied | Missing admin claim | Assign role + refresh token |
+| deadline-exceeded | Slow queries | Optimize / increase timeout |
+
+### 10. Redeploy after changes
+```powershell
+firebase deploy --only functions
+```
+
 ## Project structure
 
 - `lib/models/product_model.dart` – Product data model (multi-image, categories, unit)
@@ -47,8 +114,14 @@ If you see a Flutter SDK not found error on Windows, add Flutter to PATH (Contro
 - `lib/screens/cart_screen.dart` – Cart list, qty controls, total
 - `lib/screens/checkout_screen.dart` – Checkout summary and place order
  - `lib/screens/admin_panel_screen.dart` – Admin Panel to add/edit products
+ - `functions/index.js` – Callable Cloud Functions for privileged user deletion & role updates
 
 ## Changelog
+
+- v1.3.5
+	- Admin: User delete flow now tries Cloud Function (Auth + Firestore) with automatic Firestore-only fallback when Functions are unavailable (desktop/dev).
+	- Cloud Functions region fixed to `us-central1` in app call to avoid UNIMPLEMENTED errors.
+	- Docs: Added complete Cloud Functions setup, deploy, and troubleshooting guide.
 
 - v1.3.0
 	- AppBar redesign: user icon left, centered app name, theme toggle + cart on right

@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../providers/auth_provider.dart';
 import 'auth_screen.dart';
 import 'edit_profile_screen.dart';
 import 'admin_panel_screen.dart';
+import 'seller_dashboard_screen.dart';
+import 'service_provider_dashboard_screen.dart';
 
-class AccountScreen extends StatelessWidget {
+class AccountScreen extends StatefulWidget {
   static const routeName = '/account';
   const AccountScreen({super.key});
 
+  @override
+  State<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends State<AccountScreen> {
   Widget _buildNetworkAvatar(
     String imageUrl,
     String fallbackInitial,
     BuildContext context,
   ) {
-    print('🖼️ Building avatar for URL: $imageUrl');
     return ClipOval(
       child: Image.network(
         imageUrl,
@@ -67,250 +74,500 @@ class AccountScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
-      builder: (_, auth, __) => Scaffold(
-        appBar: AppBar(title: const Text('My Profile'), elevation: 0),
-        body: auth.isLoggedIn
-            ? SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // Header with gradient
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Theme.of(context).colorScheme.primary,
-                            Theme.of(context).colorScheme.primaryContainer,
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+      builder: (_, auth, __) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('My Profile'), elevation: 0),
+          body: auth.isLoggedIn
+              ? SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // Header with gradient
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Theme.of(context).colorScheme.primary,
+                              Theme.of(context).colorScheme.primaryContainer,
+                            ],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
                         ),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 40),
-                      child: Column(
-                        children: [
-                          // Avatar with error handling
-                          CircleAvatar(
-                            radius: 50,
-                            key: ValueKey(auth.currentUser!.photoURL),
-                            backgroundColor: Colors.white,
-                            child: auth.currentUser!.photoURL != null
-                                ? _buildNetworkAvatar(
-                                    auth.currentUser!.photoURL!,
-                                    auth.currentUser!.name.isNotEmpty
-                                        ? auth.currentUser!.name[0]
-                                              .toUpperCase()
-                                        : 'U',
-                                    context,
-                                  )
-                                : Text(
-                                    auth.currentUser!.name.isNotEmpty
-                                        ? auth.currentUser!.name[0]
-                                              .toUpperCase()
-                                        : 'U',
-                                    style: TextStyle(
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 40),
+                        child: Column(
+                          children: [
+                            // Avatar with error handling
+                            CircleAvatar(
+                              radius: 50,
+                              key: ValueKey(auth.currentUser!.photoURL),
+                              backgroundColor: Colors.white,
+                              child: auth.currentUser!.photoURL != null
+                                  ? _buildNetworkAvatar(
+                                      auth.currentUser!.photoURL!,
+                                      auth.currentUser!.name.isNotEmpty
+                                          ? auth.currentUser!.name[0]
+                                                .toUpperCase()
+                                          : 'U',
+                                      context,
+                                    )
+                                  : Text(
+                                      auth.currentUser!.name.isNotEmpty
+                                          ? auth.currentUser!.name[0]
+                                                .toUpperCase()
+                                          : 'U',
+                                      style: TextStyle(
+                                        fontSize: 36,
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                      ),
                                     ),
-                                  ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            auth.currentUser!.name,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            auth.currentUser!.email,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white.withOpacity(0.9),
+                            const SizedBox(height: 16),
+                            Text(
+                              auth.currentUser!.name,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          if (auth.currentUser!.phoneNumber != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              auth.currentUser!.phoneNumber!,
+                              auth.currentUser!.email,
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.white.withOpacity(0.9),
                               ),
                             ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    // Profile Options
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          _buildProfileCard(
-                            context: context,
-                            icon: Icons.person_outline,
-                            title: 'Edit Profile',
-                            subtitle: 'Update your name, email, phone & image',
-                            onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                EditProfileScreen.routeName,
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _buildProfileCard(
-                            context: context,
-                            icon: Icons.email_outlined,
-                            title: 'Email',
-                            subtitle: auth.currentUser!.email,
-                            onTap: null,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildProfileCard(
-                            context: context,
-                            icon: Icons.shopping_bag_outlined,
-                            title: 'My Orders',
-                            subtitle: 'View your order history',
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Order history coming soon!'),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _buildProfileCard(
-                            context: context,
-                            icon: Icons.admin_panel_settings,
-                            title: 'Admin Panel',
-                            subtitle: 'Manage products and inventory',
-                            onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                AdminPanelScreen.routeName,
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _buildProfileCard(
-                            context: context,
-                            icon: Icons.favorite_outline,
-                            title: 'Wishlist',
-                            subtitle: 'Your favorite products',
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Wishlist coming soon!'),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 32),
-                          // Sign Out Button
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Sign Out'),
-                                    content: const Text(
-                                      'Are you sure you want to sign out?',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, true),
-                                        child: const Text('Sign Out'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  await context.read<AuthProvider>().signOut();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Signed out successfully'),
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: const Icon(Icons.logout),
-                              label: const Text('Sign Out'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                                side: const BorderSide(color: Colors.red),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
+                            if (auth.currentUser!.phoneNumber != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                auth.currentUser!.phoneNumber!,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white.withOpacity(0.9),
                                 ),
                               ),
-                            ),
-                          ),
-                        ],
+                            ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              )
-            : Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.account_circle_outlined,
-                        size: 100,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'You are not signed in',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
+                      const SizedBox(height: 20),
+                      // Pending Partner Request Banner (Hindi)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('partner_requests')
+                              .where(
+                                'email',
+                                isEqualTo: auth.currentUser!.email,
+                              )
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const SizedBox.shrink();
+                            }
+                            if (snapshot.hasError || !snapshot.hasData) {
+                              return const SizedBox.shrink();
+                            }
+                            final docs = snapshot.data!.docs;
+                            if (docs.isEmpty) return const SizedBox.shrink();
+
+                            // Check if any request is still pending
+                            final hasPending = docs.any((d) {
+                              final data = d.data() as Map<String, dynamic>;
+                              return (data['status'] ?? 'pending') == 'pending';
+                            });
+
+                            if (!hasPending) return const SizedBox.shrink();
+
+                            return Card(
+                              color: Colors.orange.shade50,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.orange.shade100,
+                                  child: const Icon(
+                                    Icons.hourglass_top,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                                title: const Text(
+                                  'Partner Request Pending',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: const Text(
+                                  'Aapka Partner Request abhi pending hai. Kripya approval ka intezaar karein. ✅',
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        'Sign in to access your profile, orders, and more',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pushNamed(context, AuthScreen.routeName);
-                        },
-                        icon: const Icon(Icons.login),
-                        label: const Text('Sign In / Sign Up'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 16,
-                          ),
+                      // Profile Options
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            _buildProfileCard(
+                              context: context,
+                              icon: Icons.person_outline,
+                              title: 'Edit Profile',
+                              subtitle:
+                                  'Update your name, email, phone & image',
+                              onTap: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  EditProfileScreen.routeName,
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            _buildProfileCard(
+                              context: context,
+                              icon: Icons.email_outlined,
+                              title: 'Email',
+                              subtitle: auth.currentUser!.email,
+                              onTap: null,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildProfileCard(
+                              context: context,
+                              icon: Icons.shopping_bag_outlined,
+                              title: 'My Orders',
+                              subtitle: 'View your order history',
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Order history coming soon!'),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Service Provider Dashboard - Only for service_provider role
+                            if (auth.currentUser?.role == 'service_provider')
+                              Column(
+                                children: [
+                                  _buildProfileCard(
+                                    context: context,
+                                    icon: Icons.work_outline,
+                                    title: 'Service Provider Dashboard',
+                                    subtitle:
+                                        'View your service requests and status',
+                                    onTap: () {
+                                      Navigator.pushNamed(
+                                        context,
+                                        ServiceProviderDashboardScreen
+                                            .routeName,
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+
+                            // Seller Dashboard - Only for seller role
+                            if (auth.currentUser?.role == 'seller')
+                              Column(
+                                children: [
+                                  _buildProfileCard(
+                                    context: context,
+                                    icon: Icons.dashboard,
+                                    title: 'Seller Dashboard',
+                                    subtitle: 'Manage your products and sales',
+                                    onTap: () {
+                                      Navigator.pushNamed(
+                                        context,
+                                        SellerDashboardScreen.routeName,
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+
+                            // Core Staff Dashboard
+                            if (auth.isCoreStaff)
+                              Column(
+                                children: [
+                                  _buildProfileCard(
+                                    context: context,
+                                    icon: Icons.people_alt_outlined,
+                                    title: 'Core Staff Dashboard',
+                                    subtitle: 'Manage core operations',
+                                    onTap: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Core Staff Dashboard - Coming Soon',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+
+                            // Administrator Dashboard
+                            if (auth.isAdministrator)
+                              Column(
+                                children: [
+                                  _buildProfileCard(
+                                    context: context,
+                                    icon: Icons.admin_panel_settings,
+                                    title: 'Administrator Dashboard',
+                                    subtitle: 'Full system administration',
+                                    onTap: () {
+                                      Navigator.pushNamed(
+                                        context,
+                                        AdminPanelScreen.routeName,
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+
+                            // Store Manager Dashboard
+                            if (auth.isStoreManager)
+                              Column(
+                                children: [
+                                  _buildProfileCard(
+                                    context: context,
+                                    icon: Icons.store_outlined,
+                                    title: 'Store Manager Dashboard',
+                                    subtitle:
+                                        'Manage store inventory and staff',
+                                    onTap: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Store Manager Dashboard - Coming Soon',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+
+                            // Manager Dashboard
+                            if (auth.isManager)
+                              Column(
+                                children: [
+                                  _buildProfileCard(
+                                    context: context,
+                                    icon: Icons.manage_accounts_outlined,
+                                    title: 'Manager Dashboard',
+                                    subtitle: 'Manage team and operations',
+                                    onTap: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Manager Dashboard - Coming Soon',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+
+                            // Delivery Partner Dashboard
+                            if (auth.isDeliveryPartner)
+                              Column(
+                                children: [
+                                  _buildProfileCard(
+                                    context: context,
+                                    icon: Icons.delivery_dining_outlined,
+                                    title: 'Delivery Partner Dashboard',
+                                    subtitle: 'View and manage deliveries',
+                                    onTap: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Delivery Dashboard - Coming Soon',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+
+                            // Customer Care Dashboard
+                            if (auth.isCustomerCare)
+                              Column(
+                                children: [
+                                  _buildProfileCard(
+                                    context: context,
+                                    icon: Icons.support_agent_outlined,
+                                    title: 'Customer Care Dashboard',
+                                    subtitle: 'Handle customer queries',
+                                    onTap: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Customer Care Dashboard - Coming Soon',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+
+                            // Admin Panel (legacy - only for old admin flag)
+                            if (auth.isAdmin && !auth.isAdministrator)
+                              Column(
+                                children: [
+                                  _buildProfileCard(
+                                    context: context,
+                                    icon: Icons.admin_panel_settings,
+                                    title: 'Admin Panel',
+                                    subtitle: 'Manage products and inventory',
+                                    onTap: () {
+                                      Navigator.pushNamed(
+                                        context,
+                                        AdminPanelScreen.routeName,
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+
+                            const SizedBox(height: 20),
+                            // Sign Out Button
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Sign Out'),
+                                      content: const Text(
+                                        'Are you sure you want to sign out?',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, true),
+                                          child: const Text('Sign Out'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true && mounted) {
+                                    await context
+                                        .read<AuthProvider>()
+                                        .signOut();
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Signed out successfully',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                icon: const Icon(Icons.logout),
+                                label: const Text('Sign Out'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                  side: const BorderSide(color: Colors.red),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
+                )
+              : Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.account_circle_outlined,
+                          size: 100,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'You are not signed in',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Sign in to access your profile, orders, and more',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pushNamed(context, AuthScreen.routeName);
+                          },
+                          icon: const Icon(Icons.login),
+                          label: const Text('Sign In / Sign Up'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-      ),
+        );
+      },
     );
   }
 

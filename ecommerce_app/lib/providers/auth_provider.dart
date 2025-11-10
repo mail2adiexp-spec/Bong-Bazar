@@ -5,23 +5,42 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
+// Role constants
+class UserRole {
+  static const String user = 'user';
+  static const String seller = 'seller';
+  static const String serviceProvider = 'service_provider';
+  static const String coreStaff = 'core_staff';
+  static const String administrator = 'administrator';
+  static const String storeManager = 'store_manager';
+  static const String manager = 'manager';
+  static const String deliveryPartner = 'delivery_partner';
+  static const String customerCare = 'customer_care';
+}
+
 class AppUser {
   final String email;
   final String name;
   final String? phoneNumber;
   final String? photoURL;
+  final String? role;
 
   AppUser({
     required this.email,
     required this.name,
     this.phoneNumber,
     this.photoURL,
+    this.role,
   });
 }
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   AppUser? _currentUser;
+  bool _isAdmin = false;
+
+  // Simple fallback allowlist for admin emails (requested)
+  static const Set<String> _adminEmails = {'mail2adiexp@gmail.com'};
 
   AuthProvider() {
     _auth.authStateChanges().listen(_onAuthStateChanged);
@@ -29,11 +48,69 @@ class AuthProvider extends ChangeNotifier {
 
   AppUser? get currentUser => _currentUser;
   bool get isLoggedIn => _currentUser != null;
+  bool get isAdmin => _isAdmin;
 
-  void _onAuthStateChanged(User? firebaseUser) {
+  bool get isSeller {
+    if (_currentUser == null) return false;
+    final role = _currentUser!.role ?? UserRole.user;
+    return role == UserRole.seller || _isAdmin;
+  }
+
+  bool get isServiceProvider {
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.serviceProvider;
+  }
+
+  bool get isCoreStaff {
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.coreStaff;
+  }
+
+  bool get isAdministrator {
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.administrator || _isAdmin;
+  }
+
+  bool get isStoreManager {
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.storeManager;
+  }
+
+  bool get isManager {
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.manager;
+  }
+
+  bool get isDeliveryPartner {
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.deliveryPartner;
+  }
+
+  bool get isCustomerCare {
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.customerCare;
+  }
+
+  void _onAuthStateChanged(User? firebaseUser) async {
     if (firebaseUser != null) {
       print('🔄 Auth state changed for user: ${firebaseUser.uid}');
       print('📸 PhotoURL: ${firebaseUser.photoURL}');
+
+      // Fetch user role from Firestore
+      String userRole = 'user';
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .get();
+        if (userDoc.exists) {
+          final data = userDoc.data() ?? {};
+          userRole = data['role'] ?? 'user';
+        }
+      } catch (e) {
+        print('ℹ️ Could not read user role: $e');
+      }
+
       _currentUser = AppUser(
         email: firebaseUser.email ?? '',
         name:
@@ -42,10 +119,56 @@ class AuthProvider extends ChangeNotifier {
             'User',
         phoneNumber: firebaseUser.phoneNumber,
         photoURL: firebaseUser.photoURL,
+        role: userRole,
       );
-      print('✅ Current user updated with photoURL: ${_currentUser?.photoURL}');
+      print(
+        '✅ Current user updated with photoURL: ${_currentUser?.photoURL} and role: $userRole',
+      );
+
+      try {
+        // 1) Check custom claims
+        final token = await firebaseUser.getIdTokenResult(true);
+        final claims = token.claims ?? {};
+        bool hasAdminClaim = claims['admin'] == true;
+
+        // 2) Also check Firestore users/{uid}.role == 'admin'
+        bool hasAdminRole = false;
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(firebaseUser.uid)
+              .get();
+          if (userDoc.exists) {
+            final data = userDoc.data() ?? {};
+            hasAdminRole = (data['role'] == 'admin');
+          }
+        } catch (e) {
+          // Non-fatal: just log
+          print('ℹ️ Could not read Firestore user role: $e');
+        }
+
+        // 3) Fallback: allowlist by email
+        final email = (firebaseUser.email ?? '').toLowerCase().trim();
+        final bool hasAdminEmail = _adminEmails.contains(email);
+
+        _isAdmin = hasAdminClaim || hasAdminRole || hasAdminEmail;
+        print(
+          '👑 Admin resolved | claim=' +
+              hasAdminClaim.toString() +
+              ' role=' +
+              hasAdminRole.toString() +
+              ' email=' +
+              hasAdminEmail.toString() +
+              ' => isAdmin=' +
+              _isAdmin.toString(),
+        );
+      } catch (e) {
+        print('⚠️ Failed to determine admin status: $e');
+        _isAdmin = false;
+      }
     } else {
       _currentUser = null;
+      _isAdmin = false;
     }
     notifyListeners();
   }
@@ -54,7 +177,7 @@ class AuthProvider extends ChangeNotifier {
     required String name,
     required String email,
     required String password,
-    String role = 'seller', // Default role is seller for new signups
+    String role = 'user', // Default role should be plain user until approved
   }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
@@ -64,7 +187,7 @@ class AuthProvider extends ChangeNotifier {
       await credential.user?.updateDisplayName(name.trim());
       await credential.user?.reload();
 
-      // Save user to Firestore with role
+      // Save user to Firestore with role (default user)
       if (credential.user != null) {
         final firestore = FirebaseFirestore.instance;
         await firestore.collection('users').doc(credential.user!.uid).set({
@@ -144,8 +267,12 @@ class AuthProvider extends ChangeNotifier {
       );
       await user.reauthenticateWithCredential(credential);
 
-      // Update email
+      // Update email in Firebase Auth
       await user.verifyBeforeUpdateEmail(email.trim());
+      // Also update in Firestore
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+        {'email': email.trim()},
+      );
       throw Exception(
         'Verification email sent. Please check your new email and verify it.',
       );
@@ -167,16 +294,9 @@ class AuthProvider extends ChangeNotifier {
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('No user signed in');
-
-      // Note: Phone number verification requires SMS and platform-specific setup
-      // For now, we'll store it in display name or use a custom solution
-      // In production, use Firebase Phone Auth with proper verification
-
-      // Since Firebase Auth doesn't directly support phone number updates without verification,
-      // we'll need to implement this via Firestore or another database
-      // For this demo, we'll throw a message
-      throw Exception(
-        'Phone number update requires additional setup. Coming soon!',
+      // Update phone number in Firestore only
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+        {'phoneNumber': phoneNumber.trim()},
       );
     } catch (e) {
       throw Exception(e.toString().replaceFirst('Exception: ', ''));

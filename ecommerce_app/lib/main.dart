@@ -1,24 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:ecommerce_app/screens/home_screen.dart';
+import 'package:ecommerce_app/screens/main_navigation_screen.dart';
 import 'package:ecommerce_app/screens/cart_screen.dart';
 import 'package:ecommerce_app/screens/checkout_screen.dart';
 import 'package:ecommerce_app/screens/product_detail_screen.dart';
+import 'package:ecommerce_app/screens/category_products_screen.dart';
 import 'package:ecommerce_app/screens/auth_screen.dart';
 import 'package:ecommerce_app/screens/account_screen.dart';
 import 'package:ecommerce_app/screens/edit_profile_screen.dart';
 import 'package:ecommerce_app/screens/admin_panel_screen.dart';
+import 'package:ecommerce_app/screens/join_partner_screen.dart';
+import 'package:ecommerce_app/screens/check_partner_status_screen.dart';
+import 'package:ecommerce_app/screens/seller_dashboard_screen.dart';
+import 'package:ecommerce_app/screens/book_service_screen.dart';
+import 'package:ecommerce_app/screens/service_provider_dashboard_screen.dart';
 import 'package:ecommerce_app/models/product_model.dart';
 import 'package:ecommerce_app/providers/cart_provider.dart';
 import 'package:ecommerce_app/providers/auth_provider.dart';
 import 'package:ecommerce_app/providers/product_provider.dart';
+import 'package:ecommerce_app/providers/theme_provider.dart';
+import 'package:ecommerce_app/providers/category_provider.dart';
+import 'package:ecommerce_app/providers/service_category_provider.dart';
+import 'package:ecommerce_app/providers/featured_section_provider.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
+}
+
+// Custom scroll behavior to remove hover effects
+class NoHoverScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+  };
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    // Don't show scrollbars
+    return child;
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -30,6 +60,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(
           create: (_) {
             final provider = ProductProvider();
@@ -37,33 +68,143 @@ class MyApp extends StatelessWidget {
             return provider;
           },
         ),
-      ],
-      child: MaterialApp(
-        title: 'E-Commerce App',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = CategoryProvider();
+            provider.startListening();
+            return provider;
+          },
         ),
-        home: const HomeScreen(),
-        routes: {
-          CartScreen.routeName: (_) => const CartScreen(),
-          CheckoutScreen.routeName: (_) => const CheckoutScreen(),
-          AuthScreen.routeName: (ctx) => const AuthScreen(),
-          AccountScreen.routeName: (ctx) => const AccountScreen(),
-          EditProfileScreen.routeName: (ctx) => const EditProfileScreen(),
-          AdminPanelScreen.routeName: (ctx) => const AdminPanelScreen(),
-        },
-        // For routes needing arguments
-        onGenerateRoute: (settings) {
-          if (settings.name == ProductDetailScreen.routeName) {
-            final product = settings.arguments as Product;
-            return MaterialPageRoute(
-              builder: (_) => ProductDetailScreen(product: product),
-            );
-          }
-          return null;
+        // ServiceCategoryProvider enabled (may have permission issues - check Firebase Console)
+        ChangeNotifierProvider(create: (_) => ServiceCategoryProvider()),
+        // FeaturedSectionProvider enabled
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = FeaturedSectionProvider();
+            provider.fetchSections();
+            return provider;
+          },
+        ),
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          return MaterialApp(
+            title: 'E-Commerce App',
+            themeMode: themeProvider.themeMode,
+            scrollBehavior: NoHoverScrollBehavior(),
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+              useMaterial3: true,
+              hoverColor: Colors.transparent,
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              splashFactory: NoSplash.splashFactory,
+              iconButtonTheme: const IconButtonThemeData(
+                style: ButtonStyle(
+                  overlayColor: MaterialStatePropertyAll(Colors.transparent),
+                ),
+              ),
+            ),
+            darkTheme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.deepPurple,
+                brightness: Brightness.dark,
+              ),
+              useMaterial3: true,
+              hoverColor: Colors.transparent,
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              splashFactory: NoSplash.splashFactory,
+              iconButtonTheme: const IconButtonThemeData(
+                style: ButtonStyle(
+                  overlayColor: MaterialStatePropertyAll(Colors.transparent),
+                ),
+              ),
+            ),
+            home: const MainNavigationScreen(),
+            routes: {
+              CartScreen.routeName: (_) => const CartScreen(),
+              CheckoutScreen.routeName: (_) => const CheckoutScreen(),
+              CategoryProductsScreen.routeName: (_) =>
+                  const CategoryProductsScreen(),
+              AuthScreen.routeName: (ctx) => const AuthScreen(),
+              AccountScreen.routeName: (ctx) => const AccountScreen(),
+              EditProfileScreen.routeName: (ctx) => const EditProfileScreen(),
+              AdminPanelScreen.routeName: (ctx) => const _AdminPanelGuard(),
+              JoinPartnerScreen.routeName: (ctx) => const JoinPartnerScreen(),
+              CheckPartnerStatusScreen.routeName: (ctx) =>
+                  const CheckPartnerStatusScreen(),
+              SellerDashboardScreen.routeName: (ctx) =>
+                  const SellerDashboardScreen(),
+              ServiceProviderDashboardScreen.routeName: (ctx) =>
+                  const ServiceProviderDashboardScreen(),
+              // BookServiceScreen removed from routes - handled in onGenerateRoute
+            },
+            // For routes needing arguments
+            onGenerateRoute: (settings) {
+              if (settings.name == ProductDetailScreen.routeName) {
+                final product = settings.arguments as Product;
+                return MaterialPageRoute(
+                  builder: (_) => ProductDetailScreen(product: product),
+                );
+              }
+              if (settings.name == BookServiceScreen.routeName) {
+                final args = settings.arguments as Map<String, dynamic>?;
+
+                if (args != null) {
+                  return MaterialPageRoute(
+                    builder: (_) => BookServiceScreen(
+                      serviceName: args['serviceName'] as String? ?? '',
+                      providerName: args['providerName'] as String? ?? '',
+                      providerImage: args['providerImage'] as String?,
+                    ),
+                  );
+                }
+              }
+              return null;
+            },
+          );
         },
       ),
     );
+  }
+}
+
+// Route-level guard to ensure only admins can open Admin Panel
+class _AdminPanelGuard extends StatelessWidget {
+  const _AdminPanelGuard();
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: true);
+
+    // Not logged in: show Auth screen
+    if (!auth.isLoggedIn) {
+      // Optionally, you could pushNamed(AuthScreen.routeName) instead
+      return const AuthScreen();
+    }
+
+    // Logged in but not admin: block access
+    if (!auth.isAdmin) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Access denied: Admins only'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+
+      return Scaffold(
+        appBar: AppBar(title: const Text('Admin Panel')),
+        body: const Center(child: Text('Access denied: Admins only')),
+      );
+    }
+
+    // Admin: proceed
+    return const AdminPanelScreen();
   }
 }

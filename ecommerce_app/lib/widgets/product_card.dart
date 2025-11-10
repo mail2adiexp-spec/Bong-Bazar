@@ -7,8 +7,9 @@ import '../utils/currency.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
+  final String? heroTagPrefix;
 
-  const ProductCard({super.key, required this.product});
+  const ProductCard({super.key, required this.product, this.heroTagPrefix});
 
   @override
   Widget build(BuildContext context) {
@@ -35,9 +36,11 @@ class ProductCard extends StatelessWidget {
                   topRight: Radius.circular(10.0),
                 ),
                 child: Hero(
-                  tag: 'product-image-${product.id}',
+                  tag: '${heroTagPrefix ?? ''}product-image-${product.id}',
                   child: Image.network(
-                    product.imageUrl,
+                    (product.imageUrls != null && product.imageUrls!.isNotEmpty)
+                        ? product.imageUrls!.first
+                        : product.imageUrl,
                     fit: BoxFit.cover,
                     // Basic error handling for images
                     errorBuilder: (context, error, stackTrace) {
@@ -68,7 +71,7 @@ class ProductCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Text(
-                formatINR(product.price),
+                _formatPriceWithUnit(product),
                 style: TextStyle(fontSize: 14.0, color: Colors.grey[800]),
               ),
             ),
@@ -93,4 +96,10 @@ class ProductCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatPriceWithUnit(Product p) {
+  final price = formatINR(p.price);
+  if (p.unit == null || p.unit!.isEmpty) return price;
+  return '$price / ${p.unit}';
 }

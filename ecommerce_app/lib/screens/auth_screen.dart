@@ -38,7 +38,8 @@ class _AuthScreenState extends State<AuthScreen>
       if (redirect != null && redirect.isNotEmpty) {
         Navigator.pushReplacementNamed(context, redirect);
       } else {
-        Navigator.of(context).pop();
+        // Pop all routes and go to Home (root)
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     });
   }
