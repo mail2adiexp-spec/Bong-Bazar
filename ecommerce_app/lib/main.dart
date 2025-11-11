@@ -24,6 +24,7 @@ import 'package:ecommerce_app/providers/theme_provider.dart';
 import 'package:ecommerce_app/providers/category_provider.dart';
 import 'package:ecommerce_app/providers/service_category_provider.dart';
 import 'package:ecommerce_app/providers/featured_section_provider.dart';
+import 'package:ecommerce_app/providers/gift_provider.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -75,8 +76,22 @@ class MyApp extends StatelessWidget {
             return provider;
           },
         ),
-        // ServiceCategoryProvider enabled (may have permission issues - check Firebase Console)
-        ChangeNotifierProvider(create: (_) => ServiceCategoryProvider()),
+        // GiftProvider for managing gift items
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = GiftProvider();
+            provider.startListening();
+            return provider;
+          },
+        ),
+        // ServiceCategoryProvider with realtime listener
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = ServiceCategoryProvider();
+            provider.startListening();
+            return provider;
+          },
+        ),
         // FeaturedSectionProvider enabled
         ChangeNotifierProvider(
           create: (_) {
@@ -101,7 +116,7 @@ class MyApp extends StatelessWidget {
               splashFactory: NoSplash.splashFactory,
               iconButtonTheme: const IconButtonThemeData(
                 style: ButtonStyle(
-                  overlayColor: MaterialStatePropertyAll(Colors.transparent),
+                  overlayColor: WidgetStatePropertyAll(Colors.transparent),
                 ),
               ),
             ),
@@ -117,7 +132,7 @@ class MyApp extends StatelessWidget {
               splashFactory: NoSplash.splashFactory,
               iconButtonTheme: const IconButtonThemeData(
                 style: ButtonStyle(
-                  overlayColor: MaterialStatePropertyAll(Colors.transparent),
+                  overlayColor: WidgetStatePropertyAll(Colors.transparent),
                 ),
               ),
             ),
@@ -157,6 +172,7 @@ class MyApp extends StatelessWidget {
                       serviceName: args['serviceName'] as String? ?? '',
                       providerName: args['providerName'] as String? ?? '',
                       providerImage: args['providerImage'] as String?,
+                      minCharge: (args['minCharge'] as num?)?.toDouble() ?? 0.0,
                     ),
                   );
                 }

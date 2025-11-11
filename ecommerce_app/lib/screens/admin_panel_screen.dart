@@ -12,10 +12,12 @@ import '../models/category_model.dart';
 import '../models/service_category_model.dart';
 import '../models/featured_section_model.dart';
 import '../models/partner_request_model.dart';
+import '../models/gift_model.dart';
 import '../providers/product_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/service_category_provider.dart';
 import '../providers/featured_section_provider.dart';
+import '../providers/gift_provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -38,6 +40,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'Featured Sections',
     'Partner Requests',
     'Users',
+    'Gifts',
   ];
 
   final List<IconData> _menuIcons = [
@@ -47,6 +50,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     Icons.star,
     Icons.people_outline,
     Icons.person,
+    Icons.card_giftcard,
   ];
 
   void _showAddProductDialog() {
@@ -1055,10 +1059,640 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 _buildFeaturedSectionsTab(isAdmin: isAdmin),
                 _buildPartnerRequestsTab(),
                 _buildUsersTab(),
+                _buildGiftsTab(),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGiftsTab() {
+    return Consumer<GiftProvider>(
+      builder: (context, giftProvider, _) {
+        final gifts = giftProvider.gifts;
+        return Column(
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primary,
+                    Theme.of(context).colorScheme.primaryContainer,
+                  ],
+                ),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.card_giftcard, size: 48, color: Colors.white),
+                  SizedBox(height: 8),
+                  Text(
+                    'Gift Management',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Count + Add button
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total Gifts: ${gifts.length}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => _showAddOrEditGiftDialog(context),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Gift'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Gifts list
+            Expanded(
+              child: giftProvider.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : gifts.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.card_giftcard,
+                            size: 80,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No gifts yet',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Add a gift item to get started!',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: gifts.length,
+                      itemBuilder: (ctx, index) {
+                        final gift = gifts[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 2,
+                          child: ListTile(
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: gift.imageUrl != null
+                                  ? Image.network(
+                                      gift.imageUrl!,
+                                      width: 60,
+                                      height: 60,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c, e, s) => Container(
+                                        width: 60,
+                                        height: 60,
+                                        color: Colors.grey[300],
+                                        child: const Icon(
+                                          Icons.image_not_supported,
+                                        ),
+                                      ),
+                                    )
+                                  : Container(
+                                      width: 60,
+                                      height: 60,
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.card_giftcard),
+                                    ),
+                            ),
+                            title: Text(
+                              gift.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('₹${gift.price.toStringAsFixed(2)}'),
+                                Row(
+                                  children: [
+                                    const Text('Active:'),
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      gift.isActive
+                                          ? Icons.check_circle
+                                          : Icons.cancel,
+                                      color: gift.isActive
+                                          ? Colors.green
+                                          : Colors.red,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text('Order: ${gift.displayOrder}'),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.edit,
+                                    color: Colors.blue,
+                                  ),
+                                  onPressed: () => _showAddOrEditGiftDialog(
+                                    context,
+                                    existing: gift,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () async {
+                                    final confirm = await showDialog<bool>(
+                                      context: ctx,
+                                      builder: (d) => AlertDialog(
+                                        title: const Text('Delete Gift'),
+                                        content: Text('Delete "${gift.name}"?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(d, false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.pop(d, true),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.red,
+                                            ),
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true) {
+                                      try {
+                                        await Provider.of<GiftProvider>(
+                                          context,
+                                          listen: false,
+                                        ).deleteGift(gift.id);
+                                        if (ctx.mounted) {
+                                          ScaffoldMessenger.of(
+                                            ctx,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Gift deleted successfully!',
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        if (ctx.mounted) {
+                                          ScaffoldMessenger.of(
+                                            ctx,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Error: $e'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAddOrEditGiftDialog(BuildContext context, {Gift? existing}) {
+    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final descCtrl = TextEditingController(text: existing?.description ?? '');
+    final priceCtrl = TextEditingController(
+      text: existing?.price.toString() ?? '0',
+    );
+    final orderCtrl = TextEditingController(
+      text: existing?.displayOrder.toString() ?? '0',
+    );
+    bool isActive = existing?.isActive ?? true;
+
+    // Multi-image storage (up to 6 images)
+    final List<Uint8List?> imageBytes = List.filled(6, null);
+    final List<File?> imageFiles = List.filled(6, null);
+    final List<String?> fileNames = List.filled(6, null);
+    final List<String?> existingUrls = List.filled(6, null);
+
+    // Load existing images
+    if (existing?.imageUrls != null) {
+      for (int i = 0; i < existing!.imageUrls!.length && i < 6; i++) {
+        existingUrls[i] = existing.imageUrls![i];
+      }
+    } else if (existing?.imageUrl != null && existing!.imageUrl!.isNotEmpty) {
+      existingUrls[0] = existing.imageUrl;
+    }
+
+    bool saving = false;
+
+    Future<void> pickImage(int index, StateSetter setState) async {
+      try {
+        final picker = ImagePicker();
+        final pickedFile = await picker.pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 1024,
+          maxHeight: 1024,
+          imageQuality: 85,
+        );
+        if (pickedFile != null) {
+          fileNames[index] = pickedFile.name;
+          existingUrls[index] = null; // Clear existing URL if replacing
+          if (kIsWeb) {
+            imageBytes[index] = await pickedFile.readAsBytes();
+          } else {
+            imageFiles[index] = File(pickedFile.path);
+          }
+          setState(() {});
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+        }
+      }
+    }
+
+    Future<List<String>> uploadGiftImages(String giftId) async {
+      debugPrint('🔄 Uploading images for gift: $giftId');
+      final storage = FirebaseStorage.instanceFor(
+        bucket: 'gs://bong-bazar-3659f.firebasestorage.app',
+      );
+      final List<String> urls = [];
+
+      for (int i = 0; i < 6; i++) {
+        // If existing URL and no new image, keep existing
+        if (existingUrls[i] != null &&
+            imageBytes[i] == null &&
+            imageFiles[i] == null) {
+          urls.add(existingUrls[i]!);
+          continue;
+        }
+
+        // If new image selected, upload it
+        if (imageBytes[i] != null || imageFiles[i] != null) {
+          try {
+            debugPrint('📤 Uploading gift image $i...');
+            final ref = storage
+                .ref()
+                .child('gifts')
+                .child(giftId)
+                .child('img_$i.jpg');
+
+            String contentType = 'image/jpeg';
+            final name = fileNames[i]?.toLowerCase() ?? '';
+            if (name.endsWith('.png')) contentType = 'image/png';
+
+            UploadTask task;
+            if (imageBytes[i] != null) {
+              task = ref.putData(
+                imageBytes[i]!,
+                SettableMetadata(
+                  contentType: contentType,
+                  cacheControl: 'public, max-age=3600',
+                ),
+              );
+            } else {
+              task = ref.putFile(
+                imageFiles[i]!,
+                SettableMetadata(
+                  contentType: contentType,
+                  cacheControl: 'public, max-age=3600',
+                ),
+              );
+            }
+
+            final snap = await task;
+            if (snap.state == TaskState.success) {
+              final url = await ref.getDownloadURL();
+              urls.add(url);
+              debugPrint('✅ Gift image $i uploaded');
+            }
+          } catch (e) {
+            debugPrint('❌ Failed to upload gift image $i: $e');
+          }
+        }
+      }
+
+      return urls;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text(existing == null ? 'Add Gift' : 'Edit Gift'),
+          content: SizedBox(
+            width: 600,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Gift Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: priceCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Price (₹)',
+                      prefixText: '₹ ',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: orderCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Display Order',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    value: isActive,
+                    onChanged: (v) => setState(() => isActive = v),
+                    title: const Text('Active'),
+                  ),
+                  const SizedBox(height: 12),
+                  // Multi-Image Grid
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Gift Images (minimum 4 required)',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 240,
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 8,
+                            childAspectRatio: 1,
+                          ),
+                      itemCount: 6,
+                      itemBuilder: (gctx, i) {
+                        Widget preview;
+                        if (imageBytes[i] != null) {
+                          preview = Image.memory(
+                            imageBytes[i]!,
+                            fit: BoxFit.cover,
+                          );
+                        } else if (imageFiles[i] != null && !kIsWeb) {
+                          preview = Image.file(
+                            imageFiles[i]!,
+                            fit: BoxFit.cover,
+                          );
+                        } else if (existingUrls[i] != null) {
+                          preview = Image.network(
+                            existingUrls[i]!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) => Icon(
+                              Icons.card_giftcard,
+                              color: Colors.grey[400],
+                              size: 40,
+                            ),
+                          );
+                        } else {
+                          preview = Icon(
+                            Icons.add_photo_alternate,
+                            size: 40,
+                            color: Colors.grey[400],
+                          );
+                        }
+
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => pickImage(i, setState),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Center(child: preview),
+                                    Positioned(
+                                      right: 4,
+                                      bottom: 4,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black54,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${i + 1}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (nameCtrl.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Name is required')),
+                        );
+                        return;
+                      }
+
+                      // Count selected images (existing + new)
+                      int imageCount = 0;
+                      for (int i = 0; i < 6; i++) {
+                        if (existingUrls[i] != null ||
+                            imageBytes[i] != null ||
+                            imageFiles[i] != null) {
+                          imageCount++;
+                        }
+                      }
+
+                      if (imageCount < 4) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Minimum 4 images required!'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      setState(() => saving = true);
+                      try {
+                        final giftId =
+                            existing?.id ??
+                            'g${DateTime.now().millisecondsSinceEpoch}';
+                        final urls = await uploadGiftImages(giftId);
+
+                        if (urls.isEmpty) {
+                          throw Exception('Failed to upload images');
+                        }
+
+                        final gift = Gift(
+                          id: giftId,
+                          name: nameCtrl.text.trim(),
+                          description: descCtrl.text.trim(),
+                          price: double.tryParse(priceCtrl.text.trim()) ?? 0.0,
+                          imageUrl: urls.first,
+                          imageUrls: urls,
+                          isActive: isActive,
+                          displayOrder:
+                              int.tryParse(orderCtrl.text.trim()) ?? 0,
+                          createdAt: existing?.createdAt,
+                          updatedAt: DateTime.now(),
+                        );
+                        final provider = Provider.of<GiftProvider>(
+                          context,
+                          listen: false,
+                        );
+                        if (existing == null) {
+                          await provider.addGift(gift);
+                        } else {
+                          await provider.updateGift(giftId, gift);
+                        }
+                        if (mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                existing == null
+                                    ? 'Gift added successfully!'
+                                    : 'Gift updated successfully!',
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      } finally {
+                        setState(() => saving = false);
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(existing == null ? 'Add Gift' : 'Update Gift'),
+            ),
+          ],
+        ),
       ),
     );
   }

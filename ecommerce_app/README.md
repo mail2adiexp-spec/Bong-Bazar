@@ -7,6 +7,7 @@ A Flutter e-commerce app with Firebase integration: realtime product catalog fro
 - Home screen shows realtime products from Firestore
 - Category filter chips and search by name/description
 - Admin Panel to add products with 4–6 images (uploads to Firebase Storage)
+- Gifts management (admin): create/edit/delete gift items with image, price, active flag, ordering
 - Product details page with images, description, and INR price
 - Add to Cart from product cards or details
 - Cart screen with quantity controls (+/−), remove item, and total amount
@@ -117,6 +118,13 @@ firebase deploy --only functions
  - `functions/index.js` – Callable Cloud Functions for privileged user deletion & role updates
 
 ## Changelog
+
+- v1.3.6
+	- Admin: Added Gifts tab with multi-image upload (4-6 images required, similar to products)
+	- Gift model: Support for imageUrls array with backward compatibility
+	- Gifts CRUD: Add/edit/delete with image grid picker, ordering, active toggle
+	- Firestore/Storage rules: Restricted gifts collection write to admins only
+	- Minor lint cleanup (removed unused imports, replaced MaterialStatePropertyAll with WidgetStatePropertyAll, print → debugPrint in gift_provider)
 
 - v1.3.5
 	- Admin: User delete flow now tries Cloud Function (Auth + Firestore) with automatic Firestore-only fallback when Functions are unavailable (desktop/dev).

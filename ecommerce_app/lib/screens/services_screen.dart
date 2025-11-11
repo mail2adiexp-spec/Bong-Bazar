@@ -20,6 +20,7 @@ class ServicesScreen extends StatefulWidget {
 class _ServicesScreenState extends State<ServicesScreen> {
   ServiceCategory? _selectedCategory;
   late final TextEditingController _searchController;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -27,7 +28,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
     _searchController = TextEditingController()
       ..addListener(() {
         if (mounted) {
-          setState(() {});
+          setState(() {
+            _searchQuery = _searchController.text.toLowerCase().trim();
+          });
         }
       });
   }
@@ -139,11 +142,19 @@ class _ServicesScreenState extends State<ServicesScreen> {
               ),
               child: TextField(
                 controller: _searchController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Search for services...',
-                  prefixIcon: Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
                   ),
@@ -226,6 +237,52 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   );
                 }
 
+                // Filter categories based on search query
+                final filteredCategories = _searchQuery.isEmpty
+                    ? serviceCategories
+                    : serviceCategories.where((category) {
+                        return category.name.toLowerCase().contains(
+                              _searchQuery,
+                            ) ||
+                            category.description.toLowerCase().contains(
+                              _searchQuery,
+                            );
+                      }).toList();
+
+                if (filteredCategories.isEmpty && _searchQuery.isNotEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search_off,
+                            size: 64,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No services found for "$_searchQuery"',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () {
+                              _searchController.clear();
+                            },
+                            child: const Text('Clear search'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
                 return SingleChildScrollView(
                   child: Column(
                     children: [
@@ -245,9 +302,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                     crossAxisSpacing: 12,
                                     childAspectRatio: 0.85,
                                   ),
-                              itemCount: serviceCategories.length,
+                              itemCount: filteredCategories.length,
                               itemBuilder: (context, index) {
-                                final category = serviceCategories[index];
+                                final category = filteredCategories[index];
                                 final isSelected =
                                     _selectedCategory?.id == category.id;
                                 return _buildServiceCategoryCard(
@@ -312,19 +369,53 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                       final providers =
                                           snapshot.data?.docs ?? [];
 
-                                      if (providers.isEmpty) {
+                                      // Filter providers based on search query
+                                      final filteredProviders =
+                                          _searchQuery.isEmpty
+                                          ? providers
+                                          : providers.where((doc) {
+                                              final data =
+                                                  doc.data()
+                                                      as Map<String, dynamic>;
+                                              final name = (data['name'] ?? '')
+                                                  .toString()
+                                                  .toLowerCase();
+                                              final businessName =
+                                                  (data['businessName'] ?? '')
+                                                      .toString()
+                                                      .toLowerCase();
+                                              final district =
+                                                  (data['district'] ?? '')
+                                                      .toString()
+                                                      .toLowerCase();
+                                              return name.contains(
+                                                    _searchQuery,
+                                                  ) ||
+                                                  businessName.contains(
+                                                    _searchQuery,
+                                                  ) ||
+                                                  district.contains(
+                                                    _searchQuery,
+                                                  );
+                                            }).toList();
+
+                                      if (filteredProviders.isEmpty) {
                                         return Padding(
                                           padding: const EdgeInsets.all(32.0),
                                           child: Column(
                                             children: [
                                               Icon(
-                                                Icons.person_off_outlined,
+                                                _searchQuery.isEmpty
+                                                    ? Icons.person_off_outlined
+                                                    : Icons.search_off,
                                                 size: 64,
                                                 color: Colors.grey[400],
                                               ),
                                               const SizedBox(height: 16),
                                               Text(
-                                                'Koi ${_selectedCategory!.name} abhi available nahi hai',
+                                                _searchQuery.isEmpty
+                                                    ? 'Koi ${_selectedCategory!.name} abhi available nahi hai'
+                                                    : 'No providers found for "$_searchQuery"',
                                                 textAlign: TextAlign.center,
                                                 style: const TextStyle(
                                                   fontSize: 16,
@@ -332,9 +423,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                                 ),
                                               ),
                                               const SizedBox(height: 8),
-                                              const Text(
-                                                'Jald hi providers add honge!',
-                                                style: TextStyle(
+                                              Text(
+                                                _searchQuery.isEmpty
+                                                    ? 'Jald hi providers add honge!'
+                                                    : 'Try a different search term',
+                                                style: const TextStyle(
                                                   color: Colors.grey,
                                                 ),
                                               ),
@@ -344,7 +437,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                       }
 
                                       return Column(
-                                        children: providers.map((doc) {
+                                        children: filteredProviders.map((doc) {
                                           final data =
                                               doc.data()
                                                   as Map<String, dynamic>;
@@ -377,6 +470,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                                   '₹${minCharge.toStringAsFixed(0)}/service',
                                               categoryName:
                                                   _selectedCategory!.name,
+                                              minCharge: minCharge >= 50
+                                                  ? minCharge
+                                                  : 50.0,
                                               photoURL: photoURL,
                                             ),
                                           );
@@ -508,6 +604,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
     required String description,
     required String price,
     required String categoryName,
+    required double minCharge,
     String? photoURL,
   }) {
     return Card(
@@ -564,6 +661,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 'serviceName': categoryName,
                 'providerName': businessName,
                 'providerImage': photoURL,
+                'minCharge': minCharge,
               },
             );
           },

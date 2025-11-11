@@ -54,7 +54,10 @@ service cloud.firestore {
     // ==================== USERS COLLECTION ====================
     // All roles can read users, only owner/admin can update
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      // Public can read limited provider listings: allow reads of user docs
+      // where role == 'service_provider' so services screen can show providers
+      // without requiring sign-in. Other reads still require auth.
+      allow read: if isAuthenticated() || (resource.data.role == 'service_provider');
       allow create: if isAuthenticated() && isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
@@ -163,6 +166,14 @@ service cloud.firestore {
     match /featured_sections/{sectionId} {
       allow read: if true;
       allow write: if isAdmin() || isCoreStaff();
+    }
+    
+    // ==================== GIFTS COLLECTION ====================
+    // Read: Everyone (public)
+    // Write: Admin only
+    match /gifts/{giftId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
     
     // ==================== PARTNER REQUESTS COLLECTION ====================

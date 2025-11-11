@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../providers/cart_provider.dart';
+import '../models/product_model.dart';
+import 'cart_screen.dart';
 
 class BookServiceScreen extends StatefulWidget {
   static const routeName = '/book-service';
@@ -7,12 +11,14 @@ class BookServiceScreen extends StatefulWidget {
   final String serviceName;
   final String providerName;
   final String? providerImage;
+  final double minCharge; // Minimum booking amount
 
   const BookServiceScreen({
     super.key,
     required this.serviceName,
     required this.providerName,
     this.providerImage,
+    required this.minCharge,
   });
 
   @override
@@ -160,41 +166,31 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
       }
     }
 
-    // TODO: Save booking to database
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Booking Confirmed!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Service: ${widget.serviceName}'),
-            Text('Provider: ${widget.providerName}'),
-            Text('Date: ${_formatDate(_selectedDate!)}'),
-            Text('Time: ${_formatTime(_selectedTime!)}'),
-            if (_isVehicleService) ...[
-              Text('Pickup: ${_pickupLocationController.text}'),
-              Text('Drop: ${_dropLocationController.text}'),
-            ] else
-              Text('Address: ${_addressController.text}'),
-            if (_notesController.text.isNotEmpty)
-              Text('Notes: ${_notesController.text}'),
-          ],
+    // Add minimum booking amount to cart (minimum ₹50)
+    final finalCharge = widget.minCharge >= 50 ? widget.minCharge : 50.0;
+    final product = Product(
+      id: 'svc_${widget.serviceName.replaceAll(' ', '_').toLowerCase()}_${widget.providerName.replaceAll(' ', '_').toLowerCase()}',
+      name: '${widget.serviceName} Booking - ${widget.providerName}',
+      description: 'Service booking (minimum ₹50)',
+      price: finalCharge,
+      imageUrl:
+          widget.providerImage ??
+          'https://via.placeholder.com/120x120.png?text=Service',
+      category: 'Services',
+      unit: 'service',
+    );
+    context.read<CartProvider>().addProduct(product);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Added to cart: Minimum booking ₹${finalCharge.toStringAsFixed(0)}',
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              if (mounted) {
-                Navigator.of(context).pop(); // Go back to services
-              }
-            },
-            child: const Text('OK'),
-          ),
-        ],
       ),
     );
+
+    // Navigate to cart
+    Navigator.pushReplacementNamed(context, CartScreen.routeName);
   }
 
   @override

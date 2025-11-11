@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/service_category_model.dart';
@@ -7,20 +8,20 @@ class ServiceCategoryProvider with ChangeNotifier {
   List<ServiceCategory> _serviceCategories = [];
   bool _isLoading = false;
   String? _errorMessage;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _sub;
 
   List<ServiceCategory> get serviceCategories => [..._serviceCategories];
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  ServiceCategoryProvider() {
-    _initializeListener();
-  }
-
-  void _initializeListener() {
+  void startListening() {
     _isLoading = true;
     notifyListeners();
+    _sub?.cancel();
 
-    _firestore
+    debugPrint('🔧 Starting realtime listener for service_categories...');
+
+    _sub = _firestore
         .collection('service_categories')
         .snapshots()
         .listen(
@@ -32,14 +33,23 @@ class ServiceCategoryProvider with ChangeNotifier {
             _serviceCategories.sort((a, b) => a.name.compareTo(b.name));
             _isLoading = false;
             notifyListeners();
+            debugPrint(
+              '🔧 Realtime update: ${_serviceCategories.length} service categories',
+            );
           },
           onError: (error) {
-            debugPrint('Error listening to service categories: $error');
+            debugPrint('🔴 Service categories listener error: $error');
             _isLoading = false;
             _errorMessage = error.toString();
             notifyListeners();
           },
         );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   Future<void> addServiceCategory(ServiceCategory category) async {

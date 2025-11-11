@@ -132,6 +132,15 @@ service firebase.storage {
       allow delete: if isAdmin();
     }
     
+    // Gift images - only admins
+    match /gifts/{imageId} {
+      allow read: if true;
+      allow write: if isAdmin() &&
+                     isValidImageSize() && 
+                     isValidImageType();
+      allow delete: if isAdmin();
+    }
+    
     // 8. Admin can access everything
     match /{allPaths=**} {
       allow read, write, delete: if isAdmin();

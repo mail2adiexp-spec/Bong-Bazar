@@ -1,3 +1,4 @@
+import 'package:ecommerce_app/widgets/search_results.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -21,6 +22,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final TextEditingController _searchController;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -28,7 +30,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchController = TextEditingController()
       ..addListener(() {
         if (mounted) {
-          setState(() {});
+          setState(() {
+            _searchQuery = _searchController.text.trim().toLowerCase();
+          });
         }
       });
   }
@@ -80,13 +84,15 @@ class _HomeScreenState extends State<HomeScreen> {
       source = source.where((p) => p.category == _selectedCategory).toList();
     }
     // Apply search filter
-    final query = _searchController.text.trim().toLowerCase();
-    final filteredProducts = query.isEmpty
+    final filteredProducts = _searchQuery.isEmpty
         ? source
         : source.where((p) {
-            return p.name.toLowerCase().contains(query) ||
-                p.description.toLowerCase().contains(query);
+            return p.name.toLowerCase().contains(_searchQuery) ||
+                p.description.toLowerCase().contains(_searchQuery) ||
+                (p.category?.toLowerCase().contains(_searchQuery) ?? false);
           }).toList();
+
+    final bool isSearching = _searchQuery.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -214,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         suffixIcon: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_searchController.text.isNotEmpty)
+                            if (_searchQuery.isNotEmpty)
                               IconButton(
                                 icon: const Icon(Icons.clear),
                                 onPressed: () => _searchController.clear(),
@@ -243,359 +249,372 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: CustomScrollView(
                     slivers: [
-                      // Category grid
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          child: Builder(
-                            builder: (context) {
-                              if (categoryProvider.isLoading) {
-                                return const SizedBox(
-                                  height: 100,
-                                  child: Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
-                              }
+                      if (isSearching)
+                        SearchResults(
+                          products: filteredProducts,
+                          onClear: () => _searchController.clear(),
+                        )
+                      else ...[
+                        // Category grid
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            child: Builder(
+                              builder: (context) {
+                                if (categoryProvider.isLoading) {
+                                  return const SizedBox(
+                                    height: 100,
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
 
-                              if (categoryProvider.categories.isEmpty) {
-                                return Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Text(
-                                    'No categories found. Add categories from Admin Panel.',
-                                    style: TextStyle(color: Colors.grey[600]),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                );
-                              }
+                                if (categoryProvider.categories.isEmpty) {
+                                  return Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Text(
+                                      'No categories found. Add categories from Admin Panel.',
+                                      style:
+                                          TextStyle(color: Colors.grey[600]),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  );
+                                }
 
-                              // Show only first 9 categories
-                              final displayCategories =
-                                  categoryProvider.categories.length > 9
-                                  ? categoryProvider.categories.take(9).toList()
-                                  : categoryProvider.categories;
-                              final hasMore =
-                                  categoryProvider.categories.length > 9;
+                                // Show only first 9 categories
+                                final displayCategories =
+                                    categoryProvider.categories.length > 9
+                                        ? categoryProvider.categories
+                                            .take(9)
+                                            .toList()
+                                        : categoryProvider.categories;
+                                final hasMore =
+                                    categoryProvider.categories.length > 9;
 
-                              return Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  GridView.count(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    crossAxisCount: 3,
-                                    mainAxisSpacing: 12,
-                                    crossAxisSpacing: 8,
-                                    childAspectRatio: 0.85,
-                                    children: [
-                                      ...displayCategories.map(
-                                        (cat) => _buildCategoryCard(
-                                          cat.name,
-                                          cat.name,
-                                          cat.imageUrl,
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    GridView.count(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      crossAxisCount: 3,
+                                      mainAxisSpacing: 12,
+                                      crossAxisSpacing: 8,
+                                      childAspectRatio: 0.85,
+                                      children: [
+                                        ...displayCategories.map(
+                                          (cat) => _buildCategoryCard(
+                                            cat.name,
+                                            cat.name,
+                                            cat.imageUrl,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (hasMore) ...[
+                                      const SizedBox(height: 16),
+                                      Center(
+                                        child: ElevatedButton.icon(
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  AlertDialog(
+                                                title: const Text(
+                                                  'All Categories',
+                                                ),
+                                                content: SizedBox(
+                                                  width: double.maxFinite,
+                                                  child: GridView.count(
+                                                    shrinkWrap: true,
+                                                    crossAxisCount: 3,
+                                                    mainAxisSpacing: 12,
+                                                    crossAxisSpacing: 8,
+                                                    childAspectRatio: 0.85,
+                                                    children: [
+                                                      ...categoryProvider
+                                                          .categories
+                                                          .map(
+                                                            (cat) =>
+                                                                _buildCategoryCard(
+                                                                  cat.name,
+                                                                  cat.name,
+                                                                  cat.imageUrl,
+                                                                ),
+                                                          ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(context),
+                                                    child: const Text('Close'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(Icons.grid_view),
+                                          label: const Text(
+                                            'View All Categories',
+                                          ),
                                         ),
                                       ),
                                     ],
-                                  ),
-                                  if (hasMore) ...[
                                     const SizedBox(height: 16),
-                                    Center(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          showDialog(
-                                            context: context,
-                                            builder: (context) => AlertDialog(
-                                              title: const Text(
-                                                'All Categories',
-                                              ),
-                                              content: SizedBox(
-                                                width: double.maxFinite,
-                                                child: GridView.count(
-                                                  shrinkWrap: true,
-                                                  crossAxisCount: 3,
-                                                  mainAxisSpacing: 12,
-                                                  crossAxisSpacing: 8,
-                                                  childAspectRatio: 0.85,
-                                                  children: [
-                                                    ...categoryProvider
-                                                        .categories
-                                                        .map(
-                                                          (cat) =>
-                                                              _buildCategoryCard(
-                                                                cat.name,
-                                                                cat.name,
-                                                                cat.imageUrl,
-                                                              ),
-                                                        ),
-                                                  ],
+                                    // HOTS DEALS full-width banner
+                                    InkWell(
+                                      onTap: () {
+                                        Navigator.pushNamed(
+                                          context,
+                                          CategoryProductsScreen.routeName,
+                                          arguments: ProductCategory.hotDeals,
+                                        );
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 20,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFFFF7043),
+                                              Color(0xFFE53935),
+                                            ],
+                                            begin: Alignment.centerLeft,
+                                            end: Alignment.centerRight,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: const [
+                                                Icon(
+                                                  Icons.local_fire_department,
+                                                  color: Colors.white,
+                                                  size: 24,
                                                 ),
-                                              ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(context),
-                                                  child: const Text('Close'),
+                                                SizedBox(width: 8),
+                                                Text(
+                                                  'HOTS DEALS',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                                ),
+                                                SizedBox(width: 8),
+                                                Icon(
+                                                  Icons.local_fire_department,
+                                                  color: Colors.white,
+                                                  size: 24,
                                                 ),
                                               ],
                                             ),
-                                          );
-                                        },
-                                        icon: const Icon(Icons.grid_view),
-                                        label: const Text(
-                                          'View All Categories',
+                                            const SizedBox(height: 4),
+                                            const Text(
+                                              'Grab amazing offers today!',
+                                              style: TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
                                   ],
-                                  const SizedBox(height: 16),
-                                  // HOTS DEALS full-width banner
-                                  InkWell(
-                                    onTap: () {
-                                      Navigator.pushNamed(
-                                        context,
-                                        CategoryProductsScreen.routeName,
-                                        arguments: ProductCategory.hotDeals,
-                                      );
-                                    },
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 20,
-                                      ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        // Daily Needs horizontal carousel (hardcoded fallback)
+                        SliverToBoxAdapter(
+                          child: _buildProductCarousel(
+                            context,
+                            'Daily Needs',
+                            productProvider.products
+                                .where((p) => p.category == 'Daily Needs')
+                                .toList(),
+                          ),
+                        ),
+                        // Customer Choices horizontal carousel (hardcoded fallback)
+                        SliverToBoxAdapter(
+                          child: _buildProductCarousel(
+                            context,
+                            'Customer Choices',
+                            productProvider.products
+                                .where((p) => p.category == 'Customer Choice')
+                                .toList(),
+                          ),
+                        ),
+                        // Gift Finder Banner
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            child: InkWell(
+                              onTap: () {
+                                // Navigate to gifts category page
+                                Navigator.pushNamed(
+                                  context,
+                                  CategoryProductsScreen.routeName,
+                                  arguments: ProductCategory.gifts,
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 24,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFE91E63), // pink
+                                      Color(0xFF9C27B0), // purple
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
                                         borderRadius: BorderRadius.circular(12),
-                                        gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0xFFFF7043),
-                                            Color(0xFFE53935),
-                                          ],
-                                          begin: Alignment.centerLeft,
-                                          end: Alignment.centerRight,
-                                        ),
                                       ),
+                                      child: const Icon(
+                                        Icons.card_giftcard,
+                                        color: Colors.white,
+                                        size: 32,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
                                       child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: const [
-                                              Icon(
-                                                Icons.local_fire_department,
-                                                color: Colors.white,
-                                                size: 24,
-                                              ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'HOTS DEALS',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                              SizedBox(width: 8),
-                                              Icon(
-                                                Icons.local_fire_department,
-                                                color: Colors.white,
-                                                size: 24,
-                                              ),
-                                            ],
+                                        children: const [
+                                          Text(
+                                            'Gift Finder',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.w800,
+                                            ),
                                           ),
-                                          const SizedBox(height: 4),
-                                          const Text(
-                                            'Grab amazing offers today!',
+                                          SizedBox(height: 4),
+                                          Text(
+                                            'Find the perfect gift for your loved ones',
                                             style: TextStyle(
                                               color: Colors.white70,
-                                              fontSize: 12,
+                                              fontSize: 13,
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      // Daily Needs horizontal carousel (hardcoded fallback)
-                      SliverToBoxAdapter(
-                        child: _buildProductCarousel(
-                          context,
-                          'Daily Needs',
-                          productProvider.products
-                              .where((p) => p.category == 'Daily Needs')
-                              .toList(),
-                        ),
-                      ),
-                      // Customer Choices horizontal carousel (hardcoded fallback)
-                      SliverToBoxAdapter(
-                        child: _buildProductCarousel(
-                          context,
-                          'Customer Choices',
-                          productProvider.products
-                              .where((p) => p.category == 'Customer Choice')
-                              .toList(),
-                        ),
-                      ),
-                      // Gift Finder Banner
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 16,
-                          ),
-                          child: InkWell(
-                            onTap: () {
-                              // Navigate to gifts category page
-                              Navigator.pushNamed(
-                                context,
-                                CategoryProductsScreen.routeName,
-                                arguments: ProductCategory.gifts,
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 24,
-                              ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFFE91E63), // pink
-                                    Color(0xFF9C27B0), // purple
                                   ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
                               ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.card_giftcard,
-                                      color: Colors.white,
-                                      size: 32,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
+                            ),
+                          ),
+                        ),
+                        // Snacks Carousel
+                        SliverToBoxAdapter(
+                          child: _buildProductCarousel(
+                            context,
+                            'Snacks',
+                            productProvider.products
+                                .where((p) => p.category == 'Snacks')
+                                .toList(),
+                          ),
+                        ),
+                        // Products grid
+                        filteredProducts.isEmpty
+                            ? SliverFillRemaining(
+                                child: Center(
+                                  child: SingleChildScrollView(
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
-                                      children: const [
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.search_off,
+                                          size: 48,
+                                          color: Colors.grey[400],
+                                        ),
+                                        const SizedBox(height: 8),
                                         Text(
-                                          'Gift Finder',
+                                          _selectedCategory == null &&
+                                                  _searchQuery.isEmpty
+                                              ? 'No products yet'
+                                              : 'No products found',
                                           style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w800,
+                                            fontSize: 16,
+                                            color: Colors.grey[600],
                                           ),
                                         ),
-                                        SizedBox(height: 4),
-                                        Text(
-                                          'Find the perfect gift for your loved ones',
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 13,
+                                        if (_searchQuery.isNotEmpty)
+                                          TextButton(
+                                            onPressed: () =>
+                                                _searchController.clear(),
+                                            child: const Text('Clear search'),
                                           ),
-                                        ),
                                       ],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Snacks Carousel
-                      SliverToBoxAdapter(
-                        child: _buildProductCarousel(
-                          context,
-                          'Snacks',
-                          productProvider.products
-                              .where((p) => p.category == 'Snacks')
-                              .toList(),
-                        ),
-                      ),
-                      // Products grid
-                      filteredProducts.isEmpty
-                          ? SliverFillRemaining(
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.search_off,
-                                        size: 48,
-                                        color: Colors.grey[400],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _selectedCategory == null &&
-                                                _searchController.text.isEmpty
-                                            ? 'No products yet'
-                                            : 'No products found',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                      if (_searchController.text.isNotEmpty)
-                                        TextButton(
-                                          onPressed: () =>
-                                              _searchController.clear(),
-                                          child: const Text('Clear search'),
-                                        ),
-                                    ],
+                                ),
+                              )
+                            : SliverPadding(
+                                padding: const EdgeInsets.all(10.0),
+                                sliver: SliverGrid(
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    childAspectRatio: 2 / 3,
+                                    crossAxisSpacing: 10,
+                                    mainAxisSpacing: 10,
+                                  ),
+                                  delegate: SliverChildBuilderDelegate(
+                                    (ctx, i) => ProductCard(
+                                        product: filteredProducts[i]),
+                                    childCount: filteredProducts.length,
                                   ),
                                 ),
                               ),
-                            )
-                          : SliverPadding(
-                              padding: const EdgeInsets.all(10.0),
-                              sliver: SliverGrid(
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 3,
-                                      childAspectRatio: 2 / 3,
-                                      crossAxisSpacing: 10,
-                                      mainAxisSpacing: 10,
-                                    ),
-                                delegate: SliverChildBuilderDelegate(
-                                  (ctx, i) =>
-                                      ProductCard(product: filteredProducts[i]),
-                                  childCount: filteredProducts.length,
-                                ),
-                              ),
-                            ),
+                      ]
                     ],
                   ),
                 ),
