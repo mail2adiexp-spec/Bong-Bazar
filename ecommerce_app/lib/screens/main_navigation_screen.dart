@@ -5,7 +5,8 @@ import 'contact_screen.dart';
 import '../widgets/more_bottom_sheet.dart';
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+  final int initialIndex;
+  const MainNavigationScreen({super.key, this.initialIndex = 0});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -18,7 +19,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void initState() {
     super.initState();
     // Always start from Home screen
-    _currentIndex = 0;
+    _currentIndex = widget.initialIndex;
   }
 
   final List<Widget> _screens = const [

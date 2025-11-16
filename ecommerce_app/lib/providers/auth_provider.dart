@@ -19,6 +19,7 @@ class UserRole {
 }
 
 class AppUser {
+  final String uid;
   final String email;
   final String name;
   final String? phoneNumber;
@@ -26,6 +27,7 @@ class AppUser {
   final String? role;
 
   AppUser({
+    required this.uid,
     required this.email,
     required this.name,
     this.phoneNumber,
@@ -112,6 +114,7 @@ class AuthProvider extends ChangeNotifier {
       }
 
       _currentUser = AppUser(
+        uid: firebaseUser.uid,
         email: firebaseUser.email ?? '',
         name:
             firebaseUser.displayName ??

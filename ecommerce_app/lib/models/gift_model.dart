@@ -5,8 +5,11 @@ class Gift {
   final String name;
   final String description;
   final double price;
+  // Optional primary image URL (first image)
   final String? imageUrl;
   final List<String>? imageUrls;
+  // Optional purpose tag like Birthday/Anniversary/Corporate
+  final String? purpose;
   final bool isActive;
   final int displayOrder;
   final DateTime? createdAt;
@@ -19,6 +22,7 @@ class Gift {
     required this.price,
     this.imageUrl,
     this.imageUrls,
+    this.purpose,
     this.isActive = true,
     this.displayOrder = 0,
     this.createdAt,
@@ -32,6 +36,7 @@ class Gift {
     double? price,
     String? imageUrl,
     List<String>? imageUrls,
+    String? purpose,
     bool? isActive,
     int? displayOrder,
     DateTime? createdAt,
@@ -44,6 +49,7 @@ class Gift {
       price: price ?? this.price,
       imageUrl: imageUrl ?? this.imageUrl,
       imageUrls: imageUrls ?? this.imageUrls,
+      purpose: purpose ?? this.purpose,
       isActive: isActive ?? this.isActive,
       displayOrder: displayOrder ?? this.displayOrder,
       createdAt: createdAt ?? this.createdAt,
@@ -58,6 +64,7 @@ class Gift {
       'price': price,
       'imageUrl': imageUrl,
       'imageUrls': imageUrls,
+      'purpose': purpose,
       'isActive': isActive,
       'displayOrder': displayOrder,
       'createdAt': createdAt != null
@@ -80,6 +87,7 @@ class Gift {
       imageUrls: data['imageUrls'] != null
           ? List<String>.from(data['imageUrls'])
           : null,
+      purpose: data['purpose'] as String?,
       isActive: (data['isActive'] as bool?) ?? true,
       displayOrder: (data['displayOrder'] as int?) ?? 0,
       createdAt: (data['createdAt'] is Timestamp)

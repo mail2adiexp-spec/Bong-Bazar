@@ -244,13 +244,8 @@ class _AccountScreenState extends State<AccountScreen> {
                               icon: Icons.shopping_bag_outlined,
                               title: 'My Orders',
                               subtitle: 'View your order history',
-                              onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Order history coming soon!'),
-                                  ),
-                                );
-                              },
+                              onTap: () =>
+                                  Navigator.pushNamed(context, '/my-orders'),
                             ),
                             const SizedBox(height: 12),
 
@@ -399,17 +394,12 @@ class _AccountScreenState extends State<AccountScreen> {
                                   _buildProfileCard(
                                     context: context,
                                     icon: Icons.delivery_dining_outlined,
-                                    title: 'Delivery Partner Dashboard',
-                                    subtitle: 'View and manage deliveries',
+                                    title: 'Delivery Dashboard',
+                                    subtitle: 'Manage your deliveries',
                                     onTap: () {
-                                      ScaffoldMessenger.of(
+                                      Navigator.pushNamed(
                                         context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Delivery Dashboard - Coming Soon',
-                                          ),
-                                        ),
+                                        '/delivery-dashboard',
                                       );
                                     },
                                   ),

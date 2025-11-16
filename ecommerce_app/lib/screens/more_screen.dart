@@ -55,6 +55,19 @@ class MoreScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
 
+          // My Account Section
+          if (isLoggedIn) ...[
+            _buildSectionTitle('My Account'),
+            _buildMenuItem(
+              context,
+              icon: Icons.shopping_bag_outlined,
+              title: 'My Orders',
+              subtitle: 'Track orders and history',
+              onTap: () => Navigator.pushNamed(context, '/my-orders'),
+            ),
+            const Divider(),
+          ],
+
           // Settings Section
           _buildSectionTitle('Settings'),
           _buildMenuItem(
@@ -244,47 +257,6 @@ class MoreScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _getAboutContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Center(
-          child: Icon(Icons.shopping_bag, size: 80, color: Colors.deepPurple),
-        ),
-        const SizedBox(height: 16),
-        const Center(
-          child: Text(
-            'Bong Bazar',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Center(
-          child: Text('Version 1.3.3', style: TextStyle(color: Colors.grey)),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Your trusted e-commerce platform for quality products and services.',
-          style: TextStyle(fontSize: 16),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 24),
-        _buildInfoSection(
-          'Our Mission',
-          'To provide the best shopping experience with quality products, reliable services, and excellent customer support.',
-        ),
-        _buildInfoSection(
-          'What We Offer',
-          '• Wide range of products\n• Professional services\n• Secure payments\n• Fast delivery\n• 24/7 customer support',
-        ),
-        _buildInfoSection(
-          'Contact Us',
-          'Email: support@bongbazar.com\nPhone: +91 7479223366\nAddress: Kolkata, West Bengal, India',
-        ),
-      ],
     );
   }
 
@@ -536,6 +508,116 @@ class MoreScreen extends StatelessWidget {
           value: false,
           onChanged: (value) {},
         ),
+      ],
+    );
+  }
+
+  Widget _getAboutContent() {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Text(
+            'Bong Bazar',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+        SizedBox(height: 24),
+        Text(
+          'Bong Bazar में आपका स्वागत है—एक नाम जिसके पीछे केवल व्यापार नहीं, बल्कि दिल का एक वादा छुपा है।',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 16),
+        Text(
+          'हमारा सफर उस गाँव की मिट्टी से शुरू होता है जहाँ हमने भोजन की शुद्धता और अपनों की देखभाल का मूल्य सीखा। शहर आकर हमने देखा कि जीवन कितना जटिल है—परिवारों को ताज़गी नहीं मिलती और ज़रूरी काम के लिए भरोसेमंद मदद ढूँढ़ना कितना मुश्किल है। सबसे ज़्यादा हमारा ध्यान उन लोगों पर गया जो अपने परिवार की खातिर दूर हैं या काम में व्यस्त हैं, और हमारे बुज़ुर्गों पर जिन्हें उम्र या स्वास्थ्य के कारण बाज़ार तक जाना कठिन लगता है।',
+          style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
+          textAlign: TextAlign.justify,
+        ),
+        SizedBox(height: 16),
+        Text(
+          'Bong Bazar का जन्म इसी जिम्मेदारी से हुआ। यह सिर्फ़ एक प्लेटफॉर्म नहीं है; यह एक भरोसेमंद साथी है जो गाँव की शुद्धता को आपकी व्यस्त ज़िंदगी की सुविधा से जोड़ता है। हमारा लक्ष्य केवल डिलीवरी देना नहीं है, बल्कि आपको यह आश्वासन देना है कि जब आप काम में व्यस्त हों या घर पर आराम कर रहे हों, तो आपके परिवार को बेहतरीन पोषण और घर की देखभाल मिल रही है।',
+          style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
+          textAlign: TextAlign.justify,
+        ),
+        Divider(height: 32, thickness: 1),
+        Text(
+          '🌾 हमारा पहला वादा: ग्रॉसरी में अटूट विश्वास',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            color: Colors.deepPurple,
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'हम सीधे किसानों से ताज़ी और शुद्ध उपज लाते हैं। आपको Bong Bazar ऐप पर हर फल, हर सब्ज़ी में गाँव की शुद्धता मिलेगी। और हाँ, हम यह सब आपके अपनों तक पहुँचाने के लिए कोई डिलीवरी शुल्क नहीं लेते हैं।',
+          style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
+        ),
+        SizedBox(height: 20),
+        Text(
+          '🏠 हमारा दूसरा वादा: घर की देखभाल में राहत',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            color: Colors.deepPurple,
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'हमने समझा कि घर के अचानक बिगड़े हुए काम बुज़ुर्गों और व्यस्त लोगों के लिए बड़ी चिंता बन जाते हैं। इसलिए, हमने सत्यापित और अनुभवी पेशेवरों की एक टीम बनाई है जो ऐप बुकिंग पर तुरंत उपलब्ध होते हैं। चाहे वह इलेक्ट्रीशियन, प्लंबर, कारपेंटर की तकनीकी सेवाएँ हों, बाथरूम की सफ़ाई हो, या स्थानीय गाड़ी बुकिंग—हम हर ज़रूरत का समाधान हैं।',
+          style: TextStyle(fontSize: 15, height: 1.6, color: Colors.black87),
+        ),
+        Divider(height: 32, thickness: 1),
+        Text(
+          'Bong Bazar में हम व्यक्तिगत रूप से इस बात की गारंटी देते हैं कि आपको हमेशा सर्वोत्तम ही मिले। आपका विश्वास ही हमारी सबसे बड़ी कमाई है।',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 16),
+        Text(
+          'आप हमारे Bong Bazar ऐप के माध्यम से आसानी से ऑर्डर या बुकिंग कर सकते हैं, या किसी भी ज़रूरत के लिए हमें सीधे 7479223366 पर कॉल कर सकते हैं।',
+          style: TextStyle(fontSize: 15, height: 1.5, color: Colors.black87),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 24),
+        Center(
+          child: Text(
+            '❤️ आपका विश्वास, हमारा सबसे गहरा रिश्ता है।',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              fontStyle: FontStyle.italic,
+              color: Colors.deepPurple,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        SizedBox(height: 16),
+        Center(
+          child: Text(
+            'सादर,\nटीम Bong Bazar',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        SizedBox(height: 20),
       ],
     );
   }

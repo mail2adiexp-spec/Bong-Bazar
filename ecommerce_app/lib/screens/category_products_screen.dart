@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/product_provider.dart';
+import '../providers/gift_provider.dart';
+import '../widgets/gift_card.dart';
 import '../providers/theme_provider.dart';
 import '../providers/cart_provider.dart';
 import '../screens/cart_screen.dart';
@@ -193,82 +195,129 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
             ),
           // Products grid
           Expanded(
-            child: Consumer<ProductProvider>(
-              builder: (context, productProvider, _) {
-                // Filter products by category
-                var categoryProducts = productProvider.products
-                    .where((product) => product.category == categoryName)
-                    .toList();
-
-                // Apply gift filter if selected
-                if (isGiftCategory && _selectedGiftFilter != null) {
-                  categoryProducts = categoryProducts
-                      .where(
-                        (product) =>
-                            product.description.toLowerCase().contains(
-                              _selectedGiftFilter!.toLowerCase(),
-                            ) ||
-                            product.name.toLowerCase().contains(
-                              _selectedGiftFilter!.toLowerCase(),
-                            ),
-                      )
-                      .toList();
-                }
-
-                if (productProvider.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (categoryProducts.isEmpty) {
-                  return Center(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.inventory_2_outlined,
-                            size: 80,
-                            color: Colors.grey[400],
+            child: isGiftCategory
+                ? Consumer<GiftProvider>(
+                    builder: (context, giftProvider, _) {
+                      var gifts = giftProvider.gifts
+                          .where((g) => g.isActive)
+                          .toList();
+                      if (_selectedGiftFilter != null) {
+                        gifts = gifts
+                            .where(
+                              (g) =>
+                                  (g.purpose ?? '').toLowerCase() ==
+                                      _selectedGiftFilter!.toLowerCase() ||
+                                  g.name.toLowerCase().contains(
+                                    _selectedGiftFilter!.toLowerCase(),
+                                  ) ||
+                                  g.description.toLowerCase().contains(
+                                    _selectedGiftFilter!.toLowerCase(),
+                                  ),
+                            )
+                            .toList();
+                      }
+                      if (giftProvider.isLoading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (gifts.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.card_giftcard,
+                                size: 80,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No gifts found',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Try another purpose filter',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No products in this category',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
+                        );
+                      }
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              childAspectRatio: 0.72,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
                             ),
+                        itemCount: gifts.length,
+                        itemBuilder: (c, i) => GiftCard(gift: gifts[i]),
+                      );
+                    },
+                  )
+                : Consumer<ProductProvider>(
+                    builder: (context, productProvider, _) {
+                      var categoryProducts = productProvider.products
+                          .where((product) => product.category == categoryName)
+                          .toList();
+                      if (productProvider.isLoading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (categoryProducts.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inventory_2_outlined,
+                                size: 80,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No products in this category',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Check back later!',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Check back later!',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[500],
+                        );
+                      }
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    childAspectRatio: 0.75,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
+                        itemCount: categoryProducts.length,
+                        itemBuilder: (ctx, index) =>
+                            ProductCard(product: categoryProducts[index]),
+                      );
+                    },
                   ),
-                  itemCount: categoryProducts.length,
-                  itemBuilder: (ctx, index) {
-                    final product = categoryProducts[index];
-                    return ProductCard(product: product);
-                  },
-                );
-              },
-            ),
           ),
         ],
       ),

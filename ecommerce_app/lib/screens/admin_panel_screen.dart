@@ -41,6 +41,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'Partner Requests',
     'Users',
     'Gifts',
+    'Orders',
   ];
 
   final List<IconData> _menuIcons = [
@@ -51,6 +52,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     Icons.people_outline,
     Icons.person,
     Icons.card_giftcard,
+    Icons.receipt_long,
   ];
 
   void _showAddProductDialog() {
@@ -852,7 +854,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 // Header
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -866,32 +868,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.admin_panel_settings,
-                        size: 48,
-                        color: Theme.of(context).colorScheme.onPrimary,
-                      ),
-                      const SizedBox(height: 12),
                       Text(
                         'Admin Panel',
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        auth.currentUser?.email ?? '',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onPrimary.withOpacity(0.8),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      // Removed email display under Admin Panel title
                     ],
                   ),
                 ),
@@ -1060,6 +1045,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 _buildPartnerRequestsTab(),
                 _buildUsersTab(),
                 _buildGiftsTab(),
+                _buildOrdersTab(),
               ],
             ),
           ),
@@ -1086,19 +1072,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ],
                 ),
               ),
-              child: const Column(
-                children: [
-                  Icon(Icons.card_giftcard, size: 48, color: Colors.white),
-                  SizedBox(height: 8),
-                  Text(
-                    'Gift Management',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
+              child: const Text(
+                'Gift Management',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
 
@@ -1204,6 +1184,27 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                if ((gift.purpose ?? '').isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.sell,
+                                          size: 14,
+                                          color: Colors.blueGrey,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          gift.purpose!,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.blueGrey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 Text('₹${gift.price.toStringAsFixed(2)}'),
                                 Row(
                                   children: [
@@ -1307,6 +1308,332 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ],
         );
       },
+    );
+  }
+
+  Widget _buildOrdersTab() {
+    final statuses = const [
+      'pending',
+      'confirmed',
+      'packed',
+      'shipped',
+      'out_for_delivery',
+      'delivered',
+      'cancelled',
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.primaryContainer,
+                ],
+              ),
+            ),
+            child: const Text(
+              'Orders',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: StreamBuilder(
+              stream: FirebaseFirestore.instance
+                  .collection('orders')
+                  .orderBy('orderDate', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Failed to load orders: ${snapshot.error}'),
+                  );
+                }
+                final docs = snapshot.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return const Center(child: Text('No orders found'));
+                }
+
+                return ListView.separated(
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data();
+                    final orderId = doc.id;
+                    final userId = data['userId'] as String? ?? '-';
+                    final total =
+                        (data['totalAmount'] as num?)?.toDouble() ?? 0.0;
+                    final status = data['status'] as String? ?? 'pending';
+                    final orderDateStr = data['orderDate'] as String?;
+                    DateTime? orderDate;
+                    try {
+                      if (orderDateStr != null) {
+                        orderDate = DateTime.tryParse(orderDateStr);
+                      }
+                    } catch (_) {}
+
+                    return Card(
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Order #${orderId.substring(0, orderId.length >= 8 ? 8 : orderId.length)}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text('User: $userId'),
+                                  const SizedBox(height: 2),
+                                  Text('Total: ₹${total.toStringAsFixed(2)}'),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Date: ${orderDate != null ? '${orderDate.day.toString().padLeft(2, '0')}-${orderDate.month.toString().padLeft(2, '0')}-${orderDate.year} ${orderDate.hour.toString().padLeft(2, '0')}:${orderDate.minute.toString().padLeft(2, '0')}' : '-'}',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            DropdownButton<String>(
+                              value: statuses.contains(status)
+                                  ? status
+                                  : 'pending',
+                              items: statuses
+                                  .map(
+                                    (s) => DropdownMenuItem(
+                                      value: s,
+                                      child: Text(s.replaceAll('_', ' ')),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (val) async {
+                                if (val == null) return;
+                                try {
+                                  await FirebaseFirestore.instance
+                                      .collection('orders')
+                                      .doc(orderId)
+                                      .update({
+                                        'status': val,
+                                        'statusHistory.$val':
+                                            FieldValue.serverTimestamp(),
+                                      });
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Status updated to ${val.replaceAll('_', ' ')}',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Failed to update: $e'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              status.replaceAll('_', ' '),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            IconButton(
+                              icon: const Icon(Icons.person_add),
+                              tooltip: 'Assign Delivery Partner',
+                              onPressed: () => _showAssignDeliveryPartnerDialog(
+                                orderId,
+                                data,
+                              ),
+                              color: Colors.blue,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAssignDeliveryPartnerDialog(
+    String orderId,
+    Map<String, dynamic> orderData,
+  ) async {
+    // Fetch all delivery partners
+    final deliveryPartnersSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('role', isEqualTo: 'delivery_partner')
+        .get();
+
+    if (!mounted) return;
+
+    final deliveryPartners = deliveryPartnersSnapshot.docs;
+
+    if (deliveryPartners.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No delivery partners found')),
+      );
+      return;
+    }
+
+    String? selectedPartnerId = orderData['deliveryPartnerId'];
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Assign Delivery Partner'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (orderData['deliveryPartnerName'] != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    'Currently assigned to: ${orderData['deliveryPartnerName']}',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              DropdownButtonFormField<String>(
+                value: selectedPartnerId,
+                decoration: const InputDecoration(
+                  labelText: 'Select Delivery Partner',
+                  border: OutlineInputBorder(),
+                ),
+                items: deliveryPartners.map((doc) {
+                  final data = doc.data();
+                  return DropdownMenuItem(
+                    value: doc.id,
+                    child: Text(data['name'] ?? doc.id),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedPartnerId = value;
+                  });
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            if (selectedPartnerId != null &&
+                orderData['deliveryPartnerId'] != null)
+              TextButton(
+                onPressed: () async {
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection('orders')
+                        .doc(orderId)
+                        .update({
+                          'deliveryPartnerId': FieldValue.delete(),
+                          'deliveryPartnerName': FieldValue.delete(),
+                        });
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Delivery partner unassigned'),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    }
+                  }
+                },
+                child: const Text(
+                  'Unassign',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ElevatedButton(
+              onPressed: selectedPartnerId == null
+                  ? null
+                  : () async {
+                      try {
+                        final partnerDoc = deliveryPartners.firstWhere(
+                          (doc) => doc.id == selectedPartnerId,
+                        );
+                        final partnerData = partnerDoc.data();
+
+                        await FirebaseFirestore.instance
+                            .collection('orders')
+                            .doc(orderId)
+                            .update({
+                              'deliveryPartnerId': selectedPartnerId,
+                              'deliveryPartnerName':
+                                  partnerData['name'] ?? 'Unknown',
+                            });
+
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Delivery partner assigned successfully',
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
+                      }
+                    },
+              child: const Text('Assign'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1448,6 +1775,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 12),
                   const SizedBox(height: 12),
                   TextField(
                     controller: priceCtrl,
@@ -1715,19 +2043,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               ],
             ),
           ),
-          child: const Column(
-            children: [
-              Icon(Icons.admin_panel_settings, size: 48, color: Colors.white),
-              SizedBox(height: 8),
-              Text(
-                'Product Management',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
+          child: const Text(
+            'Product Management',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
         ),
 
@@ -1929,19 +2251,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ],
                 ),
               ),
-              child: const Column(
-                children: [
-                  Icon(Icons.category, size: 48, color: Colors.white),
-                  SizedBox(height: 8),
-                  Text(
-                    'Category Management',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
+              child: const Text(
+                'Category Management',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
 
@@ -2444,23 +2760,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ],
                 ),
               ),
-              child: const Column(
-                children: [
-                  Icon(
-                    Icons.home_repair_service,
-                    size: 48,
-                    color: Colors.white,
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Service Categories Management',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
+              child: const Text(
+                'Service Categories Management',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(height: 16),

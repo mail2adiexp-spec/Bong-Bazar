@@ -16,9 +16,13 @@ import 'package:ecommerce_app/screens/check_partner_status_screen.dart';
 import 'package:ecommerce_app/screens/seller_dashboard_screen.dart';
 import 'package:ecommerce_app/screens/book_service_screen.dart';
 import 'package:ecommerce_app/screens/service_provider_dashboard_screen.dart';
+import 'package:ecommerce_app/screens/delivery_partner_dashboard_screen.dart';
+import 'package:ecommerce_app/screens/my_orders_screen.dart';
 import 'package:ecommerce_app/models/product_model.dart';
 import 'package:ecommerce_app/providers/cart_provider.dart';
 import 'package:ecommerce_app/providers/auth_provider.dart';
+import 'package:ecommerce_app/providers/order_provider.dart';
+import 'package:ecommerce_app/providers/address_provider.dart';
 import 'package:ecommerce_app/providers/product_provider.dart';
 import 'package:ecommerce_app/providers/theme_provider.dart';
 import 'package:ecommerce_app/providers/category_provider.dart';
@@ -62,6 +66,15 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, OrderProvider>(
+          create: (context) => OrderProvider(context.read<AuthProvider>()),
+          update: (context, auth, previous) => previous ?? OrderProvider(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, AddressProvider>(
+          create: (context) => AddressProvider(context.read<AuthProvider>()),
+          update: (context, auth, previous) =>
+              previous ?? AddressProvider(auth),
+        ),
         ChangeNotifierProvider(
           create: (_) {
             final provider = ProductProvider();
@@ -176,6 +189,16 @@ class MyApp extends StatelessWidget {
                     ),
                   );
                 }
+              }
+              if (settings.name == '/my-orders') {
+                return MaterialPageRoute(
+                  builder: (_) => const MyOrdersScreen(),
+                );
+              }
+              if (settings.name == '/delivery-dashboard') {
+                return MaterialPageRoute(
+                  builder: (_) => const DeliveryPartnerDashboardScreen(),
+                );
               }
               return null;
             },
