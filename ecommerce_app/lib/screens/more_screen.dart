@@ -1,9 +1,81 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
+
+  Future<String?> _getVersionSafe() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return 'v${info.version}+${info.buildNumber}';
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _showAppInfo(BuildContext context, String version) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline),
+                      const SizedBox(width: 8),
+                      Text(
+                        'App Info',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Version: $version'),
+                  const Divider(height: 24),
+                  Text(
+                    "What's New in 1.4.0",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '• Saved addresses: add, edit, delete, set default.',
+                  ),
+                  const Text(
+                    '• Checkout: choose from saved addresses, auto-fill.',
+                  ),
+                  const Text('• Orders & Checkout now fully in English.'),
+                  const Text(
+                    '• Fix: Better Firestore timestamp handling in orders.',
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: const Text('Close'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +139,25 @@ class MoreScreen extends StatelessWidget {
             ),
             const Divider(),
           ],
+
+          // App Info
+          _buildSectionTitle('App'),
+          FutureBuilder<String?>(
+            future: _getVersionSafe(),
+            builder: (context, snapshot) {
+              final version = snapshot.hasData && snapshot.data != null
+                  ? snapshot.data!
+                  : 'v...';
+              return _buildMenuItem(
+                context,
+                icon: Icons.info_outline,
+                title: 'App Info',
+                subtitle: 'Version $version',
+                onTap: () => _showAppInfo(context, version),
+              );
+            },
+          ),
+          const Divider(),
 
           // Settings Section
           _buildSectionTitle('Settings'),
@@ -360,7 +451,15 @@ class MoreScreen extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 8),
-        const Text('Bong Bazar v1.3.3'),
+        FutureBuilder<String?>(
+          future: _getVersionSafe(),
+          builder: (context, snapshot) {
+            final version = snapshot.hasData && snapshot.data != null
+                ? snapshot.data!
+                : 'v...';
+            return Text(version);
+          },
+        ),
         const SizedBox(height: 24),
         ElevatedButton.icon(
           onPressed: () {},

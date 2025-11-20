@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/services.dart';
 
 import '../models/product_model.dart';
 import '../models/category_model.dart';
@@ -13,6 +14,7 @@ import '../models/service_category_model.dart';
 import '../models/featured_section_model.dart';
 import '../models/partner_request_model.dart';
 import '../models/gift_model.dart';
+import '../models/delivery_partner_model.dart';
 import '../providers/product_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/service_category_provider.dart';
@@ -32,27 +34,50 @@ class AdminPanelScreen extends StatefulWidget {
 class _AdminPanelScreenState extends State<AdminPanelScreen>
     with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
+  String _searchQuery = '';
+  String _filterStatus = 'all'; // all, pending, approved, rejected
 
   final List<String> _menuTitles = [
-    'Products',
-    'Categories',
-    'Services',
-    'Featured Sections',
-    'Partner Requests',
-    'Users',
-    'Gifts',
-    'Orders',
+    'Users', // 5 chars - original index 7
+    'Gifts', // 5 chars - original index 8
+    'Orders', // 6 chars - original index 9
+    'Products', // 8 chars - original index 1
+    'Services', // 8 chars - original index 3
+    'Dashboard', // 9 chars - original index 0
+    'Categories', // 10 chars - original index 2
+    'Core Staff', // 10 chars - original index 10 (new)
+    'Partner Requests', // 16 chars - original index 5
+    'Delivery Partners', // 17 chars - original index 6
+    'Featured Sections', // 17 chars - original index 4
   ];
 
+  // Map: sorted index -> original index for getting content
+  final Map<int, int> _sortedToOriginalIndex = {
+    0: 7, // Users -> _buildUsersTab (index 7)
+    1: 8, // Gifts -> _buildGiftsTab (index 8)
+    2: 9, // Orders -> _buildOrdersTab (index 9)
+    3: 1, // Products -> _buildProductsTab (index 1)
+    4: 3, // Services -> _buildServiceCategoriesTab (index 3)
+    5: 0, // Dashboard -> _buildDashboardTab (index 0)
+    6: 2, // Categories -> _buildCategoriesTab (index 2)
+    7: 10, // Core Staff -> _buildCoreStaffTab (index 10)
+    8: 5, // Partner Requests -> _buildPartnerRequestsTab (index 5)
+    9: 6, // Delivery Partners -> _buildDeliveryPartnersTab (index 6)
+    10: 4, // Featured Sections -> _buildFeaturedSectionsTab (index 4)
+  };
+
   final List<IconData> _menuIcons = [
-    Icons.inventory_2,
-    Icons.category,
-    Icons.home_repair_service,
-    Icons.star,
-    Icons.people_outline,
-    Icons.person,
-    Icons.card_giftcard,
-    Icons.receipt_long,
+    Icons.person, // Users
+    Icons.card_giftcard, // Gifts
+    Icons.receipt_long, // Orders
+    Icons.inventory_2, // Products
+    Icons.home_repair_service, // Services
+    Icons.dashboard, // Dashboard
+    Icons.category, // Categories
+    Icons.group, // Core Staff
+    Icons.people_outline, // Partner Requests
+    Icons.delivery_dining, // Delivery Partners
+    Icons.star, // Featured Sections
   ];
 
   void _showAddProductDialog() {
@@ -100,7 +125,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
 
     Future<List<String>> uploadImages(String productId) async {
-      print('🔄 Uploading images for product: $productId');
+
       final storage = FirebaseStorage.instanceFor(
         bucket: 'gs://bong-bazar-3659f.firebasestorage.app',
       );
@@ -110,7 +135,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         if (imageBytes[i] == null && imageFiles[i] == null) continue;
 
         try {
-          print('📤 Uploading image $i...');
           final ref = storage
               .ref()
               .child('products')
@@ -145,10 +169,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           if (snap.state == TaskState.success) {
             final url = await ref.getDownloadURL();
             urls.add(url);
-            print('✅ Image $i uploaded');
           }
         } catch (e) {
-          print('❌ Failed to upload image $i: $e');
         }
       }
 
@@ -474,7 +496,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
 
     Future<List<String>> uploadImages(String productId) async {
-      print('🔄 Uploading images for product: $productId');
+
       final storage = FirebaseStorage.instanceFor(
         bucket: 'gs://bong-bazar-3659f.firebasestorage.app',
       );
@@ -492,7 +514,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         // If new image selected, upload it
         if (imageBytes[i] != null || imageFiles[i] != null) {
           try {
-            print('📤 Uploading image $i...');
+
             final ref = storage
                 .ref()
                 .child('products')
@@ -527,10 +549,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             if (snap.state == TaskState.success) {
               final url = await ref.getDownloadURL();
               urls.add(url);
-              print('✅ Image $i uploaded');
+
             }
           } catch (e) {
-            print('❌ Failed to upload image $i: $e');
+
           }
         }
       }
@@ -834,194 +856,72 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
 
     return Scaffold(
-      body: Row(
-        children: [
-          // Left Sidebar
-          Container(
-            width: 250,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceVariant,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(2, 0),
+      body: SizedBox.expand(
+        child: Column(
+          children: [
+            // Top Header Bar
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primary,
+                    Theme.of(context).colorScheme.primaryContainer,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
-            ),
-            child: Column(
-              children: [
-                // Header
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).colorScheme.primary,
-                        Theme.of(context).colorScheme.primaryContainer,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Center: Bong Bazar
+                  Center(
+                    child: Text(
+                      'Bong Bazar',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Admin Panel',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onPrimary,
-                        ),
-                      ),
-                      // Removed email display under Admin Panel title
-                    ],
-                  ),
-                ),
-                // Menu Items
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('partner_requests')
-                        .where('status', isEqualTo: 'pending')
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      final pendingCount = snapshot.hasData
-                          ? snapshot.data!.docs.length
-                          : 0;
-
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        itemCount: _menuTitles.length,
-                        itemBuilder: (context, index) {
-                          final isSelected = _selectedIndex == index;
-                          final isPartnerRequestsTab =
-                              index == 4; // Partner Requests is at index 4
-                          final showBadge =
-                              isPartnerRequestsTab && pendingCount > 0;
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            child: Material(
-                              color: isSelected
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.primaryContainer
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
-                              child: InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedIndex = index;
-                                  });
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 16,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        _menuIcons[index],
-                                        color: isSelected
-                                            ? Theme.of(
-                                                context,
-                                              ).colorScheme.primary
-                                            : Theme.of(
-                                                context,
-                                              ).colorScheme.onSurfaceVariant,
-                                        size: 24,
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Text(
-                                          _menuTitles[index],
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: isSelected
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                            color: isSelected
-                                                ? Theme.of(
-                                                    context,
-                                                  ).colorScheme.primary
-                                                : Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ),
-                                      if (showBadge) ...[
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.red,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            pendingCount.toString(),
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-                // Footer - Back button
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
+                  // Right: Logout button
+                  Positioned(
+                    right: 0,
+                    child: GestureDetector(
                       onTap: () => Navigator.pop(context),
-                      borderRadius: BorderRadius.circular(12),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimary.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
                           children: [
                             Icon(
-                              Icons.arrow_back,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                              size: 24,
+                              Icons.logout,
+                              color: Theme.of(context).colorScheme.onPrimary,
+                              size: 20,
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: 8),
                             Text(
-                              'Back to App',
+                              'Logout',
                               style: TextStyle(
-                                fontSize: 16,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context).colorScheme.onPrimary,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
@@ -1029,27 +929,727 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          // Right Content Area
-          Expanded(
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: [
-                _buildProductsTab(productProvider, products),
-                _buildCategoriesTab(),
-                _buildServiceCategoriesTab(isAdmin: isAdmin),
-                _buildFeaturedSectionsTab(isAdmin: isAdmin),
-                _buildPartnerRequestsTab(),
-                _buildUsersTab(),
-                _buildGiftsTab(),
-                _buildOrdersTab(),
-              ],
+            // Main Content Area with Sidebar
+            Expanded(
+              child: Row(
+                children: [
+                  // Left Sidebar - Fixed
+                  SizedBox(
+                    width: 250,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(2, 0),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // Menu Items - Scrollable
+                          Expanded(
+                            child: StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('partner_requests')
+                                  .where('status', isEqualTo: 'pending')
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                final pendingCount = snapshot.hasData
+                                    ? snapshot.data!.docs.length
+                                    : 0;
+
+                                return ListView.builder(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  itemCount: _menuTitles.length,
+                                  itemBuilder: (context, listIndex) {
+                                    final isSelected =
+                                        _selectedIndex == listIndex;
+                                    final isPartnerRequestsTab =
+                                        listIndex ==
+                                        7; // Position 7 in sorted menu is Partner Requests
+                                    final showBadge =
+                                        isPartnerRequestsTab &&
+                                        pendingCount > 0;
+
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      child: Material(
+                                        color: isSelected
+                                            ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withOpacity(0.15)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: InkWell(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedIndex = listIndex;
+                                            });
+                                          },
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                            decoration: isSelected
+                                                ? BoxDecoration(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                    border: Border(
+                                                      left: BorderSide(
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).colorScheme.primary,
+                                                        width: 4,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : null,
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  _menuIcons[listIndex],
+                                                  color: isSelected
+                                                      ? Theme.of(
+                                                          context,
+                                                        ).colorScheme.primary
+                                                      : Theme.of(context)
+                                                            .colorScheme
+                                                            .onSurfaceVariant,
+                                                  size: 24,
+                                                ),
+                                                const SizedBox(width: 16),
+                                                Expanded(
+                                                  child: Text(
+                                                    _menuTitles[listIndex],
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    textAlign: TextAlign.left,
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: isSelected
+                                                          ? FontWeight.bold
+                                                          : FontWeight.normal,
+                                                      color: isSelected
+                                                          ? Theme.of(context)
+                                                                .colorScheme
+                                                                .primary
+                                                          : Theme.of(context)
+                                                                .colorScheme
+                                                                .onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (showBadge) ...[
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 4,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.red,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      pendingCount.toString(),
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                          // Back to App Button
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.pop(context),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.arrow_back,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Text(
+                                        'Back to App',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Right Content Area
+                  Expanded(
+                    child: IndexedStack(
+                      index: _sortedToOriginalIndex[_selectedIndex] ?? 0,
+                      children: [
+                        _buildDashboardTab(), // 0
+                        _buildProductsTab(productProvider, products), // 1
+                        _buildCategoriesTab(), // 2
+                        _buildServiceCategoriesTab(isAdmin: isAdmin), // 3
+                        _buildFeaturedSectionsTab(isAdmin: isAdmin), // 4
+                        _buildPartnerRequestsTab(), // 5
+                        _buildDeliveryPartnersTab(), // 6
+                        _buildUsersTab(), // 7
+                        _buildGiftsTab(), // 8
+                        _buildOrdersTab(), // 9
+                        _buildCoreStaffTab(), // 10
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 4,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.3,
+            children: [
+              _buildDashboardCard(
+                title: 'Total Service Providers',
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .where('role', isEqualTo: 'service_provider')
+                    .snapshots(),
+                icon: Icons.home_repair_service,
+                color: Colors.blue,
+              ),
+              _buildDashboardCard(
+                title: 'Total Sellers',
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .where('role', isEqualTo: 'seller')
+                    .snapshots(),
+                icon: Icons.store,
+                color: Colors.green,
+              ),
+              _buildDashboardCard(
+                title: 'Total Orders',
+                stream: FirebaseFirestore.instance
+                    .collection('orders')
+                    .snapshots(),
+                icon: Icons.receipt_long,
+                color: Colors.orange,
+              ),
+              _buildDashboardCard(
+                title: 'Total Users',
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .snapshots(),
+                icon: Icons.person,
+                color: Colors.purple,
+              ),
+              _buildDashboardCard(
+                title: 'Pending Partners',
+                stream: FirebaseFirestore.instance
+                    .collection('partner_requests')
+                    .where('status', isEqualTo: 'pending')
+                    .snapshots(),
+                icon: Icons.people_outline,
+                color: Colors.red,
+              ),
+              _buildDashboardCard(
+                title: 'Total Sell',
+                stream: FirebaseFirestore.instance
+                    .collection('orders')
+                    .snapshots(),
+                icon: Icons.shopping_cart_checkout,
+                color: Colors.indigo,
+              ),
+              _buildDashboardCard(
+                title: 'Total Cancel',
+                stream: FirebaseFirestore.instance
+                    .collection('orders')
+                    .where('status', isEqualTo: 'cancelled')
+                    .snapshots(),
+                icon: Icons.cancel,
+                color: Colors.red,
+              ),
+              _buildDashboardCard(
+                title: 'Total Return',
+                stream: FirebaseFirestore.instance
+                    .collection('orders')
+                    .where('status', isEqualTo: 'returned')
+                    .snapshots(),
+                icon: Icons.assignment_return,
+                color: Colors.orange,
+              ),
+            ],
           ),
+          const SizedBox(height: 32),
+          const Text(
+            'Top Selling Products',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(height: 200, child: _buildTopSellingProducts()),
+          const SizedBox(height: 24),
+          const Text(
+            'Top Services',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(height: 200, child: _buildTopServices()),
+          const SizedBox(height: 32),
+          const Text(
+            'Recent Orders',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(height: 500, child: _buildRecentOrdersList()),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRecentOrdersList() {
+    return StreamBuilder(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .orderBy('orderDate', descending: true)
+          .limit(10)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Failed to load orders: ${snapshot.error}'),
+          );
+        }
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const Center(child: Text('No orders found'));
+        }
+
+        return ListView.separated(
+          itemCount: docs.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data();
+            final orderId = doc.id;
+            final userId = data['userId'] as String? ?? '-';
+            final total = (data['totalAmount'] as num?)?.toDouble() ?? 0.0;
+            final status = data['status'] as String? ?? 'pending';
+            final orderDateStr = data['orderDate'] as String?;
+            DateTime? orderDate;
+            try {
+              if (orderDateStr != null) {
+                orderDate = DateTime.tryParse(orderDateStr);
+              }
+            } catch (_) {}
+
+            Color statusColor = Colors.orange;
+            if (status == 'delivered') statusColor = Colors.green;
+            if (status == 'cancelled') statusColor = Colors.red;
+            if (status == 'pending') statusColor = Colors.orange;
+
+            return Card(
+              elevation: 1,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Order #${orderId.substring(0, 8)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'User: $userId',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Total: ₹${total.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          if (orderDate != null)
+                            Text(
+                              'Date: ${orderDate.day}/${orderDate.month}/${orderDate.year}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        status.toUpperCase(),
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTopSellingProducts() {
+    return StreamBuilder(
+      stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        // Count products from orders
+        Map<String, int> productCount = {};
+        final orders = snapshot.data?.docs ?? [];
+        for (var order in orders) {
+          final items = order['items'] as List<dynamic>? ?? [];
+          for (var item in items) {
+            final productName = item['productName'] ?? 'Unknown';
+            productCount[productName] = (productCount[productName] ?? 0) + 1;
+          }
+        }
+
+        if (productCount.isEmpty) {
+          return const Center(child: Text('No products sold yet'));
+        }
+
+        // Sort by count and get top 5
+        final sortedProducts = productCount.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+        final topProducts = sortedProducts.take(5).toList();
+
+        return ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: topProducts.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (context, index) {
+            final product = topProducts[index];
+            return Container(
+              width: 150,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue.withOpacity(0.7), Colors.blue],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.4),
+                    offset: const Offset(2, 2),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    product.value.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    product.key,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTopServices() {
+    return StreamBuilder(
+      stream: FirebaseFirestore.instance
+          .collection('service_categories')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        final services = snapshot.data?.docs ?? [];
+        if (services.isEmpty) {
+          return const Center(child: Text('No services available'));
+        }
+
+        // Sort by name and get top 5
+        final topServices = services.take(5).toList();
+
+        return ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: topServices.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (context, index) {
+            final service = topServices[index];
+            final serviceName = service['name'] ?? 'Unknown';
+            final description = service['description'] ?? '';
+
+            return Container(
+              width: 150,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green.withOpacity(0.7), Colors.green],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.4),
+                    offset: const Offset(2, 2),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.design_services, size: 36, color: Colors.white),
+                  const SizedBox(height: 8),
+                  Text(
+                    serviceName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDashboardCard({
+    required String title,
+    required Stream<QuerySnapshot> stream,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Card(
+      elevation: 8,
+      shadowColor: color.withOpacity(0.5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: [color.withOpacity(0.8), color.withOpacity(0.5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.4),
+              offset: const Offset(4, 4),
+              blurRadius: 12,
+            ),
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              offset: const Offset(-2, -2),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(icon, size: 48, color: Colors.white),
+              const SizedBox(height: 16),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      StreamBuilder<QuerySnapshot>(
+                        stream: stream,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const SizedBox(
+                              height: 48,
+                              width: 48,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            );
+                          }
+                          if (snapshot.hasError) {
+                            return const Text(
+                              'Error',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 42,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          }
+                          return Text(
+                            snapshot.data?.docs.length.toString() ?? '0',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 48,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1060,39 +1660,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         final gifts = giftProvider.gifts;
         return Column(
           children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primary,
-                    Theme.of(context).colorScheme.primaryContainer,
-                  ],
-                ),
-              ),
-              child: const Text(
-                'Gift Management',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-
             // Count + Add button
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Total Gifts: ${gifts.length}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      'Total Gifts: ${gifts.length}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   ElevatedButton.icon(
@@ -1150,153 +1730,181 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         return Card(
                           margin: const EdgeInsets.only(bottom: 12),
                           elevation: 2,
-                          child: ListTile(
-                            leading: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: gift.imageUrl != null
-                                  ? Image.network(
-                                      gift.imageUrl!,
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (c, e, s) => Container(
-                                        width: 60,
-                                        height: 60,
-                                        color: Colors.grey[300],
-                                        child: const Icon(
-                                          Icons.image_not_supported,
-                                        ),
-                                      ),
-                                    )
-                                  : Container(
-                                      width: 60,
-                                      height: 60,
-                                      color: Colors.grey[300],
-                                      child: const Icon(Icons.card_giftcard),
-                                    ),
-                            ),
-                            title: Text(
-                              gift.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Column(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if ((gift.purpose ?? '').isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.sell,
-                                          size: 14,
-                                          color: Colors.blueGrey,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          gift.purpose!,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.blueGrey,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                Text('₹${gift.price.toStringAsFixed(2)}'),
-                                Row(
-                                  children: [
-                                    const Text('Active:'),
-                                    const SizedBox(width: 6),
-                                    Icon(
-                                      gift.isActive
-                                          ? Icons.check_circle
-                                          : Icons.cancel,
-                                      color: gift.isActive
-                                          ? Colors.green
-                                          : Colors.red,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text('Order: ${gift.displayOrder}'),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.edit,
-                                    color: Colors.blue,
-                                  ),
-                                  onPressed: () => _showAddOrEditGiftDialog(
-                                    context,
-                                    existing: gift,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: ctx,
-                                      builder: (d) => AlertDialog(
-                                        title: const Text('Delete Gift'),
-                                        content: Text('Delete "${gift.name}"?'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(d, false),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () =>
-                                                Navigator.pop(d, true),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.red,
+                                // Leading
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: gift.imageUrl != null
+                                      ? Image.network(
+                                          gift.imageUrl!,
+                                          width: 60,
+                                          height: 60,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (c, e, s) => Container(
+                                            width: 60,
+                                            height: 60,
+                                            color: Colors.grey[300],
+                                            child: const Icon(
+                                              Icons.image_not_supported,
                                             ),
-                                            child: const Text('Delete'),
                                           ),
+                                        )
+                                      : Container(
+                                          width: 60,
+                                          height: 60,
+                                          color: Colors.grey[300],
+                                          child: const Icon(
+                                            Icons.card_giftcard,
+                                          ),
+                                        ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Title and Subtitle
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        gift.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      if ((gift.purpose ?? '').isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 4,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.sell,
+                                                size: 14,
+                                                color: Colors.blueGrey,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  gift.purpose!,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.blueGrey,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      Text('₹${gift.price.toStringAsFixed(2)}'),
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 6.0,
+                                        runSpacing: 4.0,
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
+                                        children: [
+                                          const Text('Active:'),
+                                          Icon(
+                                            gift.isActive
+                                                ? Icons.check_circle
+                                                : Icons.cancel,
+                                            color: gift.isActive
+                                                ? Colors.green
+                                                : Colors.red,
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text('Order: ${gift.displayOrder}'),
                                         ],
                                       ),
-                                    );
-                                    if (confirm == true) {
-                                      try {
-                                        await Provider.of<GiftProvider>(
-                                          context,
-                                          listen: false,
-                                        ).deleteGift(gift.id);
-                                        if (ctx.mounted) {
-                                          ScaffoldMessenger.of(
-                                            ctx,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Gift deleted successfully!',
+                                    ],
+                                  ),
+                                ),
+                                // Trailing
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.edit,
+                                        color: Colors.blue,
+                                      ),
+                                      onPressed: () => _showAddOrEditGiftDialog(
+                                        context,
+                                        existing: gift,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () async {
+                                        final confirm = await showDialog<bool>(
+                                          context: ctx,
+                                          builder: (d) => AlertDialog(
+                                            title: const Text('Delete Gift'),
+                                            content: Text(
+                                              'Delete "${gift.name}"?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(d, false),
+                                                child: const Text('Cancel'),
                                               ),
-                                            ),
-                                          );
+                                              ElevatedButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(d, true),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                                child: const Text('Delete'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirm == true) {
+                                          try {
+                                            await Provider.of<GiftProvider>(
+                                              context,
+                                              listen: false,
+                                            ).deleteGift(gift.id);
+                                            if (ctx.mounted) {
+                                              ScaffoldMessenger.of(
+                                                ctx,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Gift deleted successfully!',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (ctx.mounted) {
+                                              ScaffoldMessenger.of(
+                                                ctx,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Error: $e'),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            }
+                                          }
                                         }
-                                      } catch (e) {
-                                        if (ctx.mounted) {
-                                          ScaffoldMessenger.of(
-                                            ctx,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text('Error: $e'),
-                                              backgroundColor: Colors.red,
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    }
-                                  },
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -1327,27 +1935,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primary,
-                  Theme.of(context).colorScheme.primaryContainer,
-                ],
-              ),
-            ),
-            child: const Text(
-              'Orders',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           Expanded(
             child: StreamBuilder(
               stream: FirebaseFirestore.instance
@@ -1463,14 +2050,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                                 }
                               },
                             ),
-                            const SizedBox(width: 12),
-                            Text(
-                              status.replaceAll('_', ' '),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
+
                             IconButton(
                               icon: const Icon(Icons.person_add),
                               tooltip: 'Assign Delivery Partner',
@@ -1694,7 +2274,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
 
     Future<List<String>> uploadGiftImages(String giftId) async {
-      debugPrint('🔄 Uploading images for gift: $giftId');
       final storage = FirebaseStorage.instanceFor(
         bucket: 'gs://bong-bazar-3659f.firebasestorage.app',
       );
@@ -1712,7 +2291,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         // If new image selected, upload it
         if (imageBytes[i] != null || imageFiles[i] != null) {
           try {
-            debugPrint('📤 Uploading gift image $i...');
             final ref = storage
                 .ref()
                 .child('gifts')
@@ -1746,10 +2324,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             if (snap.state == TaskState.success) {
               final url = await ref.getDownloadURL();
               urls.add(url);
-              debugPrint('✅ Gift image $i uploaded');
             }
           } catch (e) {
-            debugPrint('❌ Failed to upload gift image $i: $e');
+
           }
         }
       }
@@ -2031,28 +2608,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   ) {
     return Column(
       children: [
-        // Header
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Theme.of(context).colorScheme.primary,
-                Theme.of(context).colorScheme.primaryContainer,
-              ],
-            ),
-          ),
-          child: const Text(
-            'Product Management',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-
         // Product count and Add button
         Padding(
           padding: const EdgeInsets.all(16),
@@ -2239,39 +2794,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         final categories = categoryProvider.categories;
         return Column(
           children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primary,
-                    Theme.of(context).colorScheme.primaryContainer,
-                  ],
-                ),
-              ),
-              child: const Text(
-                'Category Management',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-
             // Category count and Add button
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Total Categories: ${categories.length}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      'Total Categories: ${categories.length}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   ElevatedButton.icon(
@@ -2506,7 +3041,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       }
 
       try {
-        print('🔄 Uploading category image for: $categoryId');
+
         final storage = FirebaseStorage.instanceFor(
           bucket: 'gs://bong-bazar-3659f.firebasestorage.app',
         );
@@ -2539,10 +3074,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
         final snapshot = await task;
         final url = await snapshot.ref.getDownloadURL();
-        print('✅ Category image uploaded: $url');
+
         return url;
       } catch (e) {
-        print('🔴 Error uploading category image: $e');
+
         rethrow;
       }
     }
@@ -2748,28 +3283,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ],
                 ),
               ),
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primary,
-                    Theme.of(context).colorScheme.primaryContainer,
-                  ],
-                ),
-              ),
-              child: const Text(
-                'Service Categories Management',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             // Add Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -3364,9 +3877,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Featured Sections',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  const Expanded(
+                    child: Text(
+                      'Featured Sections',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   ElevatedButton.icon(
                     onPressed: isAdmin
@@ -3849,6 +4368,22 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   Widget _buildInfoRow(String label, String value) {
+    // Filter out Firestore references and null values
+    String displayValue = value.toString().trim();
+
+    // Check if it's a Firestore reference or invalid data
+    if (displayValue.contains('DocumentReference') ||
+        displayValue.contains('projects/') ||
+        displayValue.startsWith('/') ||
+        displayValue == 'null') {
+      return const SizedBox.shrink(); // Hide completely
+    }
+
+    // Show empty placeholder if value is empty
+    if (displayValue.isEmpty) {
+      displayValue = 'N/A';
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -3864,7 +4399,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               ),
             ),
           ),
-          Expanded(child: Text(value)),
+          Expanded(
+            child: Text(
+              displayValue,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -4188,9 +4729,85 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
+  Widget _buildDeliveryPartnersTab() {
+    return Column(
+      children: [
+        // Search and Filter
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search by name or phone...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.toLowerCase();
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    FilterChip(
+                      label: const Text('All'),
+                      selected: _filterStatus == 'all',
+                      onSelected: (selected) {
+                        setState(() => _filterStatus = 'all');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    FilterChip(
+                      label: const Text('Pending'),
+                      selected: _filterStatus == 'pending',
+                      onSelected: (selected) {
+                        setState(() => _filterStatus = 'pending');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    FilterChip(
+                      label: const Text('Approved'),
+                      selected: _filterStatus == 'approved',
+                      onSelected: (selected) {
+                        setState(() => _filterStatus = 'approved');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    FilterChip(
+                      label: const Text('Rejected'),
+                      selected: _filterStatus == 'rejected',
+                      onSelected: (selected) {
+                        setState(() => _filterStatus = 'rejected');
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _buildPartnersList(
+            _filterStatus == 'all' ? null : _filterStatus,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildUsersTab() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isNotEqualTo: 'delivery_partner')
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
@@ -4277,40 +4894,35 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         if (createdAt != null)
                           _buildInfoRow('Joined', _formatDate(createdAt)),
                         const SizedBox(height: 16),
-                        Row(
+                        Wrap(
+                          spacing: 8.0,
+                          runSpacing: 4.0,
+                          alignment: WrapAlignment.spaceEvenly,
                           children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () =>
-                                    _editUser(userId, name, email, phone, role),
-                                icon: const Icon(Icons.edit),
-                                label: const Text('Edit'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue,
-                                  foregroundColor: Colors.white,
-                                ),
+                            ElevatedButton.icon(
+                              onPressed: () =>
+                                  _editUser(userId, name, email, phone, role),
+                              icon: const Icon(Icons.edit),
+                              label: const Text('Edit'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _changeUserRole(userId, role),
-                                icon: const Icon(Icons.swap_horiz),
-                                label: const Text('Change Role'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.orange,
-                                ),
+                            OutlinedButton.icon(
+                              onPressed: () => _changeUserRole(userId, role),
+                              icon: const Icon(Icons.swap_horiz),
+                              label: const Text('Change Role'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.orange,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _deleteUser(userId, email),
-                                icon: const Icon(Icons.delete),
-                                label: const Text('Delete'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.red,
-                                ),
+                            OutlinedButton.icon(
+                              onPressed: () => _deleteUser(userId, email),
+                              icon: const Icon(Icons.delete),
+                              label: const Text('Delete'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
                               ),
                             ),
                           ],
@@ -4614,6 +5226,621 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             duration: const Duration(seconds: 5),
           ),
         );
+      }
+    }
+  }
+
+  Widget _buildPartnersList(String? status) {
+    Query query = FirebaseFirestore.instance.collection('delivery_partners');
+
+    if (status != null) {
+      query = query.where('status', isEqualTo: status);
+      query = query.orderBy('createdAt', descending: true);
+    } else {
+      query = query.orderBy('createdAt', descending: true);
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.data == null || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                const Text(
+                  'No delivery partners available',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
+
+        var partners = snapshot.data!.docs
+            .map(
+              (doc) => DeliveryPartnerModel.fromMap(
+                doc.data() as Map<String, dynamic>,
+              ),
+            )
+            .toList();
+
+        // Apply search filter
+        if (_searchQuery.isNotEmpty) {
+          partners = partners
+              .where(
+                (p) =>
+                    p.name.toLowerCase().contains(_searchQuery) ||
+                    p.phone.contains(_searchQuery) ||
+                    p.email.toLowerCase().contains(_searchQuery),
+              )
+              .toList();
+        }
+
+        if (partners.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  'No ${status ?? 'available'} partners',
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: partners.length,
+          itemBuilder: (context, index) {
+            final partner = partners[index];
+            return this._buildPartnerCard(partner);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPartnerCard(DeliveryPartnerModel partner) {
+    Color statusColor = Colors.orange;
+    if (partner.status == 'approved') statusColor = Colors.green;
+    if (partner.status == 'rejected') statusColor = Colors.red;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: statusColor.withOpacity(0.2),
+          child: Icon(Icons.person, color: statusColor),
+        ),
+        title: Text(
+          partner.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(partner.phone),
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'approve') {
+              _approvePartner(partner);
+            } else if (value == 'reject') {
+              _rejectPartner(partner);
+            }
+          },
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            const PopupMenuItem<String>(
+              value: 'approve',
+              child: Text('Approve'),
+            ),
+            const PopupMenuItem<String>(value: 'reject', child: Text('Reject')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _approvePartner(DeliveryPartnerModel partner) async {
+    try {
+      final dpRef = FirebaseFirestore.instance
+          .collection('delivery_partners')
+          .doc(partner.id);
+
+      // Check if document exists, if not create it
+      final dpSnap = await dpRef.get();
+      if (!dpSnap.exists) {
+        // Create new delivery partner entry
+        await dpRef.set({
+          'id': partner.id,
+          'name': partner.name,
+          'phone': partner.phone,
+          'email': partner.email,
+          'address': partner.address,
+          'vehicleType': partner.vehicleType,
+          'vehicleNumber': partner.vehicleNumber ?? '',
+          'status': 'approved',
+          'createdAt': partner.createdAt,
+          'approvedAt': FieldValue.serverTimestamp(),
+          'rejectionReason': null,
+        });
+      } else {
+        // Update existing entry
+        await dpRef.update({
+          'status': 'approved',
+          'approvedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${partner.name} approved successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectPartner(DeliveryPartnerModel partner) async {
+    final reasonController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reject Application'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Reject ${partner.name}\'s application?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Rejection Reason (Optional)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reject', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('delivery_partners')
+            .doc(partner.id)
+            .update({
+              'status': 'rejected',
+              'rejectionReason': reasonController.text.trim().isEmpty
+                  ? null
+                  : reasonController.text.trim(),
+            });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Application rejected'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _addTestDeliveryPartners() async {
+    try {
+      final now = DateTime.now();
+      final testPartners = [
+        {
+          'id': 'partner_001',
+          'name': 'Raj Kumar',
+          'phone': '9876543210',
+          'email': 'raj@delivery.com',
+          'address': '123 Main Street, City',
+          'vehicleType': 'bike',
+          'vehicleNumber': 'DL-01-AB-1234',
+          'status': 'approved',
+          'createdAt': Timestamp.fromDate(now.subtract(Duration(days: 5))),
+          'approvedAt': Timestamp.fromDate(now.subtract(Duration(days: 4))),
+        },
+        {
+          'id': 'partner_002',
+          'name': 'Priya Singh',
+          'phone': '9876543211',
+          'email': 'priya@delivery.com',
+          'address': '456 Park Avenue, City',
+          'vehicleType': 'car',
+          'vehicleNumber': 'DL-02-CD-5678',
+          'status': 'pending',
+          'createdAt': Timestamp.fromDate(now.subtract(Duration(days: 2))),
+        },
+        {
+          'id': 'partner_003',
+          'name': 'Amit Patel',
+          'phone': '9876543212',
+          'email': 'amit@delivery.com',
+          'address': '789 Market Road, City',
+          'vehicleType': 'bike',
+          'vehicleNumber': 'DL-03-EF-9012',
+          'status': 'approved',
+          'createdAt': Timestamp.fromDate(now.subtract(Duration(days: 3))),
+          'approvedAt': Timestamp.fromDate(now.subtract(Duration(days: 2))),
+        },
+        {
+          'id': 'partner_004',
+          'name': 'Sneha Gupta',
+          'phone': '9876543213',
+          'email': 'sneha@delivery.com',
+          'address': '321 Commercial Zone, City',
+          'vehicleType': 'bike',
+          'vehicleNumber': 'DL-04-GH-3456',
+          'status': 'rejected',
+          'createdAt': Timestamp.fromDate(now.subtract(Duration(days: 7))),
+          'rejectionReason': 'Vehicle documents not verified',
+        },
+      ];
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (var partner in testPartners) {
+        final docRef = FirebaseFirestore.instance
+            .collection('delivery_partners')
+            .doc(partner['id'] as String);
+        batch.set(docRef, partner);
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Test delivery partners added successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding test data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildCoreStaffTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('core_staff').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        final staffMembers = snapshot.data?.docs ?? [];
+
+        return Column(
+          children: [
+            // Add Staff Button
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Total Staff Members: ${staffMembers.length}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => _showAddCoreStaffDialog(),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Staff Member'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Staff List
+            Expanded(
+              child: staffMembers.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.people_outline,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'No staff members yet',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: staffMembers.length,
+                      itemBuilder: (context, index) {
+                        final doc = staffMembers[index];
+                        final data = doc.data() as Map<String, dynamic>;
+                        final name = data['name'] ?? 'N/A';
+                        final position = data['position'] ?? 'N/A';
+                        final email = data['email'] ?? 'N/A';
+                        final phone = data['phone'] ?? 'N/A';
+                        final imageUrl = data['imageUrl'] as String?;
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          elevation: 2,
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundImage: imageUrl != null
+                                  ? NetworkImage(imageUrl)
+                                  : null,
+                              child: imageUrl == null
+                                  ? const Icon(Icons.person)
+                                  : null,
+                            ),
+                            title: Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Position: $position'),
+                                Text('Email: $email'),
+                                Text('Phone: $phone'),
+                              ],
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  onPressed: () => _showAddCoreStaffDialog(
+                                    staffId: doc.id,
+                                    staffData: data,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () => _deleteCoreStaff(doc.id),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAddCoreStaffDialog({
+    String? staffId,
+    Map<String, dynamic>? staffData,
+  }) {
+    final nameCtrl = TextEditingController(text: staffData?['name'] ?? '');
+    final positionCtrl = TextEditingController(
+      text: staffData?['position'] ?? '',
+    );
+    final emailCtrl = TextEditingController(text: staffData?['email'] ?? '');
+    final phoneCtrl = TextEditingController(text: staffData?['phone'] ?? '');
+    final bioCtrl = TextEditingController(text: staffData?['bio'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(staffId == null ? 'Add Staff Member' : 'Edit Staff Member'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: positionCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Position (e.g., Manager, Developer)',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailCtrl,
+                decoration: const InputDecoration(labelText: 'Email'),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneCtrl,
+                decoration: const InputDecoration(labelText: 'Phone'),
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: bioCtrl,
+                decoration: const InputDecoration(labelText: 'Bio/Description'),
+                maxLines: 3,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _saveCoreStaff(
+                nameCtrl.text,
+                positionCtrl.text,
+                emailCtrl.text,
+                phoneCtrl.text,
+                bioCtrl.text,
+                staffId,
+              );
+              Navigator.pop(ctx);
+            },
+            child: Text(staffId == null ? 'Add' : 'Update'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveCoreStaff(
+    String name,
+    String position,
+    String email,
+    String phone,
+    String bio,
+    String? staffId,
+  ) async {
+    try {
+      final data = {
+        'name': name,
+        'position': position,
+        'email': email,
+        'phone': phone,
+        'bio': bio,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (staffId == null) {
+        await FirebaseFirestore.instance.collection('core_staff').add({
+          ...data,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Staff member added successfully!')),
+          );
+        }
+      } else {
+        await FirebaseFirestore.instance
+            .collection('core_staff')
+            .doc(staffId)
+            .update(data);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Staff member updated successfully!')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteCoreStaff(String staffId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Staff Member'),
+        content: const Text(
+          'Are you sure you want to delete this staff member?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('core_staff')
+            .doc(staffId)
+            .delete();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Staff member deleted successfully!')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
       }
     }
   }

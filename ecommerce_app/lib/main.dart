@@ -17,6 +17,7 @@ import 'package:ecommerce_app/screens/seller_dashboard_screen.dart';
 import 'package:ecommerce_app/screens/book_service_screen.dart';
 import 'package:ecommerce_app/screens/service_provider_dashboard_screen.dart';
 import 'package:ecommerce_app/screens/delivery_partner_dashboard_screen.dart';
+import 'package:ecommerce_app/screens/delivery_partner_registration_screen.dart';
 import 'package:ecommerce_app/screens/my_orders_screen.dart';
 import 'package:ecommerce_app/models/product_model.dart';
 import 'package:ecommerce_app/providers/cart_provider.dart';
@@ -121,7 +122,10 @@ class MyApp extends StatelessWidget {
             themeMode: themeProvider.themeMode,
             scrollBehavior: NoHoverScrollBehavior(),
             theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFF9C27B0), // Modern purple
+                brightness: Brightness.light,
+              ),
               useMaterial3: true,
               hoverColor: Colors.transparent,
               splashColor: Colors.transparent,
@@ -135,7 +139,7 @@ class MyApp extends StatelessWidget {
             ),
             darkTheme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.deepPurple,
+                seedColor: const Color(0xFFB71C1C), // Deep red
                 brightness: Brightness.dark,
               ),
               useMaterial3: true,
@@ -198,6 +202,12 @@ class MyApp extends StatelessWidget {
               if (settings.name == '/delivery-dashboard') {
                 return MaterialPageRoute(
                   builder: (_) => const DeliveryPartnerDashboardScreen(),
+                );
+              }
+              if (settings.name ==
+                  DeliveryPartnerRegistrationScreen.routeName) {
+                return MaterialPageRoute(
+                  builder: (_) => const DeliveryPartnerRegistrationScreen(),
                 );
               }
               return null;

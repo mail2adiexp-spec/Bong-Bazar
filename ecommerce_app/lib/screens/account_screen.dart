@@ -30,9 +30,6 @@ class _AccountScreenState extends State<AccountScreen> {
         height: 100,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          print('🔴 Avatar image load error: $error');
-          print('📸 Failed URL: $imageUrl');
-          print('Stack: $stackTrace');
           return Container(
             width: 100,
             height: 100,
@@ -51,13 +48,11 @@ class _AccountScreenState extends State<AccountScreen> {
         },
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) {
-            print('✅ Avatar image loaded successfully!');
             return child;
           }
           final progress =
               loadingProgress.cumulativeBytesLoaded /
               (loadingProgress.expectedTotalBytes ?? 1);
-          print('⏳ Loading avatar: ${(progress * 100).toStringAsFixed(0)}%');
           return Center(
             child: CircularProgressIndicator(
               value: loadingProgress.expectedTotalBytes != null

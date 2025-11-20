@@ -227,8 +227,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 height: 120,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) {
-                                  print('🔴 Edit profile image error: $error');
-                                  print('📸 Failed URL: $_imageUrl');
                                   return Text(
                                     _nameController.text.isNotEmpty
                                         ? _nameController.text[0].toUpperCase()
@@ -245,7 +243,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 loadingBuilder:
                                     (context, child, loadingProgress) {
                                       if (loadingProgress == null) {
-                                        print('✅ Edit profile image loaded!');
                                         return child;
                                       }
                                       return const Center(

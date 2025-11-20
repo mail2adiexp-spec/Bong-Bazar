@@ -45,7 +45,6 @@ class _ContactScreenState extends State<ContactScreen> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-      // TODO: Implement contact form submission
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Thank you! We will get back to you soon.'),

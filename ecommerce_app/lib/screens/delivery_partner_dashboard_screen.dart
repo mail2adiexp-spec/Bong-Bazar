@@ -25,20 +25,20 @@ class _DeliveryPartnerDashboardScreenState
 
     if (deliveryPartnerId == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('डिलीवरी डैशबोर्ड')),
-        body: const Center(child: Text('कृपया लॉगिन करें')),
+        appBar: AppBar(title: const Text('Delivery Dashboard')),
+        body: const Center(child: Text('Please log in')),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('डिलीवरी पार्टनर डैशबोर्ड'),
+        title: const Text('Delivery Partner Dashboard'),
         centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => setState(() {}),
-            tooltip: 'रिफ्रेश करें',
+            tooltip: 'Refresh',
           ),
         ],
       ),
@@ -51,13 +51,13 @@ class _DeliveryPartnerDashboardScreenState
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildFilterChip('assigned', 'नए ऑर्डर'),
+                  _buildFilterChip('assigned', 'New Orders'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('shipped', 'पिक किए गए'),
+                  _buildFilterChip('shipped', 'Picked'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('out_for_delivery', 'डिलीवरी में'),
+                  _buildFilterChip('out_for_delivery', 'Out for Delivery'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('delivered', 'पूर्ण'),
+                  _buildFilterChip('delivered', 'Delivered'),
                 ],
               ),
             ),
@@ -73,7 +73,7 @@ class _DeliveryPartnerDashboardScreenState
                 }
 
                 if (snapshot.hasError) {
-                  return Center(child: Text('त्रुटि: ${snapshot.error}'));
+                  return Center(child: Text('Error: ${snapshot.error}'));
                 }
 
                 final docs = snapshot.data?.docs ?? [];
@@ -89,7 +89,7 @@ class _DeliveryPartnerDashboardScreenState
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'कोई ऑर्डर नहीं मिला',
+                          'No orders found',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[600],
@@ -167,7 +167,7 @@ class _DeliveryPartnerDashboardScreenState
               children: [
                 Expanded(
                   child: Text(
-                    'ऑर्डर #${orderId.substring(0, orderId.length >= 8 ? 8 : orderId.length)}',
+                    'Order #${orderId.substring(0, orderId.length >= 8 ? 8 : orderId.length)}',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -200,25 +200,29 @@ class _DeliveryPartnerDashboardScreenState
             // Order Details
             _buildDetailRow(
               Icons.calendar_today,
-              'दिनांक',
+              'Date',
               DateFormat('dd-MM-yyyy HH:mm').format(order.orderDate),
             ),
             const SizedBox(height: 8),
             _buildDetailRow(
               Icons.shopping_bag,
-              'आइटम',
-              '${order.items.length} आइटम',
+              'Items',
+              '${order.items.length} items',
             ),
             const SizedBox(height: 8),
             _buildDetailRow(
               Icons.currency_rupee,
-              'कुल',
+              'Total',
               '₹${order.totalAmount.toStringAsFixed(2)}',
             ),
             const SizedBox(height: 8),
-            _buildDetailRow(Icons.location_on, 'पता', order.deliveryAddress),
+            _buildDetailRow(
+              Icons.location_on,
+              'Address',
+              order.deliveryAddress,
+            ),
             const SizedBox(height: 8),
-            _buildDetailRow(Icons.phone, 'फोन', order.phoneNumber),
+            _buildDetailRow(Icons.phone, 'Phone', order.phoneNumber),
 
             if (canUpdateStatus) ...[
               const SizedBox(height: 16),
@@ -246,7 +250,7 @@ class _DeliveryPartnerDashboardScreenState
             TextButton.icon(
               onPressed: () => _showOrderDetails(order, orderId),
               icon: const Icon(Icons.info_outline),
-              label: const Text('विवरण देखें'),
+              label: const Text('View Details'),
             ),
           ],
         ),
@@ -306,13 +310,13 @@ class _DeliveryPartnerDashboardScreenState
     switch (currentStatus) {
       case 'confirmed':
       case 'packed':
-        return 'पिक किया';
+        return 'Mark as Picked';
       case 'shipped':
-        return 'डिलीवरी शुरू करें';
+        return 'Start Delivery';
       case 'out_for_delivery':
-        return 'डिलीवर किया';
+        return 'Mark Delivered';
       default:
-        return 'अपडेट करें';
+        return 'Update';
     }
   }
 
@@ -347,7 +351,7 @@ class _DeliveryPartnerDashboardScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('स्टेटस अपडेट हुआ: ${_getStatusLabel(nextStatus)}'),
+            content: Text('Status updated: ${_getStatusLabel(nextStatus)}'),
             backgroundColor: Colors.green,
           ),
         );
@@ -355,7 +359,7 @@ class _DeliveryPartnerDashboardScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('त्रुटि: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -364,11 +368,11 @@ class _DeliveryPartnerDashboardScreenState
   String _getStatusLabel(String status) {
     switch (status) {
       case 'shipped':
-        return 'पिक किया गया';
+        return 'Picked';
       case 'out_for_delivery':
-        return 'डिलीवरी में';
+        return 'Out for Delivery';
       case 'delivered':
-        return 'डिलीवर किया गया';
+        return 'Delivered';
       default:
         return status;
     }
@@ -404,7 +408,7 @@ class _DeliveryPartnerDashboardScreenState
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'ऑर्डर विवरण',
+                      'Order Details',
                       style: Theme.of(bottomSheetContext).textTheme.titleLarge,
                     ),
                   ),
@@ -421,7 +425,7 @@ class _DeliveryPartnerDashboardScreenState
                 padding: const EdgeInsets.all(16),
                 children: [
                   Text(
-                    'ऑर्डर #${orderId.substring(0, orderId.length >= 8 ? 8 : orderId.length)}',
+                    'Order #${orderId.substring(0, orderId.length >= 8 ? 8 : orderId.length)}',
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -437,7 +441,7 @@ class _DeliveryPartnerDashboardScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'ग्राहक जानकारी',
+                            'Customer Info',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -446,20 +450,18 @@ class _DeliveryPartnerDashboardScreenState
                           const Divider(),
                           ListTile(
                             leading: const Icon(Icons.location_on),
-                            title: const Text('पता'),
+                            title: const Text('Address'),
                             subtitle: Text(order.deliveryAddress),
                             contentPadding: EdgeInsets.zero,
                           ),
                           ListTile(
                             leading: const Icon(Icons.phone),
-                            title: const Text('फोन'),
+                            title: const Text('Phone'),
                             subtitle: Text(order.phoneNumber),
                             contentPadding: EdgeInsets.zero,
                             trailing: IconButton(
                               icon: const Icon(Icons.call),
-                              onPressed: () {
-                                // TODO: Implement phone call
-                              },
+                              onPressed: () {},
                             ),
                           ),
                         ],
@@ -476,7 +478,7 @@ class _DeliveryPartnerDashboardScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'ऑर्डर आइटम',
+                            'Order Items',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -505,7 +507,7 @@ class _DeliveryPartnerDashboardScreenState
                                       child: const Icon(Icons.shopping_bag),
                                     ),
                               title: Text(item.productName),
-                              subtitle: Text('मात्रा: ${item.quantity}'),
+                              subtitle: Text('Qty: ${item.quantity}'),
                               trailing: Text(
                                 '₹${item.price.toStringAsFixed(2)}',
                                 style: const TextStyle(
@@ -520,7 +522,7 @@ class _DeliveryPartnerDashboardScreenState
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                'कुल राशि',
+                                'Total Amount',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,

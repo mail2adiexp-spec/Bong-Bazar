@@ -23,6 +23,7 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _districtController = TextEditingController();
   final _pincodeController = TextEditingController();
   final _businessController = TextEditingController();
@@ -58,6 +59,7 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
     _districtController.dispose();
     _pincodeController.dispose();
     _businessController.dispose();
@@ -119,6 +121,7 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'email': _emailController.text.trim(),
+        'password': _passwordController.text.trim(),
         'district': _districtController.text.trim(),
         'pincode': _pincodeController.text.trim(),
         'businessName': _role == 'Service Provider'
@@ -284,14 +287,13 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
                               : null,
                         ),
                         const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _pickProfileImage,
-                            icon: const Icon(Icons.photo_camera_back),
-                            label: const Text('Upload Profile Picture'),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
+                        // Expanded hata diya, sirf button direct Row ke andar
+                        ElevatedButton.icon(
+                          onPressed: _pickProfileImage,
+                          icon: const Icon(Icons.photo_camera_back),
+                          label: const Text('Upload Profile Picture'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
                       ],
@@ -338,6 +340,18 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
                           return 'Enter a valid email';
                         return null;
                       },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Set Password',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => v == null || v.trim().length < 6
+                          ? 'Password kam se kam 6 character ka hona chahiye'
+                          : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(

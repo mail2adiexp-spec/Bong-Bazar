@@ -16,7 +16,6 @@ class ProductProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     _sub?.cancel();
-    print(' Starting realtime listener for products...');
     _sub = _firestore
         .collection('products')
         .orderBy('createdAt', descending: true)
@@ -44,12 +43,10 @@ class ProductProvider with ChangeNotifier {
               );
             _isLoading = false;
             notifyListeners();
-            print(' Realtime update: ${_products.length} products');
           },
           onError: (e) {
             _isLoading = false;
             notifyListeners();
-            print(' Realtime listener error: $e');
           },
         );
   }
@@ -70,7 +67,6 @@ class ProductProvider with ChangeNotifier {
 
   Future<void> addProduct(Product product) async {
     try {
-      print(' ProductProvider: Adding product ${product.name} to Firestore');
       await _firestore.collection('products').doc(product.id).set({
         'name': product.name,
         'price': product.price,
@@ -81,16 +77,13 @@ class ProductProvider with ChangeNotifier {
         'unit': product.unit,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      print(' Product added successfully');
     } catch (e) {
-      print(' Error adding product: $e');
       rethrow;
     }
   }
 
   Future<void> updateProduct(String id, Product updatedProduct) async {
     try {
-      print(' ProductProvider: Updating product $id in Firestore');
       await _firestore.collection('products').doc(id).update({
         'name': updatedProduct.name,
         'price': updatedProduct.price,
@@ -101,20 +94,15 @@ class ProductProvider with ChangeNotifier {
         'unit': updatedProduct.unit,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      print(' Product updated successfully');
     } catch (e) {
-      print(' Error updating product: $e');
       rethrow;
     }
   }
 
   Future<void> deleteProduct(String id) async {
     try {
-      print(' ProductProvider: Deleting product $id from Firestore');
       await _firestore.collection('products').doc(id).delete();
-      print(' Product deleted successfully');
     } catch (e) {
-      print(' Error deleting product: $e');
       rethrow;
     }
   }

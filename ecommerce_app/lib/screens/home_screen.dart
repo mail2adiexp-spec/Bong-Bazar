@@ -64,7 +64,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       }
-      // TODO: Implement ML-based image search with captured photo
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -278,8 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     padding: const EdgeInsets.all(16.0),
                                     child: Text(
                                       'No categories found. Add categories from Admin Panel.',
-                                      style:
-                                          TextStyle(color: Colors.grey[600]),
+                                      style: TextStyle(color: Colors.grey[600]),
                                       textAlign: TextAlign.center,
                                     ),
                                   );
@@ -288,10 +286,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                 // Show only first 9 categories
                                 final displayCategories =
                                     categoryProvider.categories.length > 9
-                                        ? categoryProvider.categories
-                                            .take(9)
-                                            .toList()
-                                        : categoryProvider.categories;
+                                    ? categoryProvider.categories
+                                          .take(9)
+                                          .toList()
+                                    : categoryProvider.categories;
                                 final hasMore =
                                     categoryProvider.categories.length > 9;
 
@@ -323,8 +321,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           onPressed: () {
                                             showDialog(
                                               context: context,
-                                              builder: (context) =>
-                                                  AlertDialog(
+                                              builder: (context) => AlertDialog(
                                                 title: const Text(
                                                   'All Categories',
                                                 ),
@@ -385,8 +382,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                           vertical: 20,
                                         ),
                                         decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           gradient: const LinearGradient(
                                             colors: [
                                               Color(0xFFFF7043),
@@ -602,19 +600,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                 sliver: SliverGrid(
                                   gridDelegate:
                                       const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    childAspectRatio: 2 / 3,
-                                    crossAxisSpacing: 10,
-                                    mainAxisSpacing: 10,
-                                  ),
+                                        crossAxisCount: 3,
+                                        childAspectRatio: 2 / 3,
+                                        crossAxisSpacing: 10,
+                                        mainAxisSpacing: 10,
+                                      ),
                                   delegate: SliverChildBuilderDelegate(
                                     (ctx, i) => ProductCard(
-                                        product: filteredProducts[i]),
+                                      product: filteredProducts[i],
+                                    ),
                                     childCount: filteredProducts.length,
                                   ),
                                 ),
                               ),
-                      ]
+                      ],
                     ],
                   ),
                 ),

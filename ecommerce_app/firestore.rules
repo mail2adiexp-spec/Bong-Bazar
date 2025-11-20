@@ -16,7 +16,7 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null && (
              request.auth.token.email == 'mail2adiexp@gmail.com' ||
-             (getUserRole() != null && getUserRole().role == 'admin')
+             (getUserRole() != null && (getUserRole().role == 'admin' || getUserRole().role == 'administrator'))
       );
     }
     
@@ -166,6 +166,12 @@ service cloud.firestore {
     match /featured_sections/{sectionId} {
       allow read: if true;
       allow write: if isAdmin() || isCoreStaff();
+    }
+
+    // ==================== DELIVERY PARTNERS COLLECTION (DEBUG) ====================
+    match /delivery_partners/{partnerId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
     // ==================== GIFTS COLLECTION ====================
