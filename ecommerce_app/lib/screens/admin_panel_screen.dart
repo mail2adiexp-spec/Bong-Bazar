@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 import '../models/product_model.dart';
 import '../models/category_model.dart';
@@ -45,25 +46,29 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'Services', // 8 chars - original index 3
     'Dashboard', // 9 chars - original index 0
     'Categories', // 10 chars - original index 2
-    'Core Staff', // 10 chars - original index 10 (new)
-    'Partner Requests', // 16 chars - original index 5
+    'Core Staff', // 10 chars - original index 10
+    'Permissions', // 11 chars - original index 11
     'Delivery Partners', // 17 chars - original index 6
+    'Sellers', // Index 12
+    'Service Providers', // Index 13
     'Featured Sections', // 17 chars - original index 4
   ];
 
   // Map: sorted index -> original index for getting content
   final Map<int, int> _sortedToOriginalIndex = {
-    0: 7, // Users -> _buildUsersTab (index 7)
-    1: 8, // Gifts -> _buildGiftsTab (index 8)
-    2: 9, // Orders -> _buildOrdersTab (index 9)
+    0: 6, // Users -> _buildUsersTab (index 6)
+    1: 7, // Gifts -> _buildGiftsTab (index 7)
+    2: 8, // Orders -> _buildOrdersTab (index 8)
     3: 1, // Products -> _buildProductsTab (index 1)
     4: 3, // Services -> _buildServiceCategoriesTab (index 3)
     5: 0, // Dashboard -> _buildDashboardTab (index 0)
     6: 2, // Categories -> _buildCategoriesTab (index 2)
-    7: 10, // Core Staff -> _buildCoreStaffTab (index 10)
-    8: 5, // Partner Requests -> _buildPartnerRequestsTab (index 5)
-    9: 6, // Delivery Partners -> _buildDeliveryPartnersTab (index 6)
-    10: 4, // Featured Sections -> _buildFeaturedSectionsTab (index 4)
+    7: 9, // Core Staff -> _buildCoreStaffTab (index 9)
+    8: 10, // Permissions -> _buildPermissionsTab (index 10)
+    9: 5, // Delivery Partners -> _buildDeliveryPartnersTab (index 5)
+    10: 11, // Sellers -> _buildRoleBasedUsersTab('seller') (index 11)
+    11: 12, // Service Providers -> _buildRoleBasedUsersTab('service_provider') (index 12)
+    12: 4, // Featured Sections -> _buildFeaturedSectionsTab (index 4)
   };
 
   final List<IconData> _menuIcons = [
@@ -75,8 +80,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     Icons.dashboard, // Dashboard
     Icons.category, // Categories
     Icons.group, // Core Staff
-    Icons.people_outline, // Partner Requests
+    Icons.security, // Permissions
     Icons.delivery_dining, // Delivery Partners
+    Icons.store, // Sellers
+    Icons.handyman, // Service Providers
     Icons.star, // Featured Sections
   ];
 
@@ -1151,12 +1158,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         _buildCategoriesTab(), // 2
                         _buildServiceCategoriesTab(isAdmin: isAdmin), // 3
                         _buildFeaturedSectionsTab(isAdmin: isAdmin), // 4
-                        _buildPartnerRequestsTab(), // 5
-                        _buildDeliveryPartnersTab(), // 6
-                        _buildUsersTab(), // 7
-                        _buildGiftsTab(), // 8
-                        _buildOrdersTab(), // 9
-                        _buildCoreStaffTab(), // 10
+                        _buildDeliveryPartnersTab(), // 5
+                        _buildUsersTab(), // 6
+                        _buildGiftsTab(), // 7
+                        _buildOrdersTab(), // 8
+                        _buildCoreStaffTab(), // 9
+                        _buildPermissionsTab(), // 10
+                        _buildRoleBasedUsersTab('seller'), // 11
+                        _buildRoleBasedUsersTab('service_provider'), // 12
                       ],
                     ),
                   ),
@@ -1275,6 +1284,51 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ),
           const SizedBox(height: 16),
           SizedBox(height: 500, child: _buildRecentOrdersList()),
+          const SizedBox(height: 32),
+          // Testing Tools Section
+          Card(
+            elevation: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.build, color: Colors.blue, size: 24),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Testing Tools',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Add sample users to test the permissions system',
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _addSampleUsers,
+                    icon: const Icon(Icons.people_alt),
+                    label: const Text('Add Sample Users (2 Sellers, 2 Service Providers, 2 Delivery Partners)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -4182,163 +4236,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
-  // Partner Requests Tab
-  Widget _buildPartnerRequestsTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('partner_requests')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
-        final requests = snapshot.data?.docs ?? [];
-
-        if (requests.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.people_outline, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text(
-                  'No partner requests yet',
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: requests.length,
-          itemBuilder: (context, index) {
-            final doc = requests[index];
-            final request = PartnerRequest.fromMap(
-              doc.data() as Map<String, dynamic>,
-            );
-
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ExpansionTile(
-                leading: CircleAvatar(
-                  backgroundImage: request.profilePicUrl != null
-                      ? NetworkImage(request.profilePicUrl!)
-                      : null,
-                  child: request.profilePicUrl == null
-                      ? const Icon(Icons.person)
-                      : null,
-                ),
-                title: Text(
-                  request.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text('${request.role} • ${request.status}'),
-                trailing: _getStatusChip(request.status),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildInfoRow('Phone', request.phone),
-                        _buildInfoRow('Email', request.email),
-                        _buildInfoRow('Gender', request.gender),
-                        _buildInfoRow('District', request.district),
-                        _buildInfoRow('PIN Code', request.pincode),
-                        _buildInfoRow('Business Name', request.businessName),
-                        _buildInfoRow('PAN', request.panNumber),
-                        _buildInfoRow('Aadhaar', request.aadhaarNumber),
-                        _buildInfoRow(
-                          'Min Charge',
-                          '₹${request.minCharge.toStringAsFixed(0)}',
-                        ),
-                        _buildInfoRow(
-                          'Submitted',
-                          _formatDate(request.createdAt),
-                        ),
-                        const SizedBox(height: 16),
-                        if (request.status == 'pending')
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _updateRequestStatus(
-                                    request.id,
-                                    'approved',
-                                  ),
-                                  icon: const Icon(Icons.check),
-                                  label: const Text('Approve'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _updateRequestStatus(
-                                    request.id,
-                                    'rejected',
-                                  ),
-                                  icon: const Icon(Icons.close),
-                                  label: const Text('Reject'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        const SizedBox(height: 12),
-                        // Edit and Delete buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _editPartnerRequest(request),
-                                icon: const Icon(Icons.edit),
-                                label: const Text('Edit'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.blue,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () =>
-                                    _deletePartnerRequest(request.id),
-                                icon: const Icon(Icons.delete),
-                                label: const Text('Delete'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.red,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   Widget _getStatusChip(String status) {
     Color color;
     IconData icon;
@@ -4730,212 +4627,267 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   Widget _buildDeliveryPartnersTab() {
-    return Column(
-      children: [
-        // Search and Filter
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search by name or phone...',
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    FilterChip(
-                      label: const Text('All'),
-                      selected: _filterStatus == 'all',
-                      onSelected: (selected) {
-                        setState(() => _filterStatus = 'all');
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    FilterChip(
-                      label: const Text('Pending'),
-                      selected: _filterStatus == 'pending',
-                      onSelected: (selected) {
-                        setState(() => _filterStatus = 'pending');
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    FilterChip(
-                      label: const Text('Approved'),
-                      selected: _filterStatus == 'approved',
-                      onSelected: (selected) {
-                        setState(() => _filterStatus = 'approved');
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    FilterChip(
-                      label: const Text('Rejected'),
-                      selected: _filterStatus == 'rejected',
-                      onSelected: (selected) {
-                        setState(() => _filterStatus = 'rejected');
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _buildPartnersList(
-            _filterStatus == 'all' ? null : _filterStatus,
-          ),
-        ),
-      ],
+    return RoleManagementTab(
+      collection: 'delivery_partners',
+      role: null,
+      requestRole: 'Delivery Partner',
+      onEdit: (id, name, email, phone, role, pincode) =>
+          _editPartner(id, name, email, phone, pincode),
+      onDelete: _deletePartner,
+      onRequestAction: _updateRequestStatus,
     );
   }
 
+  String _userFilter = 'All'; // All, Most Active, Active, Inactive
+
   Widget _buildUsersTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isNotEqualTo: 'delivery_partner')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final users = snapshot.data?.docs ?? [];
-
-        if (users.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.people_outline, size: 80, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('No users found', style: TextStyle(fontSize: 18)),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
+    return Column(
+      children: [
+        // Filter Chips
+        Container(
           padding: const EdgeInsets.all(16),
-          itemCount: users.length,
-          itemBuilder: (context, index) {
-            final userData = users[index].data() as Map<String, dynamic>;
-            final userId = users[index].id;
-            final name = userData['name'] ?? 'N/A';
-            final email = userData['email'] ?? 'N/A';
-            final phone = userData['phone'] ?? 'N/A';
-            final role = userData['role'] ?? 'user';
-            final createdAt = userData['createdAt'] != null
-                ? (userData['createdAt'] as Timestamp).toDate()
-                : null;
+          color: Colors.white,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['All', 'Most Active', 'Active', 'Inactive'].map((filter) {
+                final isSelected = _userFilter == filter;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(filter),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) setState(() => _userFilter = filter);
+                    },
+                    backgroundColor: Colors.grey[100],
+                    selectedColor: Colors.blue[100],
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.blue[900] : Colors.black87,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .where('role', isEqualTo: 'user')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16),
-              child: ExpansionTile(
-                leading: CircleAvatar(
-                  backgroundColor: role == 'admin'
-                      ? Colors.red
-                      : role == 'seller'
-                      ? Colors.blue
-                      : Colors.green,
-                  child: Icon(
-                    role == 'admin'
-                        ? Icons.admin_panel_settings
-                        : role == 'seller'
-                        ? Icons.store
-                        : Icons.person,
-                    color: Colors.white,
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              var users = snapshot.data?.docs ?? [];
+              
+              // Client-side filtering and sorting based on _userFilter
+              if (_userFilter == 'Most Active') {
+                users.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aCount = (aData['orderCount'] as num?)?.toInt() ?? 0;
+                  final bCount = (bData['orderCount'] as num?)?.toInt() ?? 0;
+                  return bCount.compareTo(aCount); // Descending
+                });
+              } else if (_userFilter == 'Active') {
+                // Active: Logged in within last 30 days
+                final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+                users = users.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final lastLogin = data['lastLogin'] as Timestamp?;
+                  if (lastLogin == null) return false;
+                  return lastLogin.toDate().isAfter(thirtyDaysAgo);
+                }).toList();
+                // Sort by lastLogin descending
+                users.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aTime = aData['lastLogin'] as Timestamp?;
+                  final bTime = bData['lastLogin'] as Timestamp?;
+                  if (aTime == null && bTime == null) return 0;
+                  if (aTime == null) return 1;
+                  if (bTime == null) return -1;
+                  return bTime.compareTo(aTime);
+                });
+              } else if (_userFilter == 'Inactive') {
+                // Inactive: No login or older than 30 days
+                final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+                users = users.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final lastLogin = data['lastLogin'] as Timestamp?;
+                  if (lastLogin == null) return true;
+                  return lastLogin.toDate().isBefore(thirtyDaysAgo);
+                }).toList();
+                 // Sort by createdAt descending (newest inactive users first)
+                users.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aTime = aData['createdAt'] as Timestamp?;
+                  final bTime = bData['createdAt'] as Timestamp?;
+                  if (aTime == null && bTime == null) return 0;
+                  if (aTime == null) return 1;
+                  if (bTime == null) return -1;
+                  return bTime.compareTo(aTime);
+                });
+              } else {
+                // All: Sort by createdAt descending
+                users.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aTime = aData['createdAt'] as Timestamp?;
+                  final bTime = bData['createdAt'] as Timestamp?;
+                  if (aTime == null && bTime == null) return 0;
+                  if (aTime == null) return 1;
+                  if (bTime == null) return -1;
+                  return bTime.compareTo(aTime);
+                });
+              }
+
+              if (users.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.people_outline, size: 80, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text('No users found', style: TextStyle(fontSize: 18)),
+                    ],
                   ),
-                ),
-                title: Text(
-                  name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(email),
-                trailing: Chip(
-                  label: Text(
-                    role.toUpperCase(),
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  backgroundColor: role == 'admin'
-                      ? Colors.red[100]
-                      : role == 'seller'
-                      ? Colors.blue[100]
-                      : Colors.green[100],
-                ),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: users.length,
+                itemBuilder: (context, index) {
+                  final userData = users[index].data() as Map<String, dynamic>;
+                  final userId = users[index].id;
+                  final name = userData['name'] ?? 'N/A';
+                  final email = userData['email'] ?? 'N/A';
+                  final phone = userData['phone'] ?? 'N/A';
+                  final role = userData['role'] ?? 'user';
+                  final servicePincode = userData['service_pincode'] as String?;
+                  final createdAt = userData['createdAt'] != null
+                      ? (userData['createdAt'] as Timestamp).toDate()
+                      : null;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: ExpansionTile(
+                      leading: CircleAvatar(
+                        backgroundColor: role == 'admin'
+                            ? Colors.red
+                            : role == 'seller'
+                            ? Colors.blue
+                            : role == 'delivery_partner'
+                            ? Colors.orange
+                            : Colors.green,
+                        child: Icon(
+                          role == 'admin'
+                              ? Icons.admin_panel_settings
+                              : role == 'seller'
+                              ? Icons.store
+                              : role == 'delivery_partner'
+                              ? Icons.delivery_dining
+                              : Icons.person,
+                          color: Colors.white,
+                        ),
+                      ),
+                      title: Text(
+                        name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(email),
+                      trailing: Chip(
+                        label: Text(
+                          role.toUpperCase(),
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        backgroundColor: role == 'admin'
+                            ? Colors.red[100]
+                            : role == 'seller'
+                            ? Colors.blue[100]
+                            : role == 'delivery_partner'
+                            ? Colors.orange[100]
+                            : Colors.green[100],
+                      ),
                       children: [
-                        _buildInfoRow('User ID', userId),
-                        _buildInfoRow('Name', name),
-                        _buildInfoRow('Email', email),
-                        _buildInfoRow('Phone', phone),
-                        _buildInfoRow('Role', role),
-                        if (createdAt != null)
-                          _buildInfoRow('Joined', _formatDate(createdAt)),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 8.0,
-                          runSpacing: 4.0,
-                          alignment: WrapAlignment.spaceEvenly,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: () =>
-                                  _editUser(userId, name, email, phone, role),
-                              icon: const Icon(Icons.edit),
-                              label: const Text('Edit'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildInfoRow('User ID', userId),
+                              _buildInfoRow('Name', name),
+                              _buildInfoRow('Email', email),
+                              _buildInfoRow('Phone', phone),
+                              _buildInfoRow('Role', role),
+                              if (servicePincode != null)
+                                _buildInfoRow('Service Pincode', servicePincode),
+                              if (createdAt != null)
+                                _buildInfoRow('Joined', _formatDate(createdAt)),
+                              const SizedBox(height: 16),
+                              Wrap(
+                                spacing: 8.0,
+                                runSpacing: 4.0,
+                                alignment: WrapAlignment.spaceEvenly,
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () => _editUser(
+                                      userId,
+                                      name,
+                                      email,
+                                      phone,
+                                      role,
+                                      servicePincode,
+                                    ),
+                                    icon: const Icon(Icons.edit),
+                                    label: const Text('Edit'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _changeUserRole(userId, role),
+                                    icon: const Icon(Icons.swap_horiz),
+                                    label: const Text('Change Role'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.orange,
+                                    ),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _deleteUser(userId, email),
+                                    icon: const Icon(Icons.delete),
+                                    label: const Text('Delete'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => _changeUserRole(userId, role),
-                              icon: const Icon(Icons.swap_horiz),
-                              label: const Text('Change Role'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.orange,
-                              ),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => _deleteUser(userId, email),
-                              icon: const Icon(Icons.delete),
-                              label: const Text('Delete'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -4945,42 +4897,33 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     String email,
     String phone,
     String role,
+    String? servicePincode,
   ) {
-    final nameCtrl = TextEditingController(text: name);
-    final phoneCtrl = TextEditingController(text: phone);
+    final nameController = TextEditingController(text: name);
+    final phoneController = TextEditingController(text: phone);
+    final pincodeController = TextEditingController(text: servicePincode ?? '');
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit User'),
+        title: const Text('Edit User Details'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  border: OutlineInputBorder(),
-                ),
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Name'),
               ),
-              const SizedBox(height: 12),
               TextField(
-                controller: phoneCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Phone',
-                  border: OutlineInputBorder(),
-                ),
+                controller: phoneController,
+                decoration: const InputDecoration(labelText: 'Phone'),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: TextEditingController(text: email),
-                decoration: const InputDecoration(
-                  labelText: 'Email (Read Only)',
-                  border: OutlineInputBorder(),
+              if (role == 'delivery_partner')
+                TextField(
+                  controller: pincodeController,
+                  decoration: const InputDecoration(labelText: 'Service Pincode'),
                 ),
-                enabled: false,
-              ),
             ],
           ),
         ),
@@ -4992,32 +4935,34 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ElevatedButton(
             onPressed: () async {
               try {
+                final updates = {
+                  'name': nameController.text.trim(),
+                  'phone': phoneController.text.trim(),
+                };
+                if (role == 'delivery_partner') {
+                  updates['service_pincode'] = pincodeController.text.trim();
+                }
+
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(userId)
-                    .update({'name': nameCtrl.text, 'phone': phoneCtrl.text});
+                    .update(updates);
 
                 if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('User updated successfully'),
-                      backgroundColor: Colors.green,
-                    ),
+                    const SnackBar(content: Text('User updated successfully')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to update: $e'),
-                      backgroundColor: Colors.red,
-                    ),
+                    SnackBar(content: Text('Error: $e')),
                   );
                 }
               }
             },
-            child: const Text('Update'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -5025,10 +4970,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   void _changeUserRole(String userId, String currentRole) {
-    // Normalize legacy 'admin' to 'administrator'
-    String? selectedRole = currentRole == 'admin'
-        ? 'administrator'
-        : currentRole;
+    String? selectedRole = currentRole == 'admin' ? 'administrator' : currentRole;
 
     showDialog(
       context: context,
@@ -5843,5 +5785,808 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         }
       }
     }
+  }
+
+  // Method to add sample users for testing permissions
+  Future<void> _addSampleUsers() async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final now = Timestamp.now();
+
+      // Sample Sellers
+      final sellers = [
+        {
+          'name': 'Raj Kumar',
+          'email': 'raj.seller@test.com',
+          'phone': '+919876543210',
+          'role': 'seller',
+          'createdAt': now,
+          'permissions': {
+            'can_add_product': true,
+            'can_manage_products': true,
+            'can_view_orders': true,
+            'can_view_analytics': true,
+          },
+        },
+        {
+          'name': 'Priya Sharma',
+          'email': 'priya.seller@test.com',
+          'phone': '+919876543211',
+          'role': 'seller',
+          'createdAt': now,
+          'permissions': {
+            'can_add_product': true,
+            'can_manage_products': true,
+            'can_view_orders': false, // Restricted for testing
+            'can_view_analytics': true,
+          },
+        },
+      ];
+
+      // Sample Service Providers
+      final serviceProviders = [
+        {
+          'name': 'Amit Electrician',
+          'email': 'amit.service@test.com',
+          'phone': '+919876543212',
+          'role': 'service_provider',
+          'createdAt': now,
+          'permissions': {
+            'can_manage_services': true,
+          },
+        },
+        {
+          'name': 'Neha Plumber',
+          'email': 'neha.service@test.com',
+          'phone': '+919876543213',
+          'role': 'service_provider',
+          'createdAt': now,
+          'permissions': {
+            'can_manage_services': false, // Restricted for testing
+          },
+        },
+      ];
+
+      // Sample Delivery Partners
+      final deliveryPartners = [
+        {
+          'name': 'Suresh Delivery',
+          'email': 'suresh.delivery@test.com',
+          'phone': '+919876543214',
+          'role': 'delivery_partner',
+          'createdAt': now,
+          'permissions': {
+            'can_update_status': true,
+          },
+        },
+        {
+          'name': 'Kavita Delivery',
+          'email': 'kavita.delivery@test.com',
+          'phone': '+919876543215',
+          'role': 'delivery_partner',
+          'createdAt': now,
+          'permissions': {
+            'can_update_status': false, // Restricted for testing
+          },
+        },
+      ];
+
+      // Add all users to batch
+      final allUsers = [...sellers, ...serviceProviders, ...deliveryPartners];
+      for (int i = 0; i < allUsers.length; i++) {
+        final docRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc('test_user_${DateTime.now().millisecondsSinceEpoch}_$i');
+        batch.set(docRef, allUsers[i]);
+      }
+
+      // Commit batch
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Sample users added successfully! Check Permissions tab.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error adding sample users: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  // Permissions Tab
+  String _selectedPermissionRole = 'seller';
+
+  Widget _buildPermissionsTab() {
+    return Column(
+      children: [
+        // Role Filter
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Text(
+                'Select Role:',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 16),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: const Text('Sellers'),
+                    selected: _selectedPermissionRole == 'seller',
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedPermissionRole = 'seller');
+                      }
+                    },
+                  ),
+                  ChoiceChip(
+                    label: const Text('Service Providers'),
+                    selected: _selectedPermissionRole == 'service_provider',
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedPermissionRole = 'service_provider');
+                      }
+                    },
+                  ),
+                  ChoiceChip(
+                    label: const Text('Delivery Partners'),
+                    selected: _selectedPermissionRole == 'delivery_partner',
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedPermissionRole = 'delivery_partner');
+                      }
+                    },
+                  ),
+                  ChoiceChip(
+                    label: const Text('Admin Panel'),
+                    selected: _selectedPermissionRole == 'administrator',
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedPermissionRole = 'administrator');
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .where('role', isEqualTo: _selectedPermissionRole)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+
+              final users = snapshot.data?.docs ?? [];
+
+              if (users.isEmpty) {
+                return const Center(child: Text('No users found for this role'));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: users.length,
+                itemBuilder: (context, index) {
+                  final doc = users[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final permissions =
+                      data['permissions'] as Map<String, dynamic>? ?? {};
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: data['photoURL'] != null
+                            ? NetworkImage(data['photoURL'])
+                            : null,
+                        child: data['photoURL'] == null
+                            ? Text((data['name'] ?? 'U')[0].toUpperCase())
+                            : null,
+                      ),
+                      title: Text(data['name'] ?? 'Unknown'),
+                      subtitle: Text(data['email'] ?? 'No Email'),
+                      trailing: ElevatedButton.icon(
+                        icon: const Icon(Icons.security),
+                        label: const Text('Manage Permissions'),
+                        onPressed: () =>
+                            _showPermissionDialog(doc.id, data, permissions),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showPermissionDialog(
+    String userId,
+    Map<String, dynamic> userData,
+    Map<String, dynamic> currentPermissions,
+  ) {
+    final Map<String, String> availablePermissions = {};
+    if (_selectedPermissionRole == 'seller') {
+      // Product Management
+      availablePermissions['can_add_product'] = 'Add New Products';
+      availablePermissions['can_edit_product'] = 'Edit Products';
+      availablePermissions['can_delete_product'] = 'Delete Products';
+      availablePermissions['can_upload_product_images'] = 'Upload Product Images';
+      availablePermissions['can_manage_inventory'] = 'Manage Inventory/Stock';
+      availablePermissions['can_set_prices'] = 'Set Product Prices';
+      availablePermissions['can_set_discounts'] = 'Set Discounts/Offers';
+      
+      // Order Management
+      availablePermissions['can_view_orders'] = 'View Orders';
+      availablePermissions['can_update_order_status'] = 'Update Order Status';
+      availablePermissions['can_cancel_orders'] = 'Cancel Orders';
+      availablePermissions['can_process_refunds'] = 'Process Refunds';
+      
+      // Analytics & Reports
+      availablePermissions['can_view_analytics'] = 'View Sales Analytics';
+      availablePermissions['can_view_reports'] = 'View Sales Reports';
+      availablePermissions['can_export_data'] = 'Export Data';
+      
+      // Customer Interaction
+      availablePermissions['can_view_reviews'] = 'View Customer Reviews';
+      availablePermissions['can_respond_reviews'] = 'Respond to Reviews';
+      availablePermissions['can_contact_customers'] = 'Contact Customers';
+      
+    } else if (_selectedPermissionRole == 'service_provider') {
+      // Service Management
+      availablePermissions['can_add_service'] = 'Add New Services';
+      availablePermissions['can_edit_service'] = 'Edit Services';
+      availablePermissions['can_delete_service'] = 'Delete Services';
+      availablePermissions['can_upload_service_images'] = 'Upload Service Images';
+      availablePermissions['can_set_service_pricing'] = 'Set Service Pricing';
+      availablePermissions['can_set_service_area'] = 'Set Service Area/Location';
+      
+      // Service Request Management
+      availablePermissions['can_view_requests'] = 'View Service Requests';
+      availablePermissions['can_accept_requests'] = 'Accept Service Requests';
+      availablePermissions['can_reject_requests'] = 'Reject Service Requests';
+      availablePermissions['can_update_service_status'] = 'Update Service Status';
+      availablePermissions['can_complete_service'] = 'Mark Service as Completed';
+      availablePermissions['can_cancel_service'] = 'Cancel Service';
+      
+      // Schedule & Availability
+      availablePermissions['can_manage_schedule'] = 'Manage Work Schedule';
+      availablePermissions['can_set_availability'] = 'Set Availability Status';
+      
+      // Analytics & Customer
+      availablePermissions['can_view_service_analytics'] = 'View Service Analytics';
+      availablePermissions['can_view_ratings'] = 'View Customer Ratings';
+      availablePermissions['can_respond_ratings'] = 'Respond to Ratings';
+      availablePermissions['can_view_earnings'] = 'View Earnings';
+      
+    } else if (_selectedPermissionRole == 'delivery_partner') {
+      // Delivery Management
+      availablePermissions['can_view_deliveries'] = 'View Assigned Deliveries';
+      availablePermissions['can_accept_delivery'] = 'Accept Delivery Requests';
+      availablePermissions['can_reject_delivery'] = 'Reject Delivery Requests';
+      
+      // Status Updates
+      availablePermissions['can_mark_picked'] = 'Mark as Picked Up';
+      availablePermissions['can_mark_in_transit'] = 'Mark as In Transit';
+      availablePermissions['can_mark_delivered'] = 'Mark as Delivered';
+      availablePermissions['can_update_location'] = 'Update Current Location';
+      
+      // Order & Customer
+      availablePermissions['can_view_order_details'] = 'View Order Details';
+      availablePermissions['can_contact_customer'] = 'Contact Customer';
+      availablePermissions['can_contact_seller'] = 'Contact Seller';
+      availablePermissions['can_report_issue'] = 'Report Delivery Issues';
+      
+      // Availability & Earnings
+      availablePermissions['can_set_availability'] = 'Set Availability Status';
+      availablePermissions['can_view_delivery_history'] = 'View Delivery History';
+      availablePermissions['can_view_earnings'] = 'View Earnings';
+      availablePermissions['can_view_analytics'] = 'View Delivery Analytics';
+      
+    } else if (_selectedPermissionRole == 'administrator') {
+      availablePermissions['can_manage_products'] = 'Manage Products';
+      availablePermissions['can_manage_categories'] = 'Manage Categories';
+      availablePermissions['can_manage_orders'] = 'Manage Orders';
+      availablePermissions['can_manage_users'] = 'Manage Users';
+      availablePermissions['can_manage_gifts'] = 'Manage Gifts';
+      availablePermissions['can_manage_services'] = 'Manage Services';
+      availablePermissions['can_manage_partners'] = 'Manage Partner Requests';
+      availablePermissions['can_manage_deliveries'] = 'Manage Delivery Partners';
+      availablePermissions['can_manage_core_staff'] = 'Manage Core Staff';
+      availablePermissions['can_manage_featured'] = 'Manage Featured Sections';
+      availablePermissions['can_view_dashboard'] = 'View Dashboard';
+      availablePermissions['can_manage_permissions'] = 'Manage Permissions';
+    }
+
+    final Map<String, bool> tempPermissions = {};
+    availablePermissions.forEach((key, _) {
+      tempPermissions[key] = currentPermissions[key] != false;
+    });
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Permissions for ${userData['name']}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: availablePermissions.entries.map((entry) {
+                return SwitchListTile(
+                  title: Text(entry.value),
+                  value: tempPermissions[entry.key] ?? true,
+                  onChanged: (val) {
+                    setState(() {
+                      tempPermissions[entry.key] = val;
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(userId)
+                      .update({'permissions': tempPermissions});
+
+                  if (mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Permissions updated successfully'),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editPartner(
+    String partnerId,
+    String name,
+    String email,
+    String phone,
+    String? servicePincode,
+  ) {
+    final nameController = TextEditingController(text: name);
+    final phoneController = TextEditingController(text: phone);
+    final pincodeController = TextEditingController(text: servicePincode ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Delivery Partner'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(labelText: 'Phone'),
+              ),
+              TextField(
+                controller: pincodeController,
+                decoration: const InputDecoration(labelText: 'Service Pincode'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('delivery_partners')
+                    .doc(partnerId)
+                    .update({
+                  'name': nameController.text.trim(),
+                  'phone': phoneController.text.trim(),
+                  'service_pincode': pincodeController.text.trim(),
+                });
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Partner updated successfully')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deletePartner(String partnerId, String email) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Delivery Partner'),
+        content: Text('Are you sure you want to delete $email?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('delivery_partners')
+            .doc(partnerId)
+            .delete();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Partner deleted successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Widget _buildRoleBasedUsersTab(String role) {
+    return RoleManagementTab(
+      collection: 'users',
+      role: role,
+      requestRole: role == 'seller' ? 'Seller' : 'Service Provider',
+      onEdit: _editUser,
+      onDelete: _deleteUser,
+      onRequestAction: _updateRequestStatus,
+    );
+  }
+}
+
+class RoleManagementTab extends StatefulWidget {
+  final String collection;
+  final String? role;
+  final String? requestRole;
+  final Function(String, String, String, String, String, String?) onEdit;
+  final Function(String, String) onDelete;
+  final Function(String, String)? onRequestAction;
+
+  const RoleManagementTab({
+    super.key,
+    required this.collection,
+    this.role,
+    this.requestRole,
+    required this.onEdit,
+    required this.onDelete,
+    this.onRequestAction,
+  });
+
+  @override
+  State<RoleManagementTab> createState() => _RoleManagementTabState();
+}
+
+class _RoleManagementTabState extends State<RoleManagementTab> {
+  String _searchQuery = '';
+  String _selectedStatus = 'All';
+
+  Stream<QuerySnapshot> _getStream() {
+    if ((_selectedStatus == 'Requests' || _selectedStatus == 'Rejected') && widget.requestRole != null) {
+      return FirebaseFirestore.instance
+          .collection('partner_requests')
+          .where('role', isEqualTo: widget.requestRole)
+          .where('status', isEqualTo: _selectedStatus == 'Requests' ? 'pending' : 'rejected')
+          .snapshots();
+    } else {
+      Query query = FirebaseFirestore.instance.collection(widget.collection);
+      if (widget.role != null) {
+        query = query.where('role', isEqualTo: widget.role);
+      }
+      // For delivery_partners, we can filter by status if needed, but 'All' usually means active/approved.
+      // If we want 'Approved' filter to specifically show approved partners:
+      if (widget.collection == 'delivery_partners' && _selectedStatus != 'All') {
+         // If status is 'Approved', we can filter.
+         // But if status is 'Pending'/'Rejected' and we are here (requestRole is null?), 
+         // then we might be looking at delivery_partners collection's status.
+         // However, we assumed requests are in partner_requests.
+         // Let's assume delivery_partners collection only has 'approved' or 'active' partners.
+         // So 'All' and 'Approved' are same.
+      }
+      return query.snapshots();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Search and Filter Section
+        Container(
+          padding: const EdgeInsets.all(16),
+          color: Colors.white,
+          child: Column(
+            children: [
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Search by name, email, or phone',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                onChanged: (value) => setState(() => _searchQuery = value),
+              ),
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: ['All', 'Approved', 'Requests', 'Rejected'].map((status) {
+                    final isSelected = _selectedStatus == status;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(status),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          if (selected) setState(() => _selectedStatus = status);
+                        },
+                        backgroundColor: Colors.grey[100],
+                        selectedColor: Colors.blue[100],
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.blue[900] : Colors.black87,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        
+        // User List
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _getStream(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              var docs = snapshot.data?.docs ?? [];
+
+              // Client-side filtering
+              final filteredDocs = docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                
+                // Search Filter
+                if (_searchQuery.isNotEmpty) {
+                  final q = _searchQuery.toLowerCase();
+                  final name = (data['name'] ?? '').toString().toLowerCase();
+                  final email = (data['email'] ?? '').toString().toLowerCase();
+                  final phone = (data['phone'] ?? '').toString().toLowerCase();
+                  return name.contains(q) || email.contains(q) || phone.contains(q);
+                }
+
+                return true;
+              }).toList();
+
+              if (filteredDocs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        widget.role == 'seller' ? Icons.store : 
+                        widget.role == 'service_provider' ? Icons.handyman :
+                        Icons.delivery_dining,
+                        size: 64,
+                        color: Colors.grey[300],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No ${_selectedStatus == 'All' ? '' : _selectedStatus} ${widget.role == 'seller' ? 'Sellers' : widget.role == 'service_provider' ? 'Service Providers' : 'Delivery Partners'} found',
+                        style: const TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: filteredDocs.length,
+                itemBuilder: (context, index) {
+                  final doc = filteredDocs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final id = doc.id;
+                  final name = data['name'] ?? 'N/A';
+                  final email = data['email'] ?? 'N/A';
+                  final phone = data['phone'] ?? 'N/A';
+                  final servicePincode = data['service_pincode'] as String?;
+                  final createdAt = data['createdAt'] != null
+                      ? (data['createdAt'] as Timestamp).toDate()
+                      : null;
+                  
+                  // Determine if it's a request or a user
+                  final isRequest = _selectedStatus == 'Requests' || _selectedStatus == 'Rejected';
+                  final status = isRequest ? (data['status'] as String? ?? 'pending') : 'approved';
+
+                  Color statusColor;
+                  switch (status.toLowerCase()) {
+                    case 'approved': statusColor = Colors.green; break;
+                    case 'pending': statusColor = Colors.orange; break;
+                    case 'rejected': statusColor = Colors.red; break;
+                    default: statusColor = Colors.grey;
+                  }
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: statusColor.withOpacity(0.1),
+                        child: Icon(
+                          widget.role == 'seller' ? Icons.store : 
+                          widget.role == 'service_provider' ? Icons.handyman :
+                          Icons.delivery_dining,
+                          color: statusColor,
+                        ),
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold))),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: statusColor.withOpacity(0.5)),
+                            ),
+                            child: Text(
+                              status.toUpperCase(),
+                              style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          Row(children: [const Icon(Icons.email, size: 14, color: Colors.grey), const SizedBox(width: 4), Text(email)]),
+                          const SizedBox(height: 2),
+                          Row(children: [const Icon(Icons.phone, size: 14, color: Colors.grey), const SizedBox(width: 4), Text(phone)]),
+                          if (servicePincode != null)
+                             Padding(
+                               padding: const EdgeInsets.only(top: 2),
+                               child: Row(children: [const Icon(Icons.location_on, size: 14, color: Colors.grey), const SizedBox(width: 4), Text('Pincode: $servicePincode')]),
+                             ),
+                          if (createdAt != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                'Joined: ${DateFormat('MMM d, yyyy').format(createdAt)}',
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                            ),
+                        ],
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isRequest && widget.onRequestAction != null && status == 'pending') ...[
+                            IconButton(
+                              icon: const Icon(Icons.check, color: Colors.green),
+                              onPressed: () => widget.onRequestAction!(id, 'approved'),
+                              tooltip: 'Approve',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, color: Colors.red),
+                              onPressed: () => widget.onRequestAction!(id, 'rejected'),
+                              tooltip: 'Reject',
+                            ),
+                          ] else if (!isRequest) ...[
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () => widget.onEdit(
+                                id,
+                                name,
+                                email,
+                                phone,
+                                widget.role ?? '',
+                                servicePincode,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => widget.onDelete(id, email),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 }

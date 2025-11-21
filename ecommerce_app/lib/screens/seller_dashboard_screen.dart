@@ -169,11 +169,22 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                     subtitle: const Text('List a new product for sale'),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Add product feature coming soon!'),
-                        ),
-                      );
+                      if (user.hasPermission('can_add_product')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Add product feature coming soon!'),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Access Denied: You do not have permission to add products.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     },
                   ),
                   const Divider(height: 1),
@@ -186,11 +197,22 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                     subtitle: const Text('View and edit your products'),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Manage products feature coming soon!'),
-                        ),
-                      );
+                      if (user.hasPermission('can_manage_products')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Manage products feature coming soon!'),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Access Denied: You do not have permission to manage products.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     },
                   ),
                   const Divider(height: 1),
@@ -203,11 +225,22 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                     subtitle: const Text('Check your pending orders'),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('View orders feature coming soon!'),
-                        ),
-                      );
+                      if (user.hasPermission('can_view_orders')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('View orders feature coming soon!'),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Access Denied: You do not have permission to view orders.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     },
                   ),
                   const Divider(height: 1),
@@ -220,11 +253,22 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                     subtitle: const Text('View sales analytics'),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Analytics feature coming soon!'),
-                        ),
-                      );
+                      if (user.hasPermission('can_view_analytics')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Analytics feature coming soon!'),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Access Denied: You do not have permission to view analytics.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     },
                   ),
                 ],

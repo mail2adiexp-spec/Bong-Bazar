@@ -17,6 +17,39 @@ class DeliveryPartnerDashboardScreen extends StatefulWidget {
 class _DeliveryPartnerDashboardScreenState
     extends State<DeliveryPartnerDashboardScreen> {
   String _selectedFilter = 'assigned'; // assigned, in_progress, completed
+  String? _servicePincode;
+  bool _isLoadingPincode = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchServicePincode();
+  }
+
+  Future<void> _fetchServicePincode() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final userId = auth.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (mounted) {
+        setState(() {
+          _servicePincode = doc.data()?['service_pincode'];
+          _isLoadingPincode = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching pincode: $e');
+      if (mounted) {
+        setState(() => _isLoadingPincode = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,92 +63,347 @@ class _DeliveryPartnerDashboardScreenState
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Delivery Partner Dashboard'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {}),
-            tooltip: 'Refresh',
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Delivery Partner Dashboard'),
+          centerTitle: true,
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Available Orders', icon: Icon(Icons.notifications_active)),
+              Tab(text: 'My Deliveries', icon: Icon(Icons.local_shipping)),
+            ],
           ),
-        ],
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                _fetchServicePincode();
+                setState(() {});
+              },
+              tooltip: 'Refresh',
+            ),
+          ],
+        ),
+        body: TabBarView(
+          children: [
+            _buildAvailableOrdersTab(deliveryPartnerId),
+            _buildMyDeliveriesTab(deliveryPartnerId),
+          ],
+        ),
       ),
-      body: Column(
-        children: [
-          // Filter Chips
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('assigned', 'New Orders'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('shipped', 'Picked'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('out_for_delivery', 'Out for Delivery'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('delivered', 'Delivered'),
-                ],
+    );
+  }
+
+  Widget _buildAvailableOrdersTab(String partnerId) {
+    if (_isLoadingPincode) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_servicePincode == null || _servicePincode!.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.location_off, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              'Service Area Not Set',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Please contact Admin to set your Service Pincode\nto receive order broadcasts.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          color: Colors.blue[50],
+          child: Row(
+            children: [
+              const Icon(Icons.location_on, color: Colors.blue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Showing orders in Pincode: $_servicePincode',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('orders')
+                .where('deliveryPincode', isEqualTo: _servicePincode)
+                .where('deliveryPartnerId', isNull: true)
+                // Note: This requires a composite index. If it fails, we might need to filter client-side
+                // or just query by pincode and filter in builder.
+                // For now, let's try client-side filtering for partnerId to avoid index issues immediately
+                // .where('status', whereIn: ['confirmed', 'packed']) // Optional: only show ready orders
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              // Client-side filter for unassigned orders (if query index is missing)
+              final docs = snapshot.data?.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return data['deliveryPartnerId'] == null || 
+                       data['deliveryPartnerId'] == '';
+              }).toList() ?? [];
+
+              if (docs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox, size: 64, color: Colors.grey[300]),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No new orders in your area',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: docs.length,
+                itemBuilder: (context, index) {
+                  final doc = docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final order = OrderModel.fromMap(data, doc.id);
+                  return _buildBroadcastOrderCard(order, partnerId);
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBroadcastOrderCard(OrderModel order, String partnerId) {
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.blue.withOpacity(0.5), width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'NEW REQUEST',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Text(
+                  '₹${order.totalAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Order #${order.id.substring(0, 8)}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    order.deliveryAddress,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _acceptOrder(order.id, partnerId),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'ACCEPT ORDER',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _acceptOrder(String orderId, String partnerId) async {
+    try {
+      // Use transaction to prevent race conditions
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final orderRef = FirebaseFirestore.instance.collection('orders').doc(orderId);
+        final orderDoc = await transaction.get(orderRef);
+
+        if (!orderDoc.exists) {
+          throw Exception("Order does not exist!");
+        }
+
+        final data = orderDoc.data() as Map<String, dynamic>;
+        if (data['deliveryPartnerId'] != null && data['deliveryPartnerId'] != '') {
+          throw Exception("Order already taken by another partner!");
+        }
+
+        transaction.update(orderRef, {
+          'deliveryPartnerId': partnerId,
+          'status': 'confirmed', // Ensure it's in a valid state for delivery
+          'statusHistory.assigned': FieldValue.serverTimestamp(),
+        });
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order Accepted Successfully! 🚀'),
+            backgroundColor: Colors.green,
           ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to accept: ${e.toString().replaceAll("Exception: ", "")}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
-          // Orders List
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _getOrdersStream(deliveryPartnerId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-
-                final docs = snapshot.data?.docs ?? [];
-                if (docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.delivery_dining,
-                          size: 80,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No orders found',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    final data = doc.data() as Map<String, dynamic>;
-                    final order = OrderModel.fromMap(data, doc.id);
-
-                    return _buildOrderCard(order, doc.id);
-                  },
-                );
-              },
+  Widget _buildMyDeliveriesTab(String partnerId) {
+    return Column(
+      children: [
+        // Filter Chips
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterChip('assigned', 'Active'),
+                const SizedBox(width: 8),
+                _buildFilterChip('shipped', 'Picked'),
+                const SizedBox(width: 8),
+                _buildFilterChip('out_for_delivery', 'Out for Delivery'),
+                const SizedBox(width: 8),
+                _buildFilterChip('delivered', 'Delivered'),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+
+        // Orders List
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _getOrdersStream(partnerId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.delivery_dining,
+                        size: 80,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No ${_selectedFilter == 'assigned' ? 'active' : _selectedFilter} deliveries',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: docs.length,
+                itemBuilder: (context, index) {
+                  final doc = docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final order = OrderModel.fromMap(data, doc.id);
+
+                  return _buildOrderCard(order, doc.id);
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -151,8 +439,12 @@ class _DeliveryPartnerDashboardScreenState
   }
 
   Widget _buildOrderCard(OrderModel order, String orderId) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    final hasPermission = user?.hasPermission('can_update_status') ?? false;
+
     final statusColor = _getStatusColor(order.status);
-    final canUpdateStatus = _canUpdateStatus(order.status);
+    final canUpdateStatus = _canUpdateStatus(order.status) && hasPermission;
 
     return Card(
       elevation: 2,
@@ -245,6 +537,23 @@ class _DeliveryPartnerDashboardScreenState
               ),
             ],
 
+            // Release Order Button (Only if not yet picked up)
+            if (order.status == 'confirmed' || order.status == 'packed') ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _releaseOrder(orderId),
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('Release / Reject Order'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                  ),
+                ),
+              ),
+            ],
+
             // View Details Button
             const SizedBox(height: 8),
             TextButton.icon(
@@ -256,6 +565,56 @@ class _DeliveryPartnerDashboardScreenState
         ),
       ),
     );
+  }
+
+  Future<void> _releaseOrder(String orderId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Release Order?'),
+        content: const Text(
+          'Are you sure you want to release this order? It will be made available to other delivery partners.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Release'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(orderId)
+          .update({
+            'deliveryPartnerId': null, // Remove assignment
+            'status': 'confirmed', // Reset status if needed
+          });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order released successfully'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Widget _buildDetailRow(IconData icon, String label, String value) {

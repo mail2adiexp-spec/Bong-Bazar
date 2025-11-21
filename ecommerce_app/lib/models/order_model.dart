@@ -16,6 +16,7 @@ class OrderModel {
   final Map<String, DateTime>? statusHistory;
   final String? deliveryPartnerId;
   final String? deliveryPartnerName;
+  final String? deliveryPincode;
 
   OrderModel({
     required this.id,
@@ -32,6 +33,7 @@ class OrderModel {
     this.statusHistory,
     this.deliveryPartnerId,
     this.deliveryPartnerName,
+    this.deliveryPincode,
   });
 
   factory OrderModel.fromMap(Map<String, dynamic> map, String documentId) {
@@ -78,6 +80,7 @@ class OrderModel {
           : null,
       deliveryPartnerId: map['deliveryPartnerId'],
       deliveryPartnerName: map['deliveryPartnerName'],
+      deliveryPincode: map['deliveryPincode'],
     );
   }
 
@@ -98,6 +101,7 @@ class OrderModel {
       ),
       'deliveryPartnerId': deliveryPartnerId,
       'deliveryPartnerName': deliveryPartnerName,
+      'deliveryPincode': deliveryPincode,
     };
   }
 

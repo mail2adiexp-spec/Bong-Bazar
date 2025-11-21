@@ -67,6 +67,11 @@ class OrderProvider extends ChangeNotifier {
     debugPrint('OrderProvider: Total amount: $totalAmount');
 
     try {
+      // Extract pincode from address
+      final pincodeRegex = RegExp(r'\b\d{6}\b');
+      final pincodeMatch = pincodeRegex.firstMatch(deliveryAddress);
+      final deliveryPincode = pincodeMatch?.group(0);
+
       final orderData = {
         'userId': userId,
         'items': items.map((item) => item.toMap()).toList(),
@@ -76,10 +81,16 @@ class OrderProvider extends ChangeNotifier {
         'orderDate': DateTime.now().toIso8601String(),
         'status': 'pending',
         'statusHistory': {'pending': DateTime.now().toIso8601String()},
+        'deliveryPincode': deliveryPincode,
       };
 
       final docRef = await _firestore.collection('orders').add(orderData);
       debugPrint('OrderProvider: Order created with ID: ${docRef.id}');
+
+      // Increment orderCount for the user
+      await _firestore.collection('users').doc(userId).update({
+        'orderCount': FieldValue.increment(1),
+      });
 
       await fetchUserOrders(); // Refresh orders
       debugPrint('OrderProvider: Orders refreshed, count: ${_orders.length}');

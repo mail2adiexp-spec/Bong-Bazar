@@ -25,6 +25,7 @@ class AppUser {
   final String? phoneNumber;
   final String? photoURL;
   final String? role;
+  final Map<String, dynamic> permissions;
 
   AppUser({
     required this.uid,
@@ -33,7 +34,14 @@ class AppUser {
     this.phoneNumber,
     this.photoURL,
     this.role,
+    this.permissions = const {},
   });
+
+  bool hasPermission(String key) {
+    // Default to true if permission is not explicitly set to false
+    // This ensures backward compatibility
+    return permissions[key] != false;
+  }
 }
 
 class AuthProvider extends ChangeNotifier {
@@ -100,6 +108,8 @@ class AuthProvider extends ChangeNotifier {
 
       // Fetch user role from Firestore
       String userRole = 'user';
+      Map<String, dynamic> permissions = {};
+
       try {
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
@@ -108,9 +118,16 @@ class AuthProvider extends ChangeNotifier {
         if (userDoc.exists) {
           final data = userDoc.data() ?? {};
           userRole = data['role'] ?? 'user';
+          permissions = data['permissions'] as Map<String, dynamic>? ?? {};
+          
+          // Update lastLogin
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(firebaseUser.uid)
+              .update({'lastLogin': FieldValue.serverTimestamp()});
         }
       } catch (e) {
-        print('ℹ️ Could not read user role: $e');
+        print('Error fetching user role or updating lastLogin: $e');
       }
 
       _currentUser = AppUser(
@@ -123,7 +140,9 @@ class AuthProvider extends ChangeNotifier {
         phoneNumber: firebaseUser.phoneNumber,
         photoURL: firebaseUser.photoURL,
         role: userRole,
+        permissions: permissions,
       );
+
       print(
         '✅ Current user updated with photoURL: ${_currentUser?.photoURL} and role: $userRole',
       );
@@ -142,31 +161,27 @@ class AuthProvider extends ChangeNotifier {
               .doc(firebaseUser.uid)
               .get();
           if (userDoc.exists) {
-            final data = userDoc.data() ?? {};
-            hasAdminRole = (data['role'] == 'admin');
+            final data = userDoc.data();
+            if (data != null && data['role'] == 'admin') {
+              hasAdminRole = true;
+            }
           }
         } catch (e) {
-          // Non-fatal: just log
-          print('ℹ️ Could not read Firestore user role: $e');
+          print('Error checking admin role in Firestore: $e');
         }
 
-        // 3) Fallback: allowlist by email
-        final email = (firebaseUser.email ?? '').toLowerCase().trim();
-        final bool hasAdminEmail = _adminEmails.contains(email);
+        // 3) Check allowed email list (fallback)
+        final allowedEmails = [
+          'admin@bongbazar.com',
+          'sounak@bongbazar.com',
+          'mail2adiexp@gmail.com',
+        ];
+        bool isAllowedEmail = allowedEmails.contains(firebaseUser.email);
 
-        _isAdmin = hasAdminClaim || hasAdminRole || hasAdminEmail;
-        print(
-          '👑 Admin resolved | claim=' +
-              hasAdminClaim.toString() +
-              ' role=' +
-              hasAdminRole.toString() +
-              ' email=' +
-              hasAdminEmail.toString() +
-              ' => isAdmin=' +
-              _isAdmin.toString(),
-        );
+        _isAdmin = hasAdminClaim || hasAdminRole || isAllowedEmail;
+        print('👑 Admin status: $_isAdmin');
       } catch (e) {
-        print('⚠️ Failed to determine admin status: $e');
+        print('Error checking admin status: $e');
         _isAdmin = false;
       }
     } else {

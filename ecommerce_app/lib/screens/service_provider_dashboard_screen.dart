@@ -139,6 +139,47 @@ class ServiceProviderDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
+                // Quick Actions
+                Text(
+                  'Quick Actions',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.purple,
+                      child: Icon(Icons.build, color: Colors.white),
+                    ),
+                    title: const Text('Manage Services'),
+                    subtitle: const Text('Update your service offerings'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      if (user.hasPermission('can_manage_services')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Manage services feature coming soon!',
+                            ),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Access Denied: You do not have permission to manage services.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 24),
+
                 // Service Requests Section
                 Text(
                   'Your Service Requests',
