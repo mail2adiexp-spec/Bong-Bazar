@@ -6306,6 +6306,170 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
   }
 
+  Widget _buildFinancialTab(String userId, String role) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Balance Card
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            color: Colors.indigo,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  const Text(
+                    'Available Balance',
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '₹12,450.00', // Mocked balance
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildBalanceAction(Icons.arrow_upward, 'Withdraw'),
+                      _buildBalanceAction(Icons.history, 'History'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Payout Stats
+          const Text(
+            'Payout Overview',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Total Payouts',
+                  '₹45,000',
+                  Icons.payments,
+                  Colors.green,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Pending',
+                  '₹2,450',
+                  Icons.pending_actions,
+                  Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Recent Transactions
+          const Text(
+            'Recent Transactions',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 5,
+            itemBuilder: (context, index) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: index % 2 == 0 ? Colors.green.shade50 : Colors.red.shade50,
+                    child: Icon(
+                      index % 2 == 0 ? Icons.arrow_downward : Icons.arrow_upward,
+                      color: index % 2 == 0 ? Colors.green : Colors.red,
+                    ),
+                  ),
+                  title: Text(index % 2 == 0 ? 'Order Payment' : 'Payout Withdrawal'),
+                  subtitle: Text('Oct ${20 - index}, 2024'),
+                  trailing: Text(
+                    index % 2 == 0 ? '+₹1,200' : '-₹5,000',
+                    style: TextStyle(
+                      color: index % 2 == 0 ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBalanceAction(IconData icon, String label) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: Colors.white),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showDeliveryPartnerDashboard(
     String partnerId,
     Map<String, dynamic> partnerData,
@@ -6322,7 +6486,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             borderRadius: BorderRadius.circular(12),
           ),
           child: DefaultTabController(
-            length: 3,
+            length: 4,
             child: Column(
               children: [
                 Container(
@@ -6377,9 +6541,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 const TabBar(
                   labelColor: Colors.purple,
                   unselectedLabelColor: Colors.grey,
+                  isScrollable: true,
                   tabs: [
                     Tab(icon: Icon(Icons.person), text: 'Profile'),
                     Tab(icon: Icon(Icons.motorcycle), text: 'Vehicle'),
+                    Tab(icon: Icon(Icons.account_balance), text: 'Financials'),
                     Tab(icon: Icon(Icons.dashboard), text: 'Stats'),
                   ],
                 ),
@@ -6427,7 +6593,64 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                           ],
                         ),
                       ),
-                      const Center(child: Text('Statistics coming soon')),
+                      _buildFinancialTab(partnerId, 'delivery_partner'),
+                      SingleChildScrollView(
+                        child: StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('orders')
+                              .where('deliveryPartnerId', isEqualTo: partnerId)
+                              .snapshots(),
+                          builder: (context, orderSnapshot) {
+                            final orders = orderSnapshot.data?.docs ?? [];
+                            final totalDeliveries = orders.length;
+                            
+                            final completedDeliveries = orders.where((o) {
+                              final d = o.data() as Map<String, dynamic>;
+                              return d['status'] == 'delivered';
+                            }).length;
+
+                            final pendingDeliveries = orders.where((o) {
+                              final d = o.data() as Map<String, dynamic>;
+                              return ['shipped', 'out_for_delivery'].contains(d['status']);
+                            }).length;
+
+                            return GridView.count(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              padding: const EdgeInsets.all(16),
+                              children: [
+                                _buildStatCard(
+                                  'Total Deliveries',
+                                  totalDeliveries.toString(),
+                                  Icons.local_shipping,
+                                  Colors.purple,
+                                ),
+                                _buildStatCard(
+                                  'Completed',
+                                  completedDeliveries.toString(),
+                                  Icons.check_circle,
+                                  Colors.green,
+                                ),
+                                _buildStatCard(
+                                  'Pending',
+                                  pendingDeliveries.toString(),
+                                  Icons.pending,
+                                  Colors.orange,
+                                ),
+                                _buildStatCard(
+                                  'Earnings',
+                                  '₹${(completedDeliveries * 50).toString()}', // Mock calculation: ₹50 per delivery
+                                  Icons.account_balance_wallet,
+                                  Colors.blue,
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -6457,6 +6680,180 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
+  Color _getStatusColor(String? status) {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+        return Colors.orange;
+      case 'confirmed':
+        return Colors.blue;
+      case 'packed':
+        return Colors.indigo;
+      case 'shipped':
+        return Colors.purple;
+      case 'out_for_delivery':
+        return Colors.teal;
+      case 'delivered':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _buildSellerOrdersTab(String sellerId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        final orders = snapshot.data?.docs ?? [];
+        final sellerOrders = orders.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final items = data['items'] as List<dynamic>? ?? [];
+          return items.any((item) => item['sellerId'] == sellerId);
+        }).toList();
+
+        if (sellerOrders.isEmpty) {
+          return const Center(child: Text('No orders found'));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: sellerOrders.length,
+          itemBuilder: (context, index) {
+            final order = sellerOrders[index];
+            final data = order.data() as Map<String, dynamic>;
+            final address = data['address'] as Map<String, dynamic>? ?? {};
+            final addressString = '${address['street'] ?? ''}, ${address['city'] ?? ''}, ${address['state'] ?? ''} - ${address['pincode'] ?? ''}';
+            
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ExpansionTile(
+                title: Text('Order #${order.id.substring(0, 8)}'),
+                subtitle: Text(
+                  DateFormat('MMM dd, yyyy').format(
+                    (data['orderDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                  ),
+                ),
+                trailing: Chip(
+                  label: Text(
+                    data['status'] ?? 'Pending',
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                  backgroundColor: _getStatusColor(data['status']),
+                ),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Customer Details',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.content_copy, size: 20),
+                                  tooltip: 'Copy Address',
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: addressString));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Address copied to clipboard')),
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.description, size: 20),
+                                  tooltip: 'View Invoice',
+                                  onPressed: () => _showInvoiceDialog(data, sellerId),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Name: ${address['name'] ?? 'N/A'}'),
+                        Text('Phone: ${address['phone'] ?? 'N/A'}'),
+                        Text('Address: $addressString'),
+                        const Divider(height: 24),
+                        const Text(
+                          'Items',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        ...(data['items'] as List<dynamic>? ?? [])
+                            .where((item) => item['sellerId'] == sellerId)
+                            .map((item) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text('${item['name']} x${item['quantity']}'),
+                                      Text('₹${item['price']}'),
+                                    ],
+                                  ),
+                                ))
+                            .toList(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showInvoiceDialog(Map<String, dynamic> orderData, String sellerId) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          width: 600,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'INVOICE',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.print),
+                    onPressed: () {
+                      // In a real app, this would generate a PDF
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Printing not supported in web demo')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const Divider(),
+              // Add invoice details here...
+              const Center(child: Text('Invoice details would appear here')),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showSellerDashboard(String sellerId, Map<String, dynamic> sellerData) {
     showDialog(
       context: context,
@@ -6470,7 +6867,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             borderRadius: BorderRadius.circular(12),
           ),
           child: DefaultTabController(
-            length: 3,
+            length: 5,
             child: Column(
               children: [
                 Container(
@@ -6525,9 +6922,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 const TabBar(
                   labelColor: Colors.blue,
                   unselectedLabelColor: Colors.grey,
+                  isScrollable: true,
                   tabs: [
                     Tab(icon: Icon(Icons.person), text: 'Profile'),
                     Tab(icon: Icon(Icons.store), text: 'Products'),
+                    Tab(icon: Icon(Icons.receipt_long), text: 'Orders'),
+                    Tab(icon: Icon(Icons.account_balance), text: 'Financials'),
                     Tab(icon: Icon(Icons.dashboard), text: 'Stats'),
                   ],
                 ),
@@ -6555,7 +6955,91 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         ),
                       ),
                       const Center(child: Text('Products coming soon')),
-                      const Center(child: Text('Statistics coming soon')),
+                      _buildSellerOrdersTab(sellerId),
+                      _buildFinancialTab(sellerId, 'seller'),
+                      SingleChildScrollView(
+                        child: StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('products')
+                              .where('sellerId', isEqualTo: sellerId)
+                              .snapshots(),
+                          builder: (context, productSnapshot) {
+                            final productCount =
+                                productSnapshot.data?.docs.length ?? 0;
+
+                            return StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('orders')
+                                  .snapshots(),
+                              builder: (context, orderSnapshot) {
+                                final orders = orderSnapshot.data?.docs ?? [];
+                                final sellerOrders = orders.where((doc) {
+                                  final data = doc.data() as Map<String, dynamic>;
+                                  final items =
+                                      data['items'] as List<dynamic>? ?? [];
+                                  return items.any(
+                                      (item) => item['sellerId'] == sellerId);
+                                }).toList();
+
+                                final orderCount = sellerOrders.length;
+
+                                double totalRevenue = 0;
+                                for (var order in sellerOrders) {
+                                  final data =
+                                      order.data() as Map<String, dynamic>;
+                                  final items =
+                                      data['items'] as List<dynamic>? ?? [];
+                                  for (var item in items) {
+                                    if (item['sellerId'] == sellerId) {
+                                      totalRevenue += (item['price'] ?? 0) *
+                                          (item['quantity'] ?? 1);
+                                    }
+                                  }
+                                }
+
+                                return GridView.count(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  padding: const EdgeInsets.all(16),
+                                  children: [
+                                    _buildStatCard(
+                                      'Total Products',
+                                      productCount.toString(),
+                                      Icons.inventory_2,
+                                      Colors.blue,
+                                    ),
+                                    _buildStatCard(
+                                      'Total Orders',
+                                      orderCount.toString(),
+                                      Icons.shopping_bag,
+                                      Colors.orange,
+                                    ),
+                                    _buildStatCard(
+                                      'Total Revenue',
+                                      '₹${totalRevenue.toStringAsFixed(0)}',
+                                      Icons.currency_rupee,
+                                      Colors.green,
+                                    ),
+                                    _buildStatCard(
+                                      'Pending Orders',
+                                      sellerOrders.where((o) {
+                                        final d =
+                                            o.data() as Map<String, dynamic>;
+                                        return d['status'] == 'pending';
+                                      }).length.toString(),
+                                      Icons.pending_actions,
+                                      Colors.red,
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -6583,7 +7067,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             borderRadius: BorderRadius.circular(12),
           ),
           child: DefaultTabController(
-            length: 3,
+            length: 4,
             child: Column(
               children: [
                 Container(
@@ -6638,9 +7122,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 const TabBar(
                   labelColor: Colors.orange,
                   unselectedLabelColor: Colors.grey,
+                  isScrollable: true,
                   tabs: [
                     Tab(icon: Icon(Icons.person), text: 'Profile'),
                     Tab(icon: Icon(Icons.handyman), text: 'Services'),
+                    Tab(icon: Icon(Icons.account_balance), text: 'Financials'),
                     Tab(icon: Icon(Icons.dashboard), text: 'Stats'),
                   ],
                 ),
@@ -6668,7 +7154,75 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         ),
                       ),
                       const Center(child: Text('Services coming soon')),
-                      const Center(child: Text('Statistics coming soon')),
+                      _buildFinancialTab(providerId, 'service_provider'),
+                      SingleChildScrollView(
+                        child: StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('services')
+                              .where('providerId', isEqualTo: providerId)
+                              .snapshots(),
+                          builder: (context, serviceSnapshot) {
+                            final serviceCount =
+                                serviceSnapshot.data?.docs.length ?? 0;
+
+                            return StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('service_requests')
+                                  .where('providerId', isEqualTo: providerId)
+                                  .snapshots(),
+                              builder: (context, requestSnapshot) {
+                                final requestCount =
+                                    requestSnapshot.data?.docs.length ?? 0;
+                                final requests =
+                                    requestSnapshot.data?.docs ?? [];
+
+                                return GridView.count(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  padding: const EdgeInsets.all(16),
+                                  children: [
+                                    _buildStatCard(
+                                      'Total Services',
+                                      serviceCount.toString(),
+                                      Icons.handyman,
+                                      Colors.orange,
+                                    ),
+                                    _buildStatCard(
+                                      'Total Requests',
+                                      requestCount.toString(),
+                                      Icons.assignment,
+                                      Colors.blue,
+                                    ),
+                                    _buildStatCard(
+                                      'Pending Requests',
+                                      requests.where((r) {
+                                        final d =
+                                            r.data() as Map<String, dynamic>;
+                                        return d['status'] == 'pending';
+                                      }).length.toString(),
+                                      Icons.pending_actions,
+                                      Colors.red,
+                                    ),
+                                    _buildStatCard(
+                                      'Completed Requests',
+                                      requests.where((r) {
+                                        final d =
+                                            r.data() as Map<String, dynamic>;
+                                        return d['status'] == 'completed';
+                                      }).length.toString(),
+                                      Icons.task_alt,
+                                      Colors.green,
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
