@@ -1015,6 +1015,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddServiceDialog(),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Service'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -7894,10 +7903,691 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
 
   void _showAddProductDialog() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Add Product feature coming in v2.0.0'),
-        duration: Duration(seconds: 2),
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final stockCtrl = TextEditingController();
+    
+    String selectedCategory = ProductCategory.dailyNeeds;
+    String selectedUnit = 'Pic';
+    bool isFeatured = false;
+    bool isLoading = false;
+    List<Uint8List> selectedImages = [];
+    final ImagePicker picker = ImagePicker();
+
+    Future<void> pickImages(StateSetter setState) async {
+      try {
+        final List<XFile> images = await picker.pickMultiImage();
+        if (images.isNotEmpty && images.length <= 6) {
+          final List<Uint8List> imageBytes = [];
+          for (var image in images) {
+            final bytes = await image.readAsBytes();
+            imageBytes.add(bytes);
+          }
+          setState(() {
+            selectedImages = imageBytes;
+          });
+        } else if (images.length > 6) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Maximum 6 images allowed')),
+            );
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error picking images: $e')),
+          );
+        }
+      }
+    }
+
+    Future<List<String>> uploadImages(String productId) async {
+      List<String> imageUrls = [];
+      for (int i = 0; i < selectedImages.length; i++) {
+        try {
+          final ref = FirebaseStorage.instance
+              .ref()
+              .child('products')
+              .child(productId)
+              .child('image_$i.jpg');
+          await ref.putData(selectedImages[i]);
+          final url = await ref.getDownloadURL();
+          imageUrls.add(url);
+        } catch (e) {
+          print('Error uploading image $i: $e');
+        }
+      }
+      return imageUrls;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          child: Container(
+            width: 700,
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Add New Product',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    
+                    // Product Name
+                    TextFormField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Product Name *',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) {
+                        if (v?.isEmpty == true) return 'Required';
+                        if (v!.length < 3) return 'Minimum 3 characters';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Description
+                    TextFormField(
+                      controller: descCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Price and Stock
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: priceCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Price *',
+                              border: OutlineInputBorder(),
+                              prefixText: '₹',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v?.isEmpty == true) return 'Required';
+                              final price = double.tryParse(v!);
+                              if (price == null || price <= 0) return 'Invalid price';
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: stockCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Stock *',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v?.isEmpty == true) return 'Required';
+                              final stock = int.tryParse(v!);
+                              if (stock == null || stock < 0) return 'Invalid stock';
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Category and Unit
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: selectedCategory,
+                            decoration: const InputDecoration(
+                              labelText: 'Category',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: ProductCategory.all.map((cat) {
+                              return DropdownMenuItem(value: cat, child: Text(cat));
+                            }).toList(),
+                            onChanged: (val) => setState(() => selectedCategory = val!),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: selectedUnit,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: ['Kg', 'Ltr', 'Pic', 'Pkt', 'Grm']
+                                .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                                .toList(),
+                            onChanged: (val) => setState(() => selectedUnit = val!),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Featured Toggle
+                    SwitchListTile(
+                      title: const Text('Featured Product'),
+                      value: isFeatured,
+                      onChanged: (val) => setState(() => isFeatured = val),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Image Upload
+                    OutlinedButton.icon(
+                      onPressed: () => pickImages(setState),
+                      icon: const Icon(Icons.image),
+                      label: Text(selectedImages.isEmpty 
+                          ? 'Select Images (Max 6)' 
+                          : '${selectedImages.length} image(s) selected'),
+                    ),
+                    if (selectedImages.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 80,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: selectedImages.length,
+                          itemBuilder: (context, index) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Stack(
+                                children: [
+                                  Image.memory(
+                                    selectedImages[index],
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                  ),
+                                  Positioned(
+                                    top: 0,
+                                    right: 0,
+                                    child: IconButton(
+                                      icon: const Icon(Icons.close, size: 16),
+                                      onPressed: () {
+                                        setState(() {
+                                          selectedImages.removeAt(index);
+                                        });
+                                      },
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(24, 24),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    
+                    // Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: isLoading ? null : () => Navigator.pop(context),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: isLoading
+                              ? null
+                              : () async {
+                                  if (!formKey.currentState!.validate()) return;
+                                  
+                                  setState(() => isLoading = true);
+                                  
+                                  try {
+                                    // Create product document
+                                    final docRef = await FirebaseFirestore.instance
+                                        .collection('products')
+                                        .add({
+                                      'name': nameCtrl.text,
+                                      'description': descCtrl.text,
+                                      'price': double.parse(priceCtrl.text),
+                                      'stock': int.parse(stockCtrl.text),
+                                      'category': selectedCategory,
+                                      'unit': selectedUnit,
+                                      'isFeatured': isFeatured,
+                                      'sellerId': 'admin',
+                                      'createdAt': FieldValue.serverTimestamp(),
+                                      'updatedAt': FieldValue.serverTimestamp(),
+                                    });
+                                    
+                                    // Upload images if any
+                                    if (selectedImages.isNotEmpty) {
+                                      final imageUrls = await uploadImages(docRef.id);
+                                      await docRef.update({'images': imageUrls});
+                                    }
+                                    
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Product added successfully')),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    setState(() => isLoading = false);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Error: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Add Product'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddServiceDialog() {
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final basePriceCtrl = TextEditingController();
+    final maxPriceCtrl = TextEditingController();
+    final serviceAreaCtrl = TextEditingController();
+    
+    String selectedCategory = 'Cleaning';
+    String pricingModel = 'fixed';
+    bool isAvailable = true;
+    bool isLoading = false;
+    Uint8List? selectedImage;
+    final ImagePicker picker = ImagePicker();
+
+    Future<void> pickImage(StateSetter setState) async {
+      try {
+        final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+        if (image != null) {
+          final bytes = await image.readAsBytes();
+          setState(() {
+            selectedImage = bytes;
+          });
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error picking image: $e')),
+          );
+        }
+      }
+    }
+
+    Future<String?> uploadImage(String serviceId) async {
+      if (selectedImage == null) return null;
+      try {
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('services')
+            .child(serviceId)
+            .child('image.jpg');
+        await ref.putData(selectedImage!);
+        return await ref.getDownloadURL();
+      } catch (e) {
+        print('Error uploading image: $e');
+        return null;
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          child: Container(
+            width: 700,
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Add New Service',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    
+                    // Service Name
+                    TextFormField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Service Name *',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) {
+                        if (v?.isEmpty == true) return 'Required';
+                        if (v!.length < 3) return 'Minimum 3 characters';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Description
+                    TextFormField(
+                      controller: descCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Pricing Model and Category
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: pricingModel,
+                            decoration: const InputDecoration(
+                              labelText: 'Pricing Model',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: ['fixed', 'range', 'hourly']
+                                .map((m) => DropdownMenuItem(
+                                    value: m, child: Text(m.toUpperCase())))
+                                .toList(),
+                            onChanged: (val) => setState(() => pricingModel = val!),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Consumer<ServiceCategoryProvider>(
+                            builder: (context, provider, _) {
+                              if (provider.serviceCategories.isEmpty) {
+                                return DropdownButtonFormField<String>(
+                                  value: selectedCategory,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Category',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  items: ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Other']
+                                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                                      .toList(),
+                                  onChanged: (val) => setState(() => selectedCategory = val!),
+                                );
+                              }
+                              return DropdownButtonFormField<String>(
+                                value: provider.serviceCategories
+                                        .any((cat) => cat.name == selectedCategory)
+                                    ? selectedCategory
+                                    : provider.serviceCategories.first.name,
+                                decoration: const InputDecoration(
+                                  labelText: 'Category',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: provider.serviceCategories
+                                    .map((cat) => DropdownMenuItem(
+                                        value: cat.name, child: Text(cat.name)))
+                                    .toList(),
+                                onChanged: (val) => setState(() => selectedCategory = val!),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Base Price and Max Price (conditional)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: basePriceCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Base Price *',
+                              border: OutlineInputBorder(),
+                              prefixText: '₹',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v?.isEmpty == true) return 'Required';
+                              final price = double.tryParse(v!);
+                              if (price == null || price <= 0) return 'Invalid price';
+                              return null;
+                            },
+                          ),
+                        ),
+                        if (pricingModel == 'range') ...[
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: maxPriceCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Max Price',
+                                border: OutlineInputBorder(),
+                                prefixText: '₹',
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (v) {
+                                if (v?.isEmpty == true) return null;
+                                final maxPrice = double.tryParse(v!);
+                                final basePrice = double.tryParse(basePriceCtrl.text);
+                                if (maxPrice != null && basePrice != null && maxPrice <= basePrice) {
+                                  return 'Must be > Base Price';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Service Area
+                    TextFormField(
+                      controller: serviceAreaCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Service Area / Pincode',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Available Toggle
+                    SwitchListTile(
+                      title: const Text('Service Available'),
+                      value: isAvailable,
+                      onChanged: (val) => setState(() => isAvailable = val),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Image Upload
+                    OutlinedButton.icon(
+                      onPressed: () => pickImage(setState),
+                      icon: const Icon(Icons.image),
+                      label: Text(selectedImage == null 
+                          ? 'Select Image' 
+                          : 'Image selected'),
+                    ),
+                    if (selectedImage != null) ...[
+                      const SizedBox(height: 8),
+                      Stack(
+                        children: [
+                          Image.memory(
+                            selectedImage!,
+                            width: 150,
+                            height: 150,
+                            fit: BoxFit.cover,
+                          ),
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: IconButton(
+                              icon: const Icon(Icons.close, size: 20),
+                              onPressed: () {
+                                setState(() {
+                                  selectedImage = null;
+                                });
+                              },
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    
+                    // Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: isLoading ? null : () => Navigator.pop(context),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: isLoading
+                              ? null
+                              : () async {
+                                  if (!formKey.currentState!.validate()) return;
+                                  
+                                  setState(() => isLoading = true);
+                                  
+                                  try {
+                                    final serviceData = {
+                                      'name': nameCtrl.text,
+                                      'description': descCtrl.text,
+                                      'category': selectedCategory,
+                                      'pricingModel': pricingModel,
+                                      'basePrice': double.parse(basePriceCtrl.text),
+                                      'serviceArea': serviceAreaCtrl.text,
+                                      'isAvailable': isAvailable,
+                                      'providerId': 'admin',
+                                      'createdAt': FieldValue.serverTimestamp(),
+                                      'updatedAt': FieldValue.serverTimestamp(),
+                                    };
+                                    
+                                    if (pricingModel == 'range' && maxPriceCtrl.text.isNotEmpty) {
+                                      serviceData['maxPrice'] = double.parse(maxPriceCtrl.text);
+                                    }
+                                    
+                                    // Create service document
+                                    final docRef = await FirebaseFirestore.instance
+                                        .collection('services')
+                                        .add(serviceData);
+                                    
+                                    // Upload image if any
+                                    if (selectedImage != null) {
+                                      final imageUrl = await uploadImage(docRef.id);
+                                      if (imageUrl != null) {
+                                        await docRef.update({'imageUrl': imageUrl});
+                                      }
+                                    }
+                                    
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Service added successfully')),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    setState(() => isLoading = false);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Error: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Add Service'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
