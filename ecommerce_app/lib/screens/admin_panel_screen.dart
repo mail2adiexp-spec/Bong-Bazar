@@ -23,7 +23,7 @@ import '../providers/featured_section_provider.dart';
 import '../providers/gift_provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'role_management_tab.dart';
+import 'package:ecommerce_app/screens/role_management_tab.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   static const routeName = '/admin-panel';
@@ -33,11 +33,19 @@ class AdminPanelScreen extends StatefulWidget {
   State<AdminPanelScreen> createState() => _AdminPanelScreenState();
 }
 
-class _AdminPanelScreenState extends State<AdminPanelScreen>
-    with SingleTickerProviderStateMixin {
-  int _selectedIndex = 0;
+class _AdminPanelScreenState extends State<AdminPanelScreen> {
   String _searchQuery = '';
   String _filterStatus = 'all'; // all, pending, approved, rejected
+  
+  // Search and Filter State
+  String _productSearchQuery = '';
+  String? _selectedProductCategory;
+  String _serviceSearchQuery = '';
+  String? _selectedServiceCategory;
+  String _selectedServiceAvailability = 'All';
+  
+  int _selectedIndex = 0;
+
 
   final List<String> _menuTitles = [
     'Users', // 5 chars - original index 7
@@ -88,758 +96,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     Icons.star, // Featured Sections
   ];
 
-  void _showAddProductDialog() {
-    final nameCtrl = TextEditingController();
-    final priceCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-
-    String? selectedCategory = ProductCategory.dailyNeeds;
-    String? selectedUnit = 'Pic';
-    final units = ['Kg', 'Ltr', 'Pic', 'Pkt', 'Grm'];
-
-    // Image storage (up to 6 images)
-    final List<Uint8List?> imageBytes = List.filled(6, null);
-    final List<File?> imageFiles = List.filled(6, null);
-    final List<String?> fileNames = List.filled(6, null);
-
-    bool saving = false;
-
-    Future<void> pickImage(int index, StateSetter setState) async {
-      try {
-        final picker = ImagePicker();
-        final pickedFile = await picker.pickImage(
-          source: ImageSource.gallery,
-          maxWidth: 1200,
-          maxHeight: 1200,
-          imageQuality: 85,
-        );
-
-        if (pickedFile != null) {
-          fileNames[index] = pickedFile.name;
-          if (kIsWeb) {
-            imageBytes[index] = await pickedFile.readAsBytes();
-          } else {
-            imageFiles[index] = File(pickedFile.path);
-          }
-          setState(() {});
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
-        }
-      }
-    }
-
-    Future<List<String>> uploadImages(String productId) async {
-
-      final storage = FirebaseStorage.instanceFor(
-        bucket: 'gs://bong-bazar-3659f.firebasestorage.app',
-      );
-      final List<String> urls = [];
-
-      for (int i = 0; i < 6; i++) {
-        if (imageBytes[i] == null && imageFiles[i] == null) continue;
-
-        try {
-          final ref = storage
-              .ref()
-              .child('products')
-              .child(productId)
-              .child('img_$i.jpg');
-
-          String contentType = 'image/jpeg';
-          final name = fileNames[i]?.toLowerCase() ?? '';
-          if (name.endsWith('.png')) contentType = 'image/png';
-          if (name.endsWith('.webp')) contentType = 'image/webp';
-
-          UploadTask task;
-          if (imageBytes[i] != null) {
-            task = ref.putData(
-              imageBytes[i]!,
-              SettableMetadata(
-                contentType: contentType,
-                cacheControl: 'public, max-age=3600',
-              ),
-            );
-          } else {
-            task = ref.putFile(
-              imageFiles[i]!,
-              SettableMetadata(
-                contentType: contentType,
-                cacheControl: 'public, max-age=3600',
-              ),
-            );
-          }
-
-          final snap = await task;
-          if (snap.state == TaskState.success) {
-            final url = await ref.getDownloadURL();
-            urls.add(url);
-          }
-        } catch (e) {
-        }
-      }
-
-      return urls;
-    }
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Add New Product'),
-          content: SizedBox(
-            width: 600,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Product Name
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Product Name',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Price
-                  TextField(
-                    controller: priceCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Price (₹)',
-                      border: OutlineInputBorder(),
-                      prefixText: '₹ ',
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Category Dropdown
-                  DropdownButtonFormField<String>(
-                    value: selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: ProductCategory.all.map((cat) {
-                      return DropdownMenuItem(value: cat, child: Text(cat));
-                    }).toList(),
-                    onChanged: (val) => setState(() => selectedCategory = val),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Unit Dropdown
-                  DropdownButtonFormField<String>(
-                    value: selectedUnit,
-                    decoration: const InputDecoration(
-                      labelText: 'Unit',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: units.map((u) {
-                      return DropdownMenuItem(value: u, child: Text(u));
-                    }).toList(),
-                    onChanged: (val) => setState(() => selectedUnit = val),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Image Pickers
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Product Images (minimum 4 required)',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 240,
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                            childAspectRatio: 1,
-                          ),
-                      itemCount: 6,
-                      itemBuilder: (gctx, i) {
-                        Widget preview;
-                        if (imageBytes[i] != null) {
-                          preview = Image.memory(
-                            imageBytes[i]!,
-                            fit: BoxFit.cover,
-                          );
-                        } else if (imageFiles[i] != null && !kIsWeb) {
-                          preview = Image.file(
-                            imageFiles[i]!,
-                            fit: BoxFit.cover,
-                          );
-                        } else {
-                          preview = Icon(
-                            Icons.add_photo_alternate,
-                            size: 40,
-                            color: Colors.grey[400],
-                          );
-                        }
-
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => pickImage(i, setState),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    Center(child: preview),
-                                    Positioned(
-                                      right: 4,
-                                      bottom: 4,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black54,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          '${i + 1}',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Description
-                  TextField(
-                    controller: descCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 3,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      if (nameCtrl.text.isEmpty || priceCtrl.text.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Name and price are required!'),
-                          ),
-                        );
-                        return;
-                      }
-
-                      // Count selected images
-                      int imageCount = 0;
-                      for (int i = 0; i < 6; i++) {
-                        if (imageBytes[i] != null || imageFiles[i] != null) {
-                          imageCount++;
-                        }
-                      }
-
-                      if (imageCount < 4) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Minimum 4 images required!'),
-                          ),
-                        );
-                        return;
-                      }
-
-                      setState(() => saving = true);
-
-                      try {
-                        final productId =
-                            'p${DateTime.now().millisecondsSinceEpoch}';
-                        final urls = await uploadImages(productId);
-
-                        if (urls.isEmpty) {
-                          throw Exception('Failed to upload images');
-                        }
-
-                        final product = Product(
-                          id: productId,
-                          name: nameCtrl.text,
-                          price: double.tryParse(priceCtrl.text) ?? 0,
-                          imageUrl: urls.first,
-                          description: descCtrl.text,
-                          imageUrls: urls,
-                          category: selectedCategory,
-                          unit: selectedUnit,
-                        );
-
-                        await Provider.of<ProductProvider>(
-                          context,
-                          listen: false,
-                        ).addProduct(product);
-
-                        if (mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Product added successfully!'),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                        }
-                      } finally {
-                        setState(() => saving = false);
-                      }
-                    },
-              child: saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Add Product'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showEditProductDialog(Product product) {
-    final nameCtrl = TextEditingController(text: product.name);
-    final priceCtrl = TextEditingController(text: product.price.toString());
-    final descCtrl = TextEditingController(text: product.description);
-
-    String? selectedCategory = product.category ?? ProductCategory.dailyNeeds;
-    String? selectedUnit = product.unit ?? 'Pic';
-    final units = ['Kg', 'Ltr', 'Pic', 'Pkt', 'Grm'];
-
-    // Image storage (up to 6 images)
-    final List<Uint8List?> imageBytes = List.filled(6, null);
-    final List<File?> imageFiles = List.filled(6, null);
-    final List<String?> fileNames = List.filled(6, null);
-    final List<String?> existingUrls = List.filled(6, null);
-
-    // Load existing images
-    if (product.imageUrls != null) {
-      for (int i = 0; i < product.imageUrls!.length && i < 6; i++) {
-        existingUrls[i] = product.imageUrls![i];
-      }
-    } else if (product.imageUrl.isNotEmpty) {
-      existingUrls[0] = product.imageUrl;
-    }
-
-    bool saving = false;
-
-    Future<void> pickImage(int index, StateSetter setState) async {
-      try {
-        final picker = ImagePicker();
-        final pickedFile = await picker.pickImage(
-          source: ImageSource.gallery,
-          maxWidth: 1200,
-          maxHeight: 1200,
-          imageQuality: 85,
-        );
-
-        if (pickedFile != null) {
-          fileNames[index] = pickedFile.name;
-          existingUrls[index] = null; // Clear existing URL if replacing
-          if (kIsWeb) {
-            imageBytes[index] = await pickedFile.readAsBytes();
-          } else {
-            imageFiles[index] = File(pickedFile.path);
-          }
-          setState(() {});
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
-        }
-      }
-    }
-
-    Future<List<String>> uploadImages(String productId) async {
-
-      final storage = FirebaseStorage.instanceFor(
-        bucket: 'gs://bong-bazar-3659f.firebasestorage.app',
-      );
-      final List<String> urls = [];
-
-      for (int i = 0; i < 6; i++) {
-        // If existing URL and no new image, keep existing
-        if (existingUrls[i] != null &&
-            imageBytes[i] == null &&
-            imageFiles[i] == null) {
-          urls.add(existingUrls[i]!);
-          continue;
-        }
-
-        // If new image selected, upload it
-        if (imageBytes[i] != null || imageFiles[i] != null) {
-          try {
-
-            final ref = storage
-                .ref()
-                .child('products')
-                .child(productId)
-                .child('img_$i.jpg');
-
-            String contentType = 'image/jpeg';
-            final name = fileNames[i]?.toLowerCase() ?? '';
-            if (name.endsWith('.png')) contentType = 'image/png';
-            if (name.endsWith('.webp')) contentType = 'image/webp';
-
-            UploadTask task;
-            if (imageBytes[i] != null) {
-              task = ref.putData(
-                imageBytes[i]!,
-                SettableMetadata(
-                  contentType: contentType,
-                  cacheControl: 'public, max-age=3600',
-                ),
-              );
-            } else {
-              task = ref.putFile(
-                imageFiles[i]!,
-                SettableMetadata(
-                  contentType: contentType,
-                  cacheControl: 'public, max-age=3600',
-                ),
-              );
-            }
-
-            final snap = await task;
-            if (snap.state == TaskState.success) {
-              final url = await ref.getDownloadURL();
-              urls.add(url);
-
-            }
-          } catch (e) {
-
-          }
-        }
-      }
-
-      return urls;
-    }
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Edit Product'),
-          content: SizedBox(
-            width: 600,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Product Name
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Product Name',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Price
-                  TextField(
-                    controller: priceCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Price (₹)',
-                      border: OutlineInputBorder(),
-                      prefixText: '₹ ',
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Category Dropdown
-                  DropdownButtonFormField<String>(
-                    value: selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: ProductCategory.all.map((cat) {
-                      return DropdownMenuItem(value: cat, child: Text(cat));
-                    }).toList(),
-                    onChanged: (val) => setState(() => selectedCategory = val),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Unit Dropdown
-                  DropdownButtonFormField<String>(
-                    value: selectedUnit,
-                    decoration: const InputDecoration(
-                      labelText: 'Unit',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: units.map((u) {
-                      return DropdownMenuItem(value: u, child: Text(u));
-                    }).toList(),
-                    onChanged: (val) => setState(() => selectedUnit = val),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Image Pickers
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Product Images (minimum 4 required)',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 240,
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                            childAspectRatio: 1,
-                          ),
-                      itemCount: 6,
-                      itemBuilder: (gctx, i) {
-                        Widget preview;
-                        if (imageBytes[i] != null) {
-                          preview = Image.memory(
-                            imageBytes[i]!,
-                            fit: BoxFit.cover,
-                          );
-                        } else if (imageFiles[i] != null && !kIsWeb) {
-                          preview = Image.file(
-                            imageFiles[i]!,
-                            fit: BoxFit.cover,
-                          );
-                        } else if (existingUrls[i] != null) {
-                          preview = Image.network(
-                            existingUrls[i]!,
-                            fit: BoxFit.cover,
-                          );
-                        } else {
-                          preview = Icon(
-                            Icons.add_photo_alternate,
-                            size: 40,
-                            color: Colors.grey[400],
-                          );
-                        }
-
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => pickImage(i, setState),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    Center(child: preview),
-                                    Positioned(
-                                      right: 4,
-                                      bottom: 4,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black54,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          '${i + 1}',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Description
-                  TextField(
-                    controller: descCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 3,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      if (nameCtrl.text.isEmpty || priceCtrl.text.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Name and price are required!'),
-                          ),
-                        );
-                        return;
-                      }
-
-                      // Count selected images (existing + new)
-                      int imageCount = 0;
-                      for (int i = 0; i < 6; i++) {
-                        if (existingUrls[i] != null ||
-                            imageBytes[i] != null ||
-                            imageFiles[i] != null) {
-                          imageCount++;
-                        }
-                      }
-
-                      if (imageCount < 4) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Minimum 4 images required!'),
-                          ),
-                        );
-                        return;
-                      }
-
-                      setState(() => saving = true);
-
-                      try {
-                        final urls = await uploadImages(product.id);
-
-                        if (urls.isEmpty) {
-                          throw Exception('Failed to upload images');
-                        }
-
-                        final updatedProduct = Product(
-                          id: product.id,
-                          name: nameCtrl.text,
-                          price: double.tryParse(priceCtrl.text) ?? 0,
-                          imageUrl: urls.first,
-                          description: descCtrl.text,
-                          imageUrls: urls,
-                          category: selectedCategory,
-                          unit: selectedUnit,
-                        );
-
-                        await Provider.of<ProductProvider>(
-                          context,
-                          listen: false,
-                        ).updateProduct(product.id, updatedProduct);
-
-                        if (mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Product updated successfully!'),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                        }
-                      } finally {
-                        setState(() => saving = false);
-                      }
-                    },
-              child: saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Update Product'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final productProvider = Provider.of<ProductProvider>(context);
-    final products = productProvider.products;
     final auth = Provider.of<AuthProvider>(context);
     final isAdmin = auth.isAdmin;
 
@@ -1155,9 +413,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       index: _sortedToOriginalIndex[_selectedIndex] ?? 0,
                       children: [
                         _buildDashboardTab(), // 0
-                        _buildProductsTab(productProvider, products), // 1
+                        _buildProductsTab(), // 1
                         _buildCategoriesTab(), // 2
-                        _buildServiceCategoriesTab(isAdmin: isAdmin), // 3
+                        _buildServicesTab(), // 3
                         _buildFeaturedSectionsTab(isAdmin: isAdmin), // 4
                         _buildDeliveryPartnersTab(), // 5
                         _buildUsersTab(), // 6
@@ -1332,6 +590,631 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProductsTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('products')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        var products = snapshot.data?.docs ?? [];
+
+        // Filter products
+        if (_productSearchQuery.isNotEmpty) {
+          products = products.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final name = (data['name'] as String?)?.toLowerCase() ?? '';
+            return name.contains(_productSearchQuery.toLowerCase());
+          }).toList();
+        }
+
+        if (_selectedProductCategory != null) {
+          products = products.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return data['category'] == _selectedProductCategory;
+          }).toList();
+        }
+
+        return Column(
+          children: [
+            // Header with Search and Add Button
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total Products: ${products.length}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _showAddProductDialog,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Product'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Search and Filter Row
+                  Row(
+                    children: [
+                      // Search Bar
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search products...',
+                            prefixIcon: const Icon(Icons.search),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              _productSearchQuery = value;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Category Filter
+                      Expanded(
+                        flex: 1,
+                        child: DropdownButtonFormField<String>(
+                          decoration: InputDecoration(
+                            hintText: 'Category',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          value: _selectedProductCategory,
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: null,
+                              child: Text('All Categories'),
+                            ),
+                            ...ProductCategory.all.map((category) {
+                              return DropdownMenuItem<String>(
+                                value: category,
+                                child: Text(category),
+                              );
+                            }),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedProductCategory = value;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Products Grid
+            Expanded(
+              child: products.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search_off,
+                            size: 60,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No products found',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 0.75,
+                      ),
+                      itemCount: products.length,
+                      itemBuilder: (context, index) {
+                        final product = products[index];
+                        final data = product.data() as Map<String, dynamic>;
+                        final images = data['images'] as List<dynamic>? ?? [];
+                        final imageUrl = images.isNotEmpty ? images[0] : null;
+
+                        return Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Product Image
+                              Expanded(
+                                child: Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(12),
+                                      topRight: Radius.circular(12),
+                                    ),
+                                  ),
+                                  child: imageUrl != null
+                                      ? ClipRRect(
+                                          borderRadius: const BorderRadius.only(
+                                            topLeft: Radius.circular(12),
+                                            topRight: Radius.circular(12),
+                                          ),
+                                          child: Image.network(
+                                            imageUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (c, e, s) =>
+                                                const Icon(
+                                              Icons.image_not_supported,
+                                              size: 40,
+                                            ),
+                                          ),
+                                        )
+                                      : const Icon(Icons.inventory_2, size: 40),
+                                ),
+                              ),
+                              // Product Details
+                              Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      data['name'] ?? 'Unknown',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '₹${data['price'] ?? 0}',
+                                      style: const TextStyle(
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          data['isFeatured'] == true
+                                              ? Icons.star
+                                              : Icons.star_border,
+                                          size: 16,
+                                          color: Colors.amber,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            'Stock: ${data['stock'] ?? 0}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.edit,
+                                            size: 20,
+                                          ),
+                                          onPressed: () {
+                                            _showEditProductDialog(
+                                              product.id,
+                                              data,
+                                            );
+                                          },
+                                          color: Colors.blue,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.delete,
+                                            size: 20,
+                                          ),
+                                          onPressed: () async {
+                                            final confirm =
+                                                await showDialog<bool>(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: const Text(
+                                                  'Delete Product',
+                                                ),
+                                                content: Text(
+                                                  'Delete "${data['name']}"?',
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                      ctx,
+                                                      false,
+                                                    ),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                  ElevatedButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                      ctx,
+                                                      true,
+                                                    ),
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          Colors.red,
+                                                    ),
+                                                    child: const Text('Delete'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+
+                                            if (confirm == true) {
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('products')
+                                                    .doc(product.id)
+                                                    .delete();
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Product deleted successfully',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              } catch (e) {
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        'Error: $e',
+                                                      ),
+                                                      backgroundColor:
+                                                          Colors.red,
+                                                    ),
+                                                  );
+                                                }
+                                              }
+                                            }
+                                          },
+                                          color: Colors.red,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildServicesTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('services')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        var services = snapshot.data?.docs ?? [];
+
+        // Filter services
+        if (_serviceSearchQuery.isNotEmpty) {
+          services = services.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final name = (data['name'] as String?)?.toLowerCase() ?? '';
+            return name.contains(_serviceSearchQuery.toLowerCase());
+          }).toList();
+        }
+
+        if (_selectedServiceCategory != null) {
+          services = services.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return data['category'] == _selectedServiceCategory;
+          }).toList();
+        }
+        
+        if (_selectedServiceAvailability != 'All') {
+             final isAvailable = _selectedServiceAvailability == 'Available';
+             services = services.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return data['isAvailable'] == isAvailable;
+             }).toList();
+        }
+
+        return Column(
+          children: [
+             // Header with Search
+             Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total Services: ${services.length}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Search and Filter Row
+                  Row(
+                    children: [
+                      // Search Bar
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search services...',
+                            prefixIcon: const Icon(Icons.search),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              _serviceSearchQuery = value;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Category Filter
+                      Expanded(
+                        flex: 1,
+                        child: Consumer<ServiceCategoryProvider>(
+                            builder: (context, provider, _) {
+                                return DropdownButtonFormField<String>(
+                                  decoration: InputDecoration(
+                                    hintText: 'Category',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                  value: _selectedServiceCategory,
+                                  items: [
+                                    const DropdownMenuItem<String>(
+                                      value: null,
+                                      child: Text('All Categories'),
+                                    ),
+                                    ...provider.serviceCategories.map((cat) {
+                                      return DropdownMenuItem<String>(
+                                        value: cat.name,
+                                        child: Text(cat.name),
+                                      );
+                                    }),
+                                  ],
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedServiceCategory = value;
+                                    });
+                                  },
+                                );
+                            }
+                        ),
+                      ),
+                       const SizedBox(width: 16),
+                      // Availability Filter
+                      Expanded(
+                        flex: 1,
+                        child: DropdownButtonFormField<String>(
+                          decoration: InputDecoration(
+                            hintText: 'Availability',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          value: _selectedServiceAvailability,
+                          items: ['All', 'Available', 'Unavailable'].map((status) {
+                              return DropdownMenuItem<String>(
+                                value: status,
+                                child: Text(status),
+                              );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedServiceAvailability = value!;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Services List
+            Expanded(
+              child: services.isEmpty
+                  ? const Center(child: Text('No services found'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: services.length,
+                      itemBuilder: (context, index) {
+                        final service = services[index];
+                        final data = service.data() as Map<String, dynamic>;
+                        
+                        return Card(
+                          elevation: 2,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.all(12),
+                            leading: Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: data['imageUrl'] != null 
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                            data['imageUrl'],
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (c,e,s) => const Icon(Icons.home_repair_service),
+                                        ),
+                                    )
+                                    : const Icon(Icons.home_repair_service),
+                            ),
+                            title: Text(
+                                data['name'] ?? 'Unknown Service',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                    const SizedBox(height: 4),
+                                    Text('${data['category']} • ${data['pricingModel']}'),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                        '₹${data['basePrice']}',
+                                        style: const TextStyle(
+                                            color: Colors.green,
+                                            fontWeight: FontWeight.bold,
+                                        ),
+                                    ),
+                                ],
+                            ),
+                            trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                    IconButton(
+                                        icon: const Icon(Icons.edit, color: Colors.blue),
+                                        onPressed: () => _showEditServiceDialog(service.id, data),
+                                    ),
+                                    IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red),
+                                        onPressed: () async {
+                                            final confirm = await showDialog<bool>(
+                                                context: context,
+                                                builder: (ctx) => AlertDialog(
+                                                    title: const Text('Delete Service'),
+                                                    content: Text('Delete "${data['name']}"?'),
+                                                    actions: [
+                                                        TextButton(
+                                                            onPressed: () => Navigator.pop(ctx, false),
+                                                            child: const Text('Cancel'),
+                                                        ),
+                                                        ElevatedButton(
+                                                            onPressed: () => Navigator.pop(ctx, true),
+                                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                                            child: const Text('Delete'),
+                                                        ),
+                                                    ],
+                                                ),
+                                            );
+                                            
+                                            if (confirm == true) {
+                                                await FirebaseFirestore.instance.collection('services').doc(service.id).delete();
+                                            }
+                                        },
+                                    ),
+                                ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -2657,191 +2540,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
-  Widget _buildProductsTab(
-    ProductProvider productProvider,
-    List<Product> products,
-  ) {
-    return Column(
-      children: [
-        // Product count and Add button
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  'Total Products: ${products.length}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: _showAddProductDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Add Product'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
 
-        // Products list
-        Expanded(
-          child: productProvider.isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : products.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.inventory_2_outlined,
-                        size: 80,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No products yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Add your first product to get started!',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: products.length,
-                  itemBuilder: (ctx, index) {
-                    final product = products[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      elevation: 2,
-                      child: ListTile(
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            product.imageUrl,
-                            width: 60,
-                            height: 60,
-                            fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Container(
-                              width: 60,
-                              height: 60,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.image_not_supported),
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          product.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('₹${product.price.toStringAsFixed(2)}'),
-                            if (product.category != null)
-                              Text(
-                                product.category!,
-                                style: TextStyle(
-                                  color: Colors.blue[700],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            Text(
-                              '${product.imageUrls?.length ?? 1} images',
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ],
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.blue),
-                              onPressed: () => _showEditProductDialog(product),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Delete Product'),
-                                    content: Text('Delete "${product.name}"?'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, true),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red,
-                                        ),
-                                        child: const Text('Delete'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-
-                                if (confirm == true) {
-                                  try {
-                                    await productProvider.deleteProduct(
-                                      product.id,
-                                    );
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Product deleted successfully!',
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Error: $e'),
-                                          backgroundColor: Colors.red,
-                                        ),
-                                      );
-                                    }
-                                  }
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildCategoriesTab() {
     return Consumer<CategoryProvider>(
@@ -6954,7 +6653,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                           ],
                         ),
                       ),
-                      const Center(child: Text('Products coming soon')),
+                      _buildSellerProductsTab(sellerId),
                       _buildSellerOrdersTab(sellerId),
                       _buildFinancialTab(sellerId, 'seller'),
                       SingleChildScrollView(
@@ -7230,6 +6929,975 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildProviderServicesTab(String providerId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('services')
+          .where('providerId', isEqualTo: providerId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        final services = snapshot.data?.docs ?? [];
+
+        if (services.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.handyman, size: 80, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  'No services yet',
+                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Services will appear here once added',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total Services: ${services.length}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Services List
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: services.length,
+                itemBuilder: (context, index) {
+                  final service = services[index];
+                  final data = service.data() as Map<String, dynamic>;
+                  
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Service Image
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: data['imageUrl'] != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      data['imageUrl'],
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c, e, s) => const Icon(
+                                        Icons.handyman,
+                                        size: 30,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(Icons.handyman, size: 30),
+                          ),
+                          const SizedBox(width: 12),
+                          // Service Details
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        data['name'] ?? 'Unknown Service',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: data['isAvailable'] == true
+                                            ? Colors.green
+                                            : Colors.red,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        data['isAvailable'] == true
+                                            ? 'Available'
+                                            : 'Unavailable',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Category: ${data['category'] ?? 'N/A'}',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '₹${data['basePrice'] ?? 0} ${data['pricingModel'] == 'range' ? '- ₹${data['maxPrice'] ?? 0}' : ''}',
+                                  style: const TextStyle(
+                                    color: Colors.green,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                if (data['description'] != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    data['description'],
+                                    style: TextStyle(
+                                      color: Colors.grey[700],
+                                      fontSize: 13,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          // Actions
+                          Column(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit, size: 20),
+                                onPressed: () {
+                                  _showEditServiceDialog(service.id, data);
+                                },
+                                color: Colors.blue,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, size: 20),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Delete Service'),
+                                      content: Text(
+                                        'Delete "${data['name']}"?',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, true),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                          ),
+                                          child: const Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirm == true) {
+                                    try {
+                                      await FirebaseFirestore.instance
+                                          .collection('services')
+                                          .doc(service.id)
+                                          .delete();
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Service deleted successfully',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text('Error: $e'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  }
+                                },
+                                color: Colors.red,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSellerProductsTab(String sellerId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('products')
+          .where('sellerId', isEqualTo: sellerId)
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        final products = snapshot.data?.docs ?? [];
+
+        if (products.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inventory_2, size: 80, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  'No products yet',
+                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: _showAddProductDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add First Product'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            // Header with Add Button
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total Products: ${products.length}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _showAddProductDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Product'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Products Grid
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.75,
+                ),
+                itemCount: products.length,
+                itemBuilder: (context, index) {
+                  final product = products[index];
+                  final data = product.data() as Map<String, dynamic>;
+                  final images = data['images'] as List<dynamic>? ?? [];
+                  final imageUrl = images.isNotEmpty ? images[0] : null;
+
+                  return Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Product Image
+                        Expanded(
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(12),
+                                topRight: Radius.circular(12),
+                              ),
+                            ),
+                            child: imageUrl != null
+                                ? ClipRRect(
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(12),
+                                      topRight: Radius.circular(12),
+                                    ),
+                                    child: Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c, e, s) => const Icon(
+                                        Icons.image_not_supported,
+                                        size: 40,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(Icons.inventory_2, size: 40),
+                          ),
+                        ),
+                        // Product Details
+                        Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                data['name'] ?? 'Unknown',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '₹${data['price'] ?? 0}',
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    data['isFeatured'] == true
+                                        ? Icons.star
+                                        : Icons.star_border,
+                                    size: 16,
+                                    color: Colors.amber,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      'Stock: ${data['stock'] ?? 0}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, size: 20),
+                                    onPressed: () {
+                                      _showEditProductDialog(product.id, data);
+                                    },
+                                    color: Colors.blue,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, size: 20),
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Delete Product'),
+                                          content: Text(
+                                            'Delete "${data['name']}"?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(ctx, false),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            ElevatedButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(ctx, true),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.red,
+                                              ),
+                                              child: const Text('Delete'),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+
+                                      if (confirm == true) {
+                                        try {
+                                          await FirebaseFirestore.instance
+                                              .collection('products')
+                                              .doc(product.id)
+                                              .delete();
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Product deleted successfully',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text('Error: $e'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    },
+                                    color: Colors.red,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEditProductDialog(String productId, Map<String, dynamic> productData) {
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController(text: productData['name']);
+    final descCtrl = TextEditingController(text: productData['description']);
+    final priceCtrl = TextEditingController(text: productData['price'].toString());
+    final stockCtrl = TextEditingController(text: productData['stock'].toString());
+    
+    String selectedCategory = productData['category'] ?? ProductCategory.dailyNeeds;
+    String selectedUnit = productData['unit'] ?? 'Pic';
+    bool isFeatured = productData['isFeatured'] ?? false;
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          child: Container(
+            width: 600,
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Edit Product',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    
+                    // Product Name
+                    TextFormField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Product Name *',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => v?.isEmpty == true ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Description
+                    TextFormField(
+                      controller: descCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Price and Stock
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: priceCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Price *',
+                              border: OutlineInputBorder(),
+                              prefixText: '₹',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v?.isEmpty == true) return 'Required';
+                              final price = double.tryParse(v!);
+                              if (price == null || price <= 0) return 'Invalid price';
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: stockCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Stock *',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v?.isEmpty == true) return 'Required';
+                              final stock = int.tryParse(v!);
+                              if (stock == null || stock < 0) return 'Invalid stock';
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Category and Unit
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: selectedCategory,
+                            decoration: const InputDecoration(
+                              labelText: 'Category',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: ProductCategory.all.map((cat) {
+                              return DropdownMenuItem(value: cat, child: Text(cat));
+                            }).toList(),
+                            onChanged: (val) => setState(() => selectedCategory = val!),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: selectedUnit,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: ['Kg', 'Ltr', 'Pic', 'Pkt', 'Grm']
+                                .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                                .toList(),
+                            onChanged: (val) => setState(() => selectedUnit = val!),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Featured Toggle
+                    SwitchListTile(
+                      title: const Text('Featured Product'),
+                      value: isFeatured,
+                      onChanged: (val) => setState(() => isFeatured = val),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: isLoading ? null : () => Navigator.pop(context),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: isLoading
+                              ? null
+                              : () async {
+                                  if (!formKey.currentState!.validate()) return;
+                                  
+                                  setState(() => isLoading = true);
+                                  
+                                  try {
+                                    await FirebaseFirestore.instance
+                                        .collection('products')
+                                        .doc(productId)
+                                        .update({
+                                      'name': nameCtrl.text,
+                                      'description': descCtrl.text,
+                                      'price': double.parse(priceCtrl.text),
+                                      'stock': int.parse(stockCtrl.text),
+                                      'category': selectedCategory,
+                                      'unit': selectedUnit,
+                                      'isFeatured': isFeatured,
+                                      'updatedAt': FieldValue.serverTimestamp(),
+                                    });
+                                    
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Product updated successfully')),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    setState(() => isLoading = false);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Error: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Save Changes'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditServiceDialog(String serviceId, Map<String, dynamic> serviceData) {
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController(text: serviceData['name']);
+    final descCtrl = TextEditingController(text: serviceData['description']);
+    final basePriceCtrl = TextEditingController(text: serviceData['basePrice'].toString());
+    final maxPriceCtrl = TextEditingController(
+      text: serviceData['maxPrice']?.toString() ?? '',
+    );
+    
+    String selectedCategory = serviceData['category'] ?? 'Cleaning';
+    String pricingModel = serviceData['pricingModel'] ?? 'fixed';
+    bool isAvailable = serviceData['isAvailable'] ?? true;
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          child: Container(
+            width: 600,
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Edit Service',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    
+                    // Service Name
+                    TextFormField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Service Name *',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => v?.isEmpty == true ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Description
+                    TextFormField(
+                      controller: descCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Pricing Model and Category
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: pricingModel,
+                            decoration: const InputDecoration(
+                              labelText: 'Pricing Model',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: ['fixed', 'range', 'hourly']
+                                .map((m) => DropdownMenuItem(value: m, child: Text(m.toUpperCase())))
+                                .toList(),
+                            onChanged: (val) => setState(() => pricingModel = val!),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: selectedCategory,
+                            decoration: const InputDecoration(
+                              labelText: 'Category',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Other']
+                                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                                .toList(),
+                            onChanged: (val) => setState(() => selectedCategory = val!),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Base Price and Max Price (conditional)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: basePriceCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Base Price *',
+                              border: OutlineInputBorder(),
+                              prefixText: '₹',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v?.isEmpty == true) return 'Required';
+                              final price = double.tryParse(v!);
+                              if (price == null || price <= 0) return 'Invalid price';
+                              return null;
+                            },
+                          ),
+                        ),
+                        if (pricingModel == 'range') ...[
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: maxPriceCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Max Price',
+                                border: OutlineInputBorder(),
+                                prefixText: '₹',
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Available Toggle
+                    SwitchListTile(
+                      title: const Text('Service Available'),
+                      value: isAvailable,
+                      onChanged: (val) => setState(() => isAvailable = val),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: isLoading ? null : () => Navigator.pop(context),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: isLoading
+                              ? null
+                              : () async {
+                                  if (!formKey.currentState!.validate()) return;
+                                  
+                                  setState(() => isLoading = true);
+                                  
+                                  try {
+                                    final updateData = {
+                                      'name': nameCtrl.text,
+                                      'description': descCtrl.text,
+                                      'basePrice': double.parse(basePriceCtrl.text),
+                                      'category': selectedCategory,
+                                      'pricingModel': pricingModel,
+                                      'isAvailable': isAvailable,
+                                      'updatedAt': FieldValue.serverTimestamp(),
+                                    };
+                                    
+                                    if (pricingModel == 'range' && maxPriceCtrl.text.isNotEmpty) {
+                                      updateData['maxPrice'] = double.parse(maxPriceCtrl.text);
+                                    }
+                                    
+                                    await FirebaseFirestore.instance
+                                        .collection('services')
+                                        .doc(serviceId)
+                                        .update(updateData);
+                                    
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Service updated successfully')),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    setState(() => isLoading = false);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Error: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Save Changes'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  void _showAddProductDialog() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Add Product feature coming in v2.0.0'),
+        duration: Duration(seconds: 2),
       ),
     );
   }
