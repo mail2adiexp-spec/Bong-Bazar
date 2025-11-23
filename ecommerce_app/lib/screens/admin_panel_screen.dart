@@ -23,6 +23,7 @@ import '../providers/featured_section_provider.dart';
 import '../providers/gift_provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'role_management_tab.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   static const routeName = '/admin-panel';
@@ -4635,6 +4636,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           _editPartner(id, name, email, phone, pincode),
       onDelete: _deletePartner,
       onRequestAction: _updateRequestStatus,
+      onViewDashboard: (id, data) {
+        _showDeliveryPartnerDashboard(id, data);
+      },
     );
   }
 
@@ -6302,6 +6306,139 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
   }
 
+  void _showDeliveryPartnerDashboard(
+    String partnerId,
+    Map<String, dynamic> partnerData,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          width: 800,
+          height: 600,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: DefaultTabController(
+            length: 3,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.shade50,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundImage: partnerData['photoURL'] != null
+                            ? NetworkImage(partnerData['photoURL'])
+                            : null,
+                        child: partnerData['photoURL'] == null
+                            ? Text(
+                                (partnerData['name'] ?? 'U')[0].toUpperCase(),
+                                style: const TextStyle(fontSize: 24),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              partnerData['name'] ?? 'Unknown Partner',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Partner ID: $partnerId',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const TabBar(
+                  labelColor: Colors.purple,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: [
+                    Tab(icon: Icon(Icons.person), text: 'Profile'),
+                    Tab(icon: Icon(Icons.motorcycle), text: 'Vehicle'),
+                    Tab(icon: Icon(Icons.dashboard), text: 'Stats'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Personal Information',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Divider(),
+                            const SizedBox(height: 16),
+                            _buildInfoRow('Full Name', partnerData['name'] ?? '-'),
+                            _buildInfoRow('Email', partnerData['email'] ?? '-'),
+                            _buildInfoRow('Phone', partnerData['phone'] ?? '-'),
+                            _buildInfoRow('Address', partnerData['address'] ?? '-'),
+                            _buildInfoRow('Status', partnerData['status'] ?? '-'),
+                          ],
+                        ),
+                      ),
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Vehicle Details',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Divider(),
+                            const SizedBox(height: 16),
+                            _buildInfoRow('Vehicle Type', partnerData['vehicleType'] ?? '-'),
+                            _buildInfoRow('Vehicle Number', partnerData['vehicleNumber'] ?? '-'),
+                          ],
+                        ),
+                      ),
+                      const Center(child: Text('Statistics coming soon')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildRoleBasedUsersTab(String role) {
     return RoleManagementTab(
       collection: 'users',
@@ -6310,283 +6447,236 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       onEdit: _editUser,
       onDelete: _deleteUser,
       onRequestAction: _updateRequestStatus,
+      onViewDashboard: (id, data) {
+        if (role == 'seller') {
+          _showSellerDashboard(id, data);
+        } else if (role == 'service_provider') {
+          _showServiceProviderDashboard(id, data);
+        }
+      },
     );
   }
-}
 
-class RoleManagementTab extends StatefulWidget {
-  final String collection;
-  final String? role;
-  final String? requestRole;
-  final Function(String, String, String, String, String, String?) onEdit;
-  final Function(String, String) onDelete;
-  final Function(String, String)? onRequestAction;
-
-  const RoleManagementTab({
-    super.key,
-    required this.collection,
-    this.role,
-    this.requestRole,
-    required this.onEdit,
-    required this.onDelete,
-    this.onRequestAction,
-  });
-
-  @override
-  State<RoleManagementTab> createState() => _RoleManagementTabState();
-}
-
-class _RoleManagementTabState extends State<RoleManagementTab> {
-  String _searchQuery = '';
-  String _selectedStatus = 'All';
-
-  Stream<QuerySnapshot> _getStream() {
-    if ((_selectedStatus == 'Requests' || _selectedStatus == 'Rejected') && widget.requestRole != null) {
-      return FirebaseFirestore.instance
-          .collection('partner_requests')
-          .where('role', isEqualTo: widget.requestRole)
-          .where('status', isEqualTo: _selectedStatus == 'Requests' ? 'pending' : 'rejected')
-          .snapshots();
-    } else {
-      Query query = FirebaseFirestore.instance.collection(widget.collection);
-      if (widget.role != null) {
-        query = query.where('role', isEqualTo: widget.role);
-      }
-      // For delivery_partners, we can filter by status if needed, but 'All' usually means active/approved.
-      // If we want 'Approved' filter to specifically show approved partners:
-      if (widget.collection == 'delivery_partners' && _selectedStatus != 'All') {
-         // If status is 'Approved', we can filter.
-         // But if status is 'Pending'/'Rejected' and we are here (requestRole is null?), 
-         // then we might be looking at delivery_partners collection's status.
-         // However, we assumed requests are in partner_requests.
-         // Let's assume delivery_partners collection only has 'approved' or 'active' partners.
-         // So 'All' and 'Approved' are same.
-      }
-      return query.snapshots();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Search and Filter Section
-        Container(
-          padding: const EdgeInsets.all(16),
-          color: Colors.white,
-          child: Column(
-            children: [
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Search by name, email, or phone',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                onChanged: (value) => setState(() => _searchQuery = value),
-              ),
-              const SizedBox(height: 12),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: ['All', 'Approved', 'Requests', 'Rejected'].map((status) {
-                    final isSelected = _selectedStatus == status;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        label: Text(status),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          if (selected) setState(() => _selectedStatus = status);
-                        },
-                        backgroundColor: Colors.grey[100],
-                        selectedColor: Colors.blue[100],
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.blue[900] : Colors.black87,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+  void _showSellerDashboard(String sellerId, Map<String, dynamic> sellerData) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          width: 800,
+          height: 600,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: DefaultTabController(
+            length: 3,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundImage: sellerData['photoURL'] != null
+                            ? NetworkImage(sellerData['photoURL'])
+                            : null,
+                        child: sellerData['photoURL'] == null
+                            ? Text(
+                                (sellerData['name'] ?? 'U')[0].toUpperCase(),
+                                style: const TextStyle(fontSize: 24),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              sellerData['name'] ?? 'Unknown Seller',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Seller ID: $sellerId',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        
-        // User List
-        Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _getStream(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
-              }
-
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              var docs = snapshot.data?.docs ?? [];
-
-              // Client-side filtering
-              final filteredDocs = docs.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                
-                // Search Filter
-                if (_searchQuery.isNotEmpty) {
-                  final q = _searchQuery.toLowerCase();
-                  final name = (data['name'] ?? '').toString().toLowerCase();
-                  final email = (data['email'] ?? '').toString().toLowerCase();
-                  final phone = (data['phone'] ?? '').toString().toLowerCase();
-                  return name.contains(q) || email.contains(q) || phone.contains(q);
-                }
-
-                return true;
-              }).toList();
-
-              if (filteredDocs.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        widget.role == 'seller' ? Icons.store : 
-                        widget.role == 'service_provider' ? Icons.handyman :
-                        Icons.delivery_dining,
-                        size: 64,
-                        color: Colors.grey[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No ${_selectedStatus == 'All' ? '' : _selectedStatus} ${widget.role == 'seller' ? 'Sellers' : widget.role == 'service_provider' ? 'Service Providers' : 'Delivery Partners'} found',
-                        style: const TextStyle(fontSize: 16, color: Colors.grey),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
                       ),
                     ],
                   ),
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: filteredDocs.length,
-                itemBuilder: (context, index) {
-                  final doc = filteredDocs[index];
-                  final data = doc.data() as Map<String, dynamic>;
-                  final id = doc.id;
-                  final name = data['name'] ?? 'N/A';
-                  final email = data['email'] ?? 'N/A';
-                  final phone = data['phone'] ?? 'N/A';
-                  final servicePincode = data['service_pincode'] as String?;
-                  final createdAt = data['createdAt'] != null
-                      ? (data['createdAt'] as Timestamp).toDate()
-                      : null;
-                  
-                  // Determine if it's a request or a user
-                  final isRequest = _selectedStatus == 'Requests' || _selectedStatus == 'Rejected';
-                  final status = isRequest ? (data['status'] as String? ?? 'pending') : 'approved';
-
-                  Color statusColor;
-                  switch (status.toLowerCase()) {
-                    case 'approved': statusColor = Colors.green; break;
-                    case 'pending': statusColor = Colors.orange; break;
-                    case 'rejected': statusColor = Colors.red; break;
-                    default: statusColor = Colors.grey;
-                  }
-
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: statusColor.withOpacity(0.1),
-                        child: Icon(
-                          widget.role == 'seller' ? Icons.store : 
-                          widget.role == 'service_provider' ? Icons.handyman :
-                          Icons.delivery_dining,
-                          color: statusColor,
+                ),
+                const TabBar(
+                  labelColor: Colors.blue,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: [
+                    Tab(icon: Icon(Icons.person), text: 'Profile'),
+                    Tab(icon: Icon(Icons.store), text: 'Products'),
+                    Tab(icon: Icon(Icons.dashboard), text: 'Stats'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Personal Information',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Divider(),
+                            const SizedBox(height: 16),
+                            _buildInfoRow('Full Name', sellerData['name'] ?? '-'),
+                            _buildInfoRow('Email', sellerData['email'] ?? '-'),
+                            _buildInfoRow('Phone', sellerData['phone'] ?? '-'),
+                          ],
                         ),
                       ),
-                      title: Row(
-                        children: [
-                          Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold))),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: statusColor.withOpacity(0.5)),
-                            ),
-                            child: Text(
-                              status.toUpperCase(),
-                              style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Row(children: [const Icon(Icons.email, size: 14, color: Colors.grey), const SizedBox(width: 4), Text(email)]),
-                          const SizedBox(height: 2),
-                          Row(children: [const Icon(Icons.phone, size: 14, color: Colors.grey), const SizedBox(width: 4), Text(phone)]),
-                          if (servicePincode != null)
-                             Padding(
-                               padding: const EdgeInsets.only(top: 2),
-                               child: Row(children: [const Icon(Icons.location_on, size: 14, color: Colors.grey), const SizedBox(width: 4), Text('Pincode: $servicePincode')]),
-                             ),
-                          if (createdAt != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                'Joined: ${DateFormat('MMM d, yyyy').format(createdAt)}',
-                                style: const TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                            ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isRequest && widget.onRequestAction != null && status == 'pending') ...[
-                            IconButton(
-                              icon: const Icon(Icons.check, color: Colors.green),
-                              onPressed: () => widget.onRequestAction!(id, 'approved'),
-                              tooltip: 'Approve',
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, color: Colors.red),
-                              onPressed: () => widget.onRequestAction!(id, 'rejected'),
-                              tooltip: 'Reject',
-                            ),
-                          ] else if (!isRequest) ...[
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () => widget.onEdit(
-                                id,
-                                name,
-                                email,
-                                phone,
-                                widget.role ?? '',
-                                servicePincode,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => widget.onDelete(id, email),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
+                      const Center(child: Text('Products coming soon')),
+                      const Center(child: Text('Statistics coming soon')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  void _showServiceProviderDashboard(
+    String providerId,
+    Map<String, dynamic> providerData,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          width: 800,
+          height: 600,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: DefaultTabController(
+            length: 3,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundImage: providerData['photoURL'] != null
+                            ? NetworkImage(providerData['photoURL'])
+                            : null,
+                        child: providerData['photoURL'] == null
+                            ? Text(
+                                (providerData['name'] ?? 'U')[0].toUpperCase(),
+                                style: const TextStyle(fontSize: 24),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              providerData['name'] ?? 'Unknown Provider',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Provider ID: $providerId',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const TabBar(
+                  labelColor: Colors.orange,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: [
+                    Tab(icon: Icon(Icons.person), text: 'Profile'),
+                    Tab(icon: Icon(Icons.handyman), text: 'Services'),
+                    Tab(icon: Icon(Icons.dashboard), text: 'Stats'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Personal Information',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Divider(),
+                            const SizedBox(height: 16),
+                            _buildInfoRow('Full Name', providerData['name'] ?? '-'),
+                            _buildInfoRow('Email', providerData['email'] ?? '-'),
+                            _buildInfoRow('Phone', providerData['phone'] ?? '-'),
+                          ],
+                        ),
+                      ),
+                      const Center(child: Text('Services coming soon')),
+                      const Center(child: Text('Statistics coming soon')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
