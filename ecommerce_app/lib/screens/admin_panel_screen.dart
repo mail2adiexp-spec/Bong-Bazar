@@ -45,6 +45,29 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   String _selectedServiceAvailability = 'All';
   
   int _selectedIndex = 0;
+  
+  // Bulk Operations State
+  Set<String> _selectedProductIds = {};
+  Set<String> _selectedServiceIds = {};
+  bool _isProductSelectionMode = false;
+  bool _isServiceSelectionMode = false;
+  
+  // Advanced Product Filters
+  double? _minProductPrice;
+  double? _maxProductPrice;
+  String _stockFilter = 'All'; // All, Low, Out, InStock
+  Set<String> _selectedProductCategories = {};
+  String _featuredFilter = 'All'; // All, Featured, NonFeatured
+  DateTime? _productStartDate;
+  DateTime? _productEndDate;
+  
+  // Advanced Service Filters
+  double? _minServicePrice;
+  double? _maxServicePrice;
+  Set<String> _selectedServiceCategories = {};
+  String _pricingModelFilter = 'All'; // All, fixed, range, hourly
+  DateTime? _serviceStartDate;
+  DateTime? _serviceEndDate;
 
 
   final List<String> _menuTitles = [
@@ -625,6 +648,55 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             return data['category'] == _selectedProductCategory;
           }).toList();
         }
+        
+        // Advanced Filters
+        products = products.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          
+          // Price Range Filter
+          if (_minProductPrice != null) {
+            final price = (data['price'] as num?)?.toDouble() ?? 0;
+            if (price < _minProductPrice!) return false;
+          }
+          if (_maxProductPrice != null) {
+            final price = (data['price'] as num?)?.toDouble() ?? 0;
+            if (price > _maxProductPrice!) return false;
+          }
+          
+          // Stock Filter
+          final stock = (data['stock'] as num?)?.toInt() ?? 0;
+          if (_stockFilter == 'Low' && stock >= 10) return false;
+          if (_stockFilter == 'Out' && stock != 0) return false;
+          if (_stockFilter == 'InStock' && stock <= 0) return false;
+          
+          // Multi-Category Filter
+          if (_selectedProductCategories.isNotEmpty) {
+            final category = data['category'] as String?;
+            if (category == null || !_selectedProductCategories.contains(category)) {
+              return false;
+            }
+          }
+          
+          // Featured Filter
+          final isFeatured = data['isFeatured'] as bool? ?? false;
+          if (_featuredFilter == 'Featured' && !isFeatured) return false;
+          if (_featuredFilter == 'NonFeatured' && isFeatured) return false;
+          
+          // Date Range Filter
+          if (_productStartDate != null || _productEndDate != null) {
+            final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+            if (createdAt != null) {
+              if (_productStartDate != null && createdAt.isBefore(_productStartDate!)) {
+                return false;
+              }
+              if (_productEndDate != null && createdAt.isAfter(_productEndDate!.add(const Duration(days: 1)))) {
+                return false;
+              }
+            }
+          }
+          
+          return true;
+        }).toList();
 
         return Column(
           children: [
@@ -643,17 +715,92 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: _showAddProductDialog,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Product'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
+                      Row(
+                        children: [
+                          if (!_isProductSelectionMode)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _isProductSelectionMode = true;
+                                });
+                              },
+                              icon: const Icon(Icons.check_box_outlined),
+                              label: const Text('Select Mode'),
+                            ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: _showAddProductDialog,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Product'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                  // Bulk Operations Toolbar
+                  if (_isProductSelectionMode) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: _selectedProductIds.length == products.length && products.isNotEmpty,
+                            tristate: true,
+                            onChanged: (selected) {
+                              setState(() {
+                                if (selected == true) {
+                                  _selectedProductIds = products.map((p) => p.id).toSet();
+                                } else {
+                                  _selectedProductIds.clear();
+                                }
+                              });
+                            },
+                          ),
+                          Text(
+                            _selectedProductIds.isEmpty
+                                ? 'Select All'
+                                : '${_selectedProductIds.length} selected',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            tooltip: 'Bulk Edit',
+                            onPressed: _selectedProductIds.isEmpty
+                                ? null
+                                : () => _showBulkEditProductsDialog(),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            tooltip: 'Bulk Delete',
+                            onPressed: _selectedProductIds.isEmpty
+                                ? null
+                                : () => _bulkDeleteProducts(),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Exit Selection Mode',
+                            onPressed: () {
+                              setState(() {
+                                _isProductSelectionMode = false;
+                                _selectedProductIds.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   // Search and Filter Row
                   Row(
@@ -717,6 +864,160 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       ),
                     ],
                   ),
+                  // Advanced Filters Panel
+                  const SizedBox(height: 8),
+                  ExpansionTile(
+                    title: Row(
+                      children: [
+                        const Icon(Icons.filter_alt, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('Advanced Filters'),
+                        if (_minProductPrice != null || 
+                            _maxProductPrice != null ||
+                            _stockFilter != 'All' ||
+                            _selectedProductCategories.isNotEmpty ||
+                            _featuredFilter != 'All') ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Active',
+                              style: TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Price Range
+                            const Text('Price Range', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    decoration: const InputDecoration(
+                                      labelText: 'Min Price',
+                                      prefixText: '₹',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (v) => setState(() => _minProductPrice = double.tryParse(v)),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: TextField(
+                                    decoration: const InputDecoration(
+                                      labelText: 'Max Price',
+                                      prefixText: '₹',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (v) => setState(() => _maxProductPrice = double.tryParse(v)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Stock Filter
+                            const Text('Stock Status', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: _stockFilter,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 'All', child: Text('All')),
+                                DropdownMenuItem(value: 'Low', child: Text('Low Stock (< 10)')),
+                                DropdownMenuItem(value: 'Out', child: Text('Out of Stock')),
+                                DropdownMenuItem(value: 'InStock', child: Text('In Stock')),
+                              ],
+                              onChanged: (v) => setState(() => _stockFilter = v!),
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Multi-Category Filter
+                            const Text('Categories (Multi-select)', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: ProductCategory.all.map((cat) {
+                                return FilterChip(
+                                  label: Text(cat),
+                                  selected: _selectedProductCategories.contains(cat),
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      if (selected) {
+                                        _selectedProductCategories.add(cat);
+                                      } else {
+                                        _selectedProductCategories.remove(cat);
+                                      }
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Featured Filter
+                            const Text('Featured Status', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: _featuredFilter,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 'All', child: Text('All')),
+                                DropdownMenuItem(value: 'Featured', child: Text('Featured Only')),
+                                DropdownMenuItem(value: 'NonFeatured', child: Text('Non-Featured')),
+                              ],
+                              onChanged: (v) => setState(() => _featuredFilter = v!),
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Clear All Filters Button
+                            Center(
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _minProductPrice = null;
+                                    _maxProductPrice = null;
+                                    _stockFilter = 'All';
+                                    _selectedProductCategories.clear();
+                                    _featuredFilter = 'All';
+                                  });
+                                },
+                                icon: const Icon(Icons.clear_all),
+                                label: const Text('Clear All Filters'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.grey,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -760,44 +1061,62 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         final images = data['images'] as List<dynamic>? ?? [];
                         final imageUrl = images.isNotEmpty ? images[0] : null;
 
-                        return Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Product Image
-                              Expanded(
-                                child: Container(
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(12),
-                                      topRight: Radius.circular(12),
-                                    ),
-                                  ),
-                                  child: imageUrl != null
-                                      ? ClipRRect(
+                        return Stack(
+                          children: [
+                            Card(
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: _isProductSelectionMode && _selectedProductIds.contains(product.id)
+                                    ? const BorderSide(color: Colors.blue, width: 3)
+                                    : BorderSide.none,
+                              ),
+                              child: InkWell(
+                                onTap: _isProductSelectionMode
+                                    ? () {
+                                        setState(() {
+                                          if (_selectedProductIds.contains(product.id)) {
+                                            _selectedProductIds.remove(product.id);
+                                          } else {
+                                            _selectedProductIds.add(product.id);
+                                          }
+                                        });
+                                      }
+                                    : null,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Product Image
+                                    Expanded(
+                                      child: Container(
+                                        width: double.infinity,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[200],
                                           borderRadius: const BorderRadius.only(
                                             topLeft: Radius.circular(12),
                                             topRight: Radius.circular(12),
                                           ),
-                                          child: Image.network(
-                                            imageUrl,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (c, e, s) =>
-                                                const Icon(
-                                              Icons.image_not_supported,
-                                              size: 40,
-                                            ),
-                                          ),
-                                        )
-                                      : const Icon(Icons.inventory_2, size: 40),
-                                ),
-                              ),
+                                        ),
+                                        child: imageUrl != null
+                                            ? ClipRRect(
+                                                borderRadius: const BorderRadius.only(
+                                                  topLeft: Radius.circular(12),
+                                                  topRight: Radius.circular(12),
+                                                ),
+                                                child: Image.network(
+                                                  imageUrl,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (c, e, s) =>
+                                                      const Icon(
+                                                    Icons.image_not_supported,
+                                                    size: 40,
+                                                  ),
+                                                ),
+                                              )
+                                            : const Icon(Icons.inventory_2, size: 40),
+                                      ),
+                                    ),
                               // Product Details
                               Padding(
                                 padding: const EdgeInsets.all(8),
@@ -947,7 +1266,42 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               ),
                             ],
                           ),
-                        );
+                        ),
+                      ),
+                      // Checkbox Overlay
+                      if (_isProductSelectionMode)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Checkbox(
+                              value: _selectedProductIds.contains(product.id),
+                              onChanged: (selected) {
+                                setState(() {
+                                  if (selected == true) {
+                                    _selectedProductIds.add(product.id);
+                                  } else {
+                                    _selectedProductIds.remove(product.id);
+                                  }
+                                });
+                              },
+                              shape: const CircleBorder(),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
                       },
                     ),
             ),
@@ -997,6 +1351,37 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 return data['isAvailable'] == isAvailable;
              }).toList();
         }
+        
+        // Advanced Filters
+        services = services.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          
+          // Price Range Filter
+          if (_minServicePrice != null) {
+            final price = (data['basePrice'] as num?)?.toDouble() ?? 0;
+            if (price < _minServicePrice!) return false;
+          }
+          if (_maxServicePrice != null) {
+            final price = (data['basePrice'] as num?)?.toDouble() ?? 0;
+            if (price > _maxServicePrice!) return false;
+          }
+          
+          // Multi-Category Filter
+          if (_selectedServiceCategories.isNotEmpty) {
+            final category = data['category'] as String?;
+            if (category == null || !_selectedServiceCategories.contains(category)) {
+              return false;
+            }
+          }
+          
+          // Pricing Model Filter
+          if (_pricingModelFilter != 'All') {
+            final pricingModel = data['pricingModel'] as String?;
+            if (pricingModel != _pricingModelFilter) return false;
+          }
+          
+          return true;
+        }).toList();
 
         return Column(
           children: [
@@ -1015,17 +1400,92 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () => _showAddServiceDialog(),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Service'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                        ),
+                      Row(
+                        children: [
+                          if (!_isServiceSelectionMode)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _isServiceSelectionMode = true;
+                                });
+                              },
+                              icon: const Icon(Icons.check_box_outlined),
+                              label: const Text('Select Mode'),
+                            ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () => _showAddServiceDialog(),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Service'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                  // Bulk Operations Toolbar
+                  if (_isServiceSelectionMode) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: _selectedServiceIds.length == services.length && services.isNotEmpty,
+                            tristate: true,
+                            onChanged: (selected) {
+                              setState(() {
+                                if (selected == true) {
+                                  _selectedServiceIds = services.map((s) => s.id).toSet();
+                                } else {
+                                  _selectedServiceIds.clear();
+                                }
+                              });
+                            },
+                          ),
+                          Text(
+                            _selectedServiceIds.isEmpty
+                                ? 'Select All'
+                                : '${_selectedServiceIds.length} selected',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            tooltip: 'Bulk Edit',
+                            onPressed: _selectedServiceIds.isEmpty
+                                ? null
+                                : () => _showBulkEditServicesDialog(),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            tooltip: 'Bulk Delete',
+                            onPressed: _selectedServiceIds.isEmpty
+                                ? null
+                                : () => _bulkDeleteServices(),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Exit Selection Mode',
+                            onPressed: () {
+                              setState(() {
+                                _isServiceSelectionMode = false;
+                                _selectedServiceIds.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   // Search and Filter Row
                   Row(
@@ -1122,6 +1582,144 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       ),
                     ],
                   ),
+                  // Advanced Filters Panel
+                  const SizedBox(height: 8),
+                  ExpansionTile(
+                    title: Row(
+                      children: [
+                        const Icon(Icons.filter_alt, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('Advanced Filters'),
+                        if (_minServicePrice != null || 
+                            _maxServicePrice != null ||
+                            _selectedServiceCategories.isNotEmpty ||
+                            _pricingModelFilter != 'All') ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Active',
+                              style: TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Price Range
+                            const Text('Price Range', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    decoration: const InputDecoration(
+                                      labelText: 'Min Price',
+                                      prefixText: '₹',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (v) => setState(() => _minServicePrice = double.tryParse(v)),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: TextField(
+                                    decoration: const InputDecoration(
+                                      labelText: 'Max Price',
+                                      prefixText: '₹',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (v) => setState(() => _maxServicePrice = double.tryParse(v)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Pricing Model Filter
+                            const Text('Pricing Model', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: _pricingModelFilter,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 'All', child: Text('All')),
+                                DropdownMenuItem(value: 'fixed', child: Text('Fixed Price')),
+                                DropdownMenuItem(value: 'range', child: Text('Price Range')),
+                                DropdownMenuItem(value: 'hourly', child: Text('Hourly Rate')),
+                              ],
+                              onChanged: (v) => setState(() => _pricingModelFilter = v!),
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Multi-Category Filter
+                            const Text('Categories (Multi-select)', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Consumer<ServiceCategoryProvider>(
+                              builder: (context, provider, _) {
+                                return Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: provider.categories.map((cat) {
+                                    return FilterChip(
+                                      label: Text(cat),
+                                      selected: _selectedServiceCategories.contains(cat),
+                                      onSelected: (selected) {
+                                        setState(() {
+                                          if (selected) {
+                                            _selectedServiceCategories.add(cat);
+                                          } else {
+                                            _selectedServiceCategories.remove(cat);
+                                          }
+                                        });
+                                      },
+                                    );
+                                  }).toList(),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Clear All Filters Button
+                            Center(
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _minServicePrice = null;
+                                    _maxServicePrice = null;
+                                    _selectedServiceCategories.clear();
+                                    _pricingModelFilter = 'All';
+                                  });
+                                },
+                                icon: const Icon(Icons.clear_all),
+                                label: const Text('Clear All Filters'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.grey,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1137,86 +1735,143 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         final service = services[index];
                         final data = service.data() as Map<String, dynamic>;
                         
-                        return Card(
-                          elevation: 2,
-                          margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.all(12),
-                            leading: Container(
-                                width: 60,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(8),
+                        return Stack(
+                          children: [
+                            Card(
+                              elevation: 2,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: _isServiceSelectionMode && _selectedServiceIds.contains(service.id)
+                                    ? const BorderSide(color: Colors.green, width: 3)
+                                    : BorderSide.none,
+                              ),
+                              child: InkWell(
+                                onTap: _isServiceSelectionMode
+                                    ? () {
+                                        setState(() {
+                                          if (_selectedServiceIds.contains(service.id)) {
+                                            _selectedServiceIds.remove(service.id);
+                                          } else {
+                                            _selectedServiceIds.add(service.id);
+                                          }
+                                        });
+                                      }
+                                    : null,
+                                borderRadius: BorderRadius.circular(12),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.all(12),
+                                  leading: Container(
+                                      width: 60,
+                                      height: 60,
+                                      decoration: BoxDecoration(
+                                          color: Colors.grey[200],
+                                          borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: data['imageUrl'] != null 
+                                          ? ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Image.network(
+                                                  data['imageUrl'],
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (c,e,s) => const Icon(Icons.home_repair_service),
+                                              ),
+                                          )
+                                          : const Icon(Icons.home_repair_service),
+                                  ),
+                                  title: Text(
+                                      data['name'] ?? 'Unknown Service',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                          const SizedBox(height: 4),
+                                          Text('${data['category']} • ${data['pricingModel']}'),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                              '₹${data['basePrice']}',
+                                              style: const TextStyle(
+                                                  color: Colors.green,
+                                                  fontWeight: FontWeight.bold,
+                                              ),
+                                          ),
+                                      ],
+                                  ),
+                                  trailing: _isServiceSelectionMode
+                                      ? null
+                                      : Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                              IconButton(
+                                                  icon: const Icon(Icons.edit, color: Colors.blue),
+                                                  onPressed: () => _showEditServiceDialog(service.id, data),
+                                              ),
+                                              IconButton(
+                                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                                  onPressed: () async {
+                                                      final confirm = await showDialog<bool>(
+                                                          context: context,
+                                                          builder: (ctx) => AlertDialog(
+                                                              title: const Text('Delete Service'),
+                                                              content: Text('Delete "${data['name']}"?'),
+                                                              actions: [
+                                                                  TextButton(
+                                                                      onPressed: () => Navigator.pop(ctx, false),
+                                                                      child: const Text('Cancel'),
+                                                                  ),
+                                                                  ElevatedButton(
+                                                                      onPressed: () => Navigator.pop(ctx, true),
+                                                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                                                      child: const Text('Delete'),
+                                                                  ),
+                                                              ],
+                                                          ),
+                                                      );
+                                                      
+                                                      if (confirm == true) {
+                                                          await FirebaseFirestore.instance.collection('services').doc(service.id).delete();
+                                                      }
+                                                  },
+                                              ),
+                                          ],
+                                      ),
                                 ),
-                                child: data['imageUrl'] != null 
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                            data['imageUrl'],
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (c,e,s) => const Icon(Icons.home_repair_service),
-                                        ),
-                                    )
-                                    : const Icon(Icons.home_repair_service),
+                              ),
                             ),
-                            title: Text(
-                                data['name'] ?? 'Unknown Service',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                    const SizedBox(height: 4),
-                                    Text('${data['category']} • ${data['pricingModel']}'),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                        '₹${data['basePrice']}',
-                                        style: const TextStyle(
-                                            color: Colors.green,
-                                            fontWeight: FontWeight.bold,
-                                        ),
-                                    ),
-                                ],
-                            ),
-                            trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                    IconButton(
-                                        icon: const Icon(Icons.edit, color: Colors.blue),
-                                        onPressed: () => _showEditServiceDialog(service.id, data),
-                                    ),
-                                    IconButton(
-                                        icon: const Icon(Icons.delete, color: Colors.red),
-                                        onPressed: () async {
-                                            final confirm = await showDialog<bool>(
-                                                context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                    title: const Text('Delete Service'),
-                                                    content: Text('Delete "${data['name']}"?'),
-                                                    actions: [
-                                                        TextButton(
-                                                            onPressed: () => Navigator.pop(ctx, false),
-                                                            child: const Text('Cancel'),
-                                                        ),
-                                                        ElevatedButton(
-                                                            onPressed: () => Navigator.pop(ctx, true),
-                                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                                            child: const Text('Delete'),
-                                                        ),
-                                                    ],
-                                                ),
-                                            );
-                                            
-                                            if (confirm == true) {
-                                                await FirebaseFirestore.instance.collection('services').doc(service.id).delete();
-                                            }
-                                        },
-                                    ),
-                                ],
-                            ),
-                          ),
+                            // Checkbox Overlay
+                            if (_isServiceSelectionMode)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Checkbox(
+                                    value: _selectedServiceIds.contains(service.id),
+                                    onChanged: (selected) {
+                                      setState(() {
+                                        if (selected == true) {
+                                          _selectedServiceIds.add(service.id);
+                                        } else {
+                                          _selectedServiceIds.remove(service.id);
+                                        }
+                                      });
+                                    },
+                                    shape: const CircleBorder(),
+                                  ),
+                                ),
+                              ),
+                          ],
                         );
                       },
                     ),
@@ -8584,6 +9239,588 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Bulk Operations Methods
+  Future<void> _bulkDeleteProducts() async {
+    final count = _selectedProductIds.length;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete $count Product${count > 1 ? 's' : ''}?'),
+        content: const Text(
+          'This action cannot be undone. All selected products will be permanently deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // Show loading
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Deleting $count product${count > 1 ? 's' : ''}...'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+
+        // Batch delete
+        final batch = FirebaseFirestore.instance.batch();
+        for (var id in _selectedProductIds) {
+          batch.delete(
+            FirebaseFirestore.instance.collection('products').doc(id),
+          );
+        }
+        await batch.commit();
+
+        // Clear selection and exit selection mode
+        setState(() {
+          _selectedProductIds.clear();
+          _isProductSelectionMode = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$count product${count > 1 ? 's' : ''} deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting products: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _showBulkEditProductsDialog() {
+    final count = _selectedProductIds.length;
+    
+    // Edit options
+    String editType = 'price'; // price, stock, category, featured
+    String priceAction = 'add_percent'; // add_percent, subtract_percent, set_fixed
+    String stockAction = 'add'; // add, subtract, set
+    final priceCtrl = TextEditingController();
+    final stockCtrl = TextEditingController();
+    String? selectedCategory;
+    bool? setFeatured;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          child: Container(
+            width: 600,
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bulk Edit $count Product${count > 1 ? 's' : ''}',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  
+                  // Edit Type Selection
+                  DropdownButtonFormField<String>(
+                    value: editType,
+                    decoration: const InputDecoration(
+                      labelText: 'What to Edit',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'price', child: Text('Price')),
+                      DropdownMenuItem(value: 'stock', child: Text('Stock')),
+                      DropdownMenuItem(value: 'category', child: Text('Category')),
+                      DropdownMenuItem(value: 'featured', child: Text('Featured Status')),
+                    ],
+                    onChanged: (val) => setState(() => editType = val!),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Price Edit Options
+                  if (editType == 'price') ...[
+                    DropdownButtonFormField<String>(
+                      value: priceAction,
+                      decoration: const InputDecoration(
+                        labelText: 'Action',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'add_percent', child: Text('Increase by %')),
+                        DropdownMenuItem(value: 'subtract_percent', child: Text('Decrease by %')),
+                        DropdownMenuItem(value: 'set_fixed', child: Text('Set to Fixed Value')),
+                      ],
+                      onChanged: (val) => setState(() => priceAction = val!),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: priceCtrl,
+                      decoration: InputDecoration(
+                        labelText: priceAction == 'set_fixed' ? 'New Price' : 'Percentage',
+                        border: const OutlineInputBorder(),
+                        prefixText: priceAction == 'set_fixed' ? '₹' : '',
+                        suffixText: priceAction != 'set_fixed' ? '%' : '',
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                  
+                  // Stock Edit Options
+                  if (editType == 'stock') ...[
+                    DropdownButtonFormField<String>(
+                      value: stockAction,
+                      decoration: const InputDecoration(
+                        labelText: 'Action',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'add', child: Text('Add to Stock')),
+                        DropdownMenuItem(value: 'subtract', child: Text('Subtract from Stock')),
+                        DropdownMenuItem(value: 'set', child: Text('Set to Value')),
+                      ],
+                      onChanged: (val) => setState(() => stockAction = val!),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: stockCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Stock Value',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                  
+                  // Category Edit
+                  if (editType == 'category') ...[
+                    DropdownButtonFormField<String>(
+                      value: selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'New Category',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: ProductCategory.all.map((cat) {
+                        return DropdownMenuItem(value: cat, child: Text(cat));
+                      }).toList(),
+                      onChanged: (val) => setState(() => selectedCategory = val),
+                    ),
+                  ],
+                  
+                  // Featured Edit
+                  if (editType == 'featured') ...[
+                    DropdownButtonFormField<bool>(
+                      value: setFeatured,
+                      decoration: const InputDecoration(
+                        labelText: 'Featured Status',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: true, child: Text('Set as Featured')),
+                        DropdownMenuItem(value: false, child: Text('Remove from Featured')),
+                      ],
+                      onChanged: (val) => setState(() => setFeatured = val),
+                    ),
+                  ],
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Action Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          
+                          try {
+                            final batch = FirebaseFirestore.instance.batch();
+                            
+                            for (var productId in _selectedProductIds) {
+                              final docRef = FirebaseFirestore.instance
+                                  .collection('products')
+                                  .doc(productId);
+                              
+                              if (editType == 'price' && priceCtrl.text.isNotEmpty) {
+                                final value = double.tryParse(priceCtrl.text);
+                                if (value != null) {
+                                  if (priceAction == 'set_fixed') {
+                                    batch.update(docRef, {'price': value});
+                                  } else {
+                                    // Get current price
+                                    final doc = await docRef.get();
+                                    final currentPrice = (doc.data()?['price'] as num?)?.toDouble() ?? 0;
+                                    double newPrice;
+                                    if (priceAction == 'add_percent') {
+                                      newPrice = currentPrice * (1 + value / 100);
+                                    } else {
+                                      newPrice = currentPrice * (1 - value / 100);
+                                    }
+                                    batch.update(docRef, {'price': newPrice});
+                                  }
+                                }
+                              } else if (editType == 'stock' && stockCtrl.text.isNotEmpty) {
+                                final value = int.tryParse(stockCtrl.text);
+                                if (value != null) {
+                                  if (stockAction == 'set') {
+                                    batch.update(docRef, {'stock': value});
+                                  } else {
+                                    final doc = await docRef.get();
+                                    final currentStock = (doc.data()?['stock'] as num?)?.toInt() ?? 0;
+                                    final newStock = stockAction == 'add'
+                                        ? currentStock + value
+                                        : currentStock - value;
+                                    batch.update(docRef, {'stock': newStock.clamp(0, 999999)});
+                                  }
+                                }
+                              } else if (editType == 'category' && selectedCategory != null) {
+                                batch.update(docRef, {'category': selectedCategory});
+                              } else if (editType == 'featured' && setFeatured != null) {
+                                batch.update(docRef, {'isFeatured': setFeatured});
+                              }
+                            }
+                            
+                            await batch.commit();
+                            
+                            if (this.context.mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text('$count product${count > 1 ? 's' : ''} updated successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                            
+                            this.setState(() {
+                              _selectedProductIds.clear();
+                              _isProductSelectionMode = false;
+                            });
+                          } catch (e) {
+                            if (this.context.mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Apply Changes'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Bulk Service Operations
+  Future<void> _bulkDeleteServices() async {
+    final count = _selectedServiceIds.length;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete $count Service${count > 1 ? 's' : ''}?'),
+        content: const Text(
+          'This action cannot be undone. All selected services will be permanently deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Deleting $count service${count > 1 ? 's' : ''}...'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+
+        final batch = FirebaseFirestore.instance.batch();
+        for (var id in _selectedServiceIds) {
+          batch.delete(
+            FirebaseFirestore.instance.collection('services').doc(id),
+          );
+        }
+        await batch.commit();
+
+        setState(() {
+          _selectedServiceIds.clear();
+          _isServiceSelectionMode = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$count service${count > 1 ? 's' : ''} deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting services: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _showBulkEditServicesDialog() {
+    final count = _selectedServiceIds.length;
+    
+    String editType = 'price'; // price, category, availability
+    String priceAction = 'add_percent';
+    final priceCtrl = TextEditingController();
+    String? selectedCategory;
+    bool? setAvailability;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          child: Container(
+            width: 600,
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bulk Edit $count Service${count > 1 ? 's' : ''}',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  
+                  // Edit Type Selection
+                  DropdownButtonFormField<String>(
+                    value: editType,
+                    decoration: const InputDecoration(
+                      labelText: 'What to Edit',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'price', child: Text('Base Price')),
+                      DropdownMenuItem(value: 'category', child: Text('Category')),
+                      DropdownMenuItem(value: 'availability', child: Text('Availability')),
+                    ],
+                    onChanged: (val) => setState(() => editType = val!),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Price Edit Options
+                  if (editType == 'price') ...[
+                    DropdownButtonFormField<String>(
+                      value: priceAction,
+                      decoration: const InputDecoration(
+                        labelText: 'Action',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'add_percent', child: Text('Increase by %')),
+                        DropdownMenuItem(value: 'subtract_percent', child: Text('Decrease by %')),
+                        DropdownMenuItem(value: 'set_fixed', child: Text('Set to Fixed Value')),
+                      ],
+                      onChanged: (val) => setState(() => priceAction = val!),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: priceCtrl,
+                      decoration: InputDecoration(
+                        labelText: priceAction == 'set_fixed' ? 'New Price' : 'Percentage',
+                        border: const OutlineInputBorder(),
+                        prefixText: priceAction == 'set_fixed' ? '₹' : '',
+                        suffixText: priceAction != 'set_fixed' ? '%' : '',
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                  
+                  // Category Edit
+                  if (editType == 'category') ...[
+                    Consumer<ServiceCategoryProvider>(
+                      builder: (context, provider, _) {
+                        return DropdownButtonFormField<String>(
+                          value: selectedCategory,
+                          decoration: const InputDecoration(
+                            labelText: 'New Category',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: provider.categories.map((cat) {
+                            return DropdownMenuItem(value: cat, child: Text(cat));
+                          }).toList(),
+                          onChanged: (val) => setState(() => selectedCategory = val),
+                        );
+                      },
+                    ),
+                  ],
+                  
+                  // Availability Edit
+                  if (editType == 'availability') ...[
+                    DropdownButtonFormField<bool>(
+                      value: setAvailability,
+                      decoration: const InputDecoration(
+                        labelText: 'Availability Status',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: true, child: Text('Set as Available')),
+                        DropdownMenuItem(value: false, child: Text('Set as Unavailable')),
+                      ],
+                      onChanged: (val) => setState(() => setAvailability = val),
+                    ),
+                  ],
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Action Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          
+                          try {
+                            final batch = FirebaseFirestore.instance.batch();
+                            
+                            for (var serviceId in _selectedServiceIds) {
+                              final docRef = FirebaseFirestore.instance
+                                  .collection('services')
+                                  .doc(serviceId);
+                              
+                              if (editType == 'price' && priceCtrl.text.isNotEmpty) {
+                                final value = double.tryParse(priceCtrl.text);
+                                if (value != null) {
+                                  if (priceAction == 'set_fixed') {
+                                    batch.update(docRef, {'basePrice': value});
+                                  } else {
+                                    final doc = await docRef.get();
+                                    final currentPrice = (doc.data()?['basePrice'] as num?)?.toDouble() ?? 0;
+                                    double newPrice;
+                                    if (priceAction == 'add_percent') {
+                                      newPrice = currentPrice * (1 + value / 100);
+                                    } else {
+                                      newPrice = currentPrice * (1 - value / 100);
+                                    }
+                                    batch.update(docRef, {'basePrice': newPrice});
+                                  }
+                                }
+                              } else if (editType == 'category' && selectedCategory != null) {
+                                batch.update(docRef, {'category': selectedCategory});
+                              } else if (editType == 'availability' && setAvailability != null) {
+                                batch.update(docRef, {'isAvailable': setAvailability});
+                              }
+                            }
+                            
+                            await batch.commit();
+                            
+                            if (this.context.mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text('$count service${count > 1 ? 's' : ''} updated successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                            
+                            this.setState(() {
+                              _selectedServiceIds.clear();
+                              _isServiceSelectionMode = false;
+                            });
+                          } catch (e) {
+                            if (this.context.mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Apply Changes'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
