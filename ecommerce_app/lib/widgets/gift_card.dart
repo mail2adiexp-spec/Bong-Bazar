@@ -82,6 +82,7 @@ class GiftCard extends StatelessWidget {
                             description: gift.description,
                             price: gift.price,
                             imageUrl: gift.imageUrl ?? '',
+                            sellerId: '',
                           );
                           cart.addProduct(productToAdd);
                           ScaffoldMessenger.of(context).showSnackBar(

@@ -129,6 +129,7 @@ class OrderModel {
 
 class OrderItem {
   final String productId;
+  final String sellerId;
   final String productName;
   final int quantity;
   final double price;
@@ -136,6 +137,7 @@ class OrderItem {
 
   OrderItem({
     required this.productId,
+    required this.sellerId,
     required this.productName,
     required this.quantity,
     required this.price,
@@ -145,6 +147,7 @@ class OrderItem {
   factory OrderItem.fromMap(Map<String, dynamic> map) {
     return OrderItem(
       productId: map['productId'] ?? '',
+      sellerId: map['sellerId'] ?? '',
       productName: map['productName'] ?? '',
       quantity: map['quantity'] ?? 1,
       price: (map['price'] ?? 0).toDouble(),
@@ -155,6 +158,7 @@ class OrderItem {
   Map<String, dynamic> toMap() {
     return {
       'productId': productId,
+      'sellerId': sellerId,
       'productName': productName,
       'quantity': quantity,
       'price': price,

@@ -207,6 +207,7 @@ class _GiftDetailScreenState extends State<GiftDetailScreen> {
                     description: widget.gift.description,
                     price: widget.gift.price,
                     imageUrl: widget.gift.imageUrl ?? '',
+                    sellerId: '',
                   );
                   cart.addProduct(productToAdd);
                   ScaffoldMessenger.of(context).showSnackBar(

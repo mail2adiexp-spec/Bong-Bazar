@@ -178,6 +178,7 @@ class _BookServiceScreenState extends State<BookServiceScreen> {
           'https://via.placeholder.com/120x120.png?text=Service',
       category: 'Services',
       unit: 'service',
+      sellerId: '',
     );
     context.read<CartProvider>().addProduct(product);
 

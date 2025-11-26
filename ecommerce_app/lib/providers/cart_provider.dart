@@ -14,6 +14,7 @@ class CartItem {
 
   Map<String, dynamic> toMap() => {
     'id': product.id,
+    'sellerId': product.sellerId,
     'name': product.name,
     'description': product.description,
     'price': product.price,
@@ -24,6 +25,7 @@ class CartItem {
   factory CartItem.fromMap(Map<String, dynamic> map) => CartItem(
     product: Product(
       id: map['id'] as String,
+      sellerId: map['sellerId'] as String? ?? '',
       name: map['name'] as String,
       description: map['description'] as String,
       price: (map['price'] as num).toDouble(),

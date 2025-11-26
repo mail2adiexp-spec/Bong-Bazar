@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/order_model.dart';
+import '../models/transaction_model.dart';
+import '../services/transaction_service.dart';
 import 'auth_provider.dart';
 
 class OrderProvider extends ChangeNotifier {
@@ -108,6 +110,28 @@ class OrderProvider extends ChangeNotifier {
         'status': newStatus,
         'statusHistory.$newStatus': DateTime.now().toIso8601String(),
       });
+
+      // Record transaction if order is delivered
+      if (newStatus == 'delivered') {
+        final orderDoc = await _firestore.collection('orders').doc(orderId).get();
+        if (orderDoc.exists) {
+          final orderData = orderDoc.data()!;
+          await _processSellerTransactions(orderId, orderData, TransactionType.credit);
+        }
+      } 
+      // Record debit transaction if order is returned
+      else if (newStatus == 'returned') {
+        final orderDoc = await _firestore.collection('orders').doc(orderId).get();
+        if (orderDoc.exists) {
+          final orderData = orderDoc.data()!;
+          // Only debit if it was previously delivered (meaning they were credited)
+          // or if we want to be strict, check status history.
+          // For now, we assume 'returned' flow comes after 'delivered'.
+          
+          await _processSellerTransactions(orderId, orderData, TransactionType.debit);
+        }
+      }
+
       await fetchUserOrders();
     } catch (e) {
       debugPrint('Error updating order status: $e');
@@ -124,6 +148,48 @@ class OrderProvider extends ChangeNotifier {
       debugPrint('Error fetching order: $e');
     }
     return null;
+  }
+
+  Future<void> _processSellerTransactions(
+    String orderId, 
+    Map<String, dynamic> orderData, 
+    TransactionType type
+  ) async {
+    final items = (orderData['items'] as List<dynamic>?) ?? [];
+    final Map<String, double> sellerAmounts = {};
+
+    for (var item in items) {
+      final sellerId = item['sellerId'] as String?;
+      if (sellerId != null && sellerId.isNotEmpty) {
+        final price = (item['price'] as num).toDouble();
+        final quantity = (item['quantity'] as num).toInt();
+        final total = price * quantity;
+        sellerAmounts[sellerId] = (sellerAmounts[sellerId] ?? 0) + total;
+      }
+    }
+
+    final transactionService = TransactionService();
+    for (var entry in sellerAmounts.entries) {
+      final sellerId = entry.key;
+      final amount = entry.value;
+      
+      final description = type == TransactionType.credit 
+          ? 'Earnings for Order #$orderId' 
+          : 'Refund for Order #$orderId';
+
+      final transaction = TransactionModel(
+        id: '', // Firestore will generate ID
+        userId: sellerId,
+        amount: amount,
+        type: type,
+        description: description,
+        status: TransactionStatus.completed,
+        referenceId: orderId,
+        createdAt: DateTime.now(),
+      );
+
+      await transactionService.recordTransaction(transaction);
+    }
   }
 
   void clear() {

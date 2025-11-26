@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
+import '../services/invoice_generator.dart';
 
 // Invoice Dialog Widget
 class _InvoiceDialog extends StatefulWidget {

@@ -318,6 +318,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final orderItems = cart.items.map((cartItem) {
         return OrderItem(
           productId: cartItem.product.id,
+          sellerId: cartItem.product.sellerId,
           productName: cartItem.product.name,
           quantity: cartItem.quantity,
           price: cartItem.product.price,

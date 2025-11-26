@@ -38,6 +38,7 @@ class ProductProvider with ChangeNotifier {
                         : null,
                     category: data['category'],
                     unit: data['unit'],
+                    sellerId: data['sellerId'] ?? '',
                   );
                 }),
               );

@@ -17,6 +17,8 @@ import '../models/featured_section_model.dart';
 import '../models/partner_request_model.dart';
 import '../models/gift_model.dart';
 import '../models/delivery_partner_model.dart';
+import '../models/payout_model.dart';
+import '../services/payout_service.dart';
 import '../providers/product_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/service_category_provider.dart';
@@ -63,6 +65,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   DateTime? _productStartDate;
   DateTime? _productEndDate;
   
+  
   // Advanced Service Filters
   double? _minServicePrice;
   double? _maxServicePrice;
@@ -71,54 +74,58 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   DateTime? _serviceStartDate;
   DateTime? _serviceEndDate;
 
-
   final List<String> _menuTitles = [
-    'Users', // 5 chars - original index 7
-    'Gifts', // 5 chars - original index 8
-    'Orders', // 6 chars - original index 9
-    'Products', // 8 chars - original index 1
-    'Services', // 8 chars - original index 3
-    'Dashboard', // 9 chars - original index 0
-    'Categories', // 10 chars - original index 2
-    'Core Staff', // 10 chars - original index 10
-    'Permissions', // 11 chars - original index 11
-    'Delivery Partners', // 17 chars - original index 6
-    'Sellers', // Index 12
-    'Service Providers', // Index 13
-    'Featured Sections', // 17 chars - original index 4
+    'Dashboard',           // First
+    'Users',              // 5
+    'Gifts',              // 5
+    'Orders',             // 6
+    'Sellers',            // 7
+    'Products',           // 8
+    'Services',           // 8
+    'Categories',         // 10
+    'Core Staff',         // 10
+    'Permissions',        // 11
+    'Payout Requests',    // 15
+    'Featured Sections',  // 17
+    'Delivery Partners',  // 17
+    'Service Categories', // 18
+    'Service Providers',  // 18
   ];
 
-  // Map: sorted index -> original index for getting content
   final Map<int, int> _sortedToOriginalIndex = {
-    0: 6, // Users -> _buildUsersTab (index 6)
-    1: 7, // Gifts -> _buildGiftsTab (index 7)
-    2: 8, // Orders -> _buildOrdersTab (index 8)
-    3: 1, // Products -> _buildProductsTab (index 1)
-    4: 3, // Services -> _buildServiceCategoriesTab (index 3)
-    5: 0, // Dashboard -> _buildDashboardTab (index 0)
-    6: 2, // Categories -> _buildCategoriesTab (index 2)
-    7: 9, // Core Staff -> _buildCoreStaffTab (index 9)
-    8: 10, // Permissions -> _buildPermissionsTab (index 10)
-    9: 5, // Delivery Partners -> _buildDeliveryPartnersTab (index 5)
-    10: 11, // Sellers -> _buildRoleBasedUsersTab('seller') (index 11)
-    11: 12, // Service Providers -> _buildRoleBasedUsersTab('service_provider') (index 12)
-    12: 4, // Featured Sections -> _buildFeaturedSectionsTab (index 4)
+    0: 0,  // Dashboard
+    1: 6,  // Users
+    2: 7,  // Gifts
+    3: 8,  // Orders
+    4: 11, // Sellers
+    5: 1,  // Products
+    6: 3,  // Services
+    7: 2,  // Categories
+    8: 9,  // Core Staff
+    9: 10, // Permissions
+    10: 13, // Payout Requests
+    11: 4,  // Featured Sections
+    12: 5,  // Delivery Partners
+    13: 14, // Service Categories
+    14: 12, // Service Providers
   };
 
   final List<IconData> _menuIcons = [
-    Icons.person, // Users
-    Icons.card_giftcard, // Gifts
-    Icons.receipt_long, // Orders
-    Icons.inventory_2, // Products
+    Icons.dashboard,           // Dashboard
+    Icons.person,              // Users
+    Icons.card_giftcard,       // Gifts
+    Icons.receipt_long,        // Orders
+    Icons.store,               // Sellers
+    Icons.inventory_2,         // Products
     Icons.home_repair_service, // Services
-    Icons.dashboard, // Dashboard
-    Icons.category, // Categories
-    Icons.group, // Core Staff
-    Icons.security, // Permissions
-    Icons.delivery_dining, // Delivery Partners
-    Icons.store, // Sellers
-    Icons.handyman, // Service Providers
-    Icons.star, // Featured Sections
+    Icons.category,            // Categories
+    Icons.group,               // Core Staff
+    Icons.security,            // Permissions
+    Icons.payment,             // Payout Requests
+    Icons.star,                // Featured Sections
+    Icons.delivery_dining,     // Delivery Partners
+    Icons.miscellaneous_services, // Service Categories
+    Icons.handyman,            // Service Providers
   ];
 
   @override
@@ -450,6 +457,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         _buildPermissionsTab(), // 10
                         _buildRoleBasedUsersTab('seller'), // 11
                         _buildRoleBasedUsersTab('service_provider'), // 12
+                        _buildPayoutRequestsTab(), // 13
+                        _buildServiceCategoriesTab(isAdmin: isAdmin), // 14
                       ],
                     ),
                   ),
@@ -1136,7 +1145,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      '₹${data['price'] ?? 0}',
+                                      NumberFormat.currency(locale: 'en_IN', symbol: '₹').format(data['price'] ?? 0),
                                       style: const TextStyle(
                                         color: Colors.green,
                                         fontWeight: FontWeight.bold,
@@ -1626,7 +1635,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                   child: TextField(
                                     decoration: const InputDecoration(
                                       labelText: 'Min Price',
-                                      prefixText: '₹',
+                                      prefixText: 'â‚¹',
                                       border: OutlineInputBorder(),
                                       isDense: true,
                                     ),
@@ -1639,7 +1648,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                   child: TextField(
                                     decoration: const InputDecoration(
                                       labelText: 'Max Price',
-                                      prefixText: '₹',
+                                      prefixText: 'â‚¹',
                                       border: OutlineInputBorder(),
                                       isDense: true,
                                     ),
@@ -1678,16 +1687,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 return Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
-                                  children: provider.categories.map((cat) {
+                                  children: provider.serviceCategories.map((cat) {
                                     return FilterChip(
-                                      label: Text(cat),
-                                      selected: _selectedServiceCategories.contains(cat),
+                                      label: Text(cat.name),
+                                      selected: _selectedServiceCategories.contains(cat.name),
                                       onSelected: (selected) {
                                         setState(() {
                                           if (selected) {
-                                            _selectedServiceCategories.add(cat);
+                                            _selectedServiceCategories.add(cat.name);
                                           } else {
-                                            _selectedServiceCategories.remove(cat);
+                                            _selectedServiceCategories.remove(cat.name);
                                           }
                                         });
                                       },
@@ -1789,10 +1798,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                           const SizedBox(height: 4),
-                                          Text('${data['category']} • ${data['pricingModel']}'),
+                                          Text('${data['category']} â€¢ ${data['pricingModel']}'),
                                           const SizedBox(height: 4),
                                           Text(
-                                              '₹${data['basePrice']}',
+                                              NumberFormat.currency(locale: 'en_IN', symbol: '₹').format(data['basePrice'] ?? 0),
                                               style: const TextStyle(
                                                   color: Colors.green,
                                                   fontWeight: FontWeight.bold,
@@ -1952,7 +1961,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Total: ₹${total.toStringAsFixed(2)}',
+                            'Total: â‚¹${total.toStringAsFixed(2)}',
                             style: const TextStyle(fontWeight: FontWeight.w500),
                           ),
                           if (orderDate != null)
@@ -2407,7 +2416,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                             ],
                                           ),
                                         ),
-                                      Text('₹${gift.price.toStringAsFixed(2)}'),
+                                      Text('â‚¹${gift.price.toStringAsFixed(2)}'),
                                       const SizedBox(height: 4),
                                       Wrap(
                                         spacing: 6.0,
@@ -2602,7 +2611,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                   const SizedBox(height: 4),
                                   Text('User: $userId'),
                                   const SizedBox(height: 2),
-                                  Text('Total: ₹${total.toStringAsFixed(2)}'),
+                                  Text('Total: â‚¹${total.toStringAsFixed(2)}'),
                                   const SizedBox(height: 2),
                                   Text(
                                     'Date: ${orderDate != null ? '${orderDate.day.toString().padLeft(2, '0')}-${orderDate.month.toString().padLeft(2, '0')}-${orderDate.year} ${orderDate.hour.toString().padLeft(2, '0')}:${orderDate.minute.toString().padLeft(2, '0')}' : '-'}',
@@ -2962,8 +2971,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     controller: priceCtrl,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Price (₹)',
-                      prefixText: '₹ ',
+                      labelText: 'Price (â‚¹)',
+                      prefixText: 'â‚¹ ',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -3783,7 +3792,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 Text(category.description),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Base Price: ₹${category.basePrice.toStringAsFixed(0)}',
+                                  'Base Price: â‚¹${category.basePrice.toStringAsFixed(0)}',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                     color: Colors.green,
@@ -4009,10 +4018,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     controller: priceCtrl,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Base Price (₹) *',
+                      labelText: 'Base Price (â‚¹) *',
                       hintText: 'Starting price for this service',
                       border: OutlineInputBorder(),
-                      prefixText: '₹ ',
+                      prefixText: 'â‚¹ ',
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -4600,6 +4609,122 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildPayoutRequestsTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Payout Requests',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<PayoutModel>>(
+            stream: PayoutService().getAllPayouts(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+
+              final payouts = snapshot.data ?? [];
+
+              if (payouts.isEmpty) {
+                return const Center(child: Text('No payout requests found'));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: payouts.length,
+                itemBuilder: (context, index) {
+                  final payout = payouts[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: payout.status == PayoutStatus.pending
+                            ? Colors.orange.withOpacity(0.2)
+                            : payout.status == PayoutStatus.approved
+                                ? Colors.green.withOpacity(0.2)
+                                : Colors.red.withOpacity(0.2),
+                        child: Icon(
+                          payout.status == PayoutStatus.pending
+                              ? Icons.pending
+                              : payout.status == PayoutStatus.approved
+                                  ? Icons.check
+                                  : Icons.close,
+                          color: payout.status == PayoutStatus.pending
+                              ? Colors.orange
+                              : payout.status == PayoutStatus.approved
+                                  ? Colors.green
+                                  : Colors.red,
+                        ),
+                      ),
+                      title: Text(
+                        '₹${payout.amount.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('User ID: ${payout.userId}'),
+                          Text('Date: ${DateFormat('MMM d, yyyy').format(payout.requestDate)}'),
+                          Text('Details: ${payout.paymentDetails}'),
+                        ],
+                      ),
+                      trailing: payout.status == PayoutStatus.pending
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.check, color: Colors.green),
+                                  onPressed: () => _handlePayoutAction(payout, true),
+                                  tooltip: 'Approve',
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close, color: Colors.red),
+                                  onPressed: () => _handlePayoutAction(payout, false),
+                                  tooltip: 'Reject',
+                                ),
+                              ],
+                            )
+                          : _getStatusChip(payout.status.name),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _handlePayoutAction(PayoutModel payout, bool approve) async {
+    try {
+      await PayoutService().updatePayoutStatus(
+        payout.id,
+        approve ? PayoutStatus.approved : PayoutStatus.rejected,
+        adminNote: approve ? 'Approved by Admin' : 'Rejected by Admin',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Payout ${approve ? 'Approved' : 'Rejected'}')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   Widget _getStatusChip(String status) {
@@ -5459,7 +5584,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Delete User Completely'),
         content: Text(
-          'Are you sure you want to delete this user?\n\nEmail: $email\n\nThis will:\n• Delete Firebase Auth account\n• Delete Firestore user document\n• Delete related partner requests\n• Delete from pending_sellers (if exists)\n\nThis action CANNOT be undone!',
+          'Are you sure you want to delete this user?\n\nEmail: $email\n\nThis will:\nâ€¢ Delete Firebase Auth account\nâ€¢ Delete Firestore user document\nâ€¢ Delete related partner requests\nâ€¢ Delete from pending_sellers (if exists)\n\nThis action CANNOT be undone!',
         ),
         actions: [
           TextButton(
@@ -6255,7 +6380,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Sample users added successfully! Check Permissions tab.'),
+            content: Text('âœ… Sample users added successfully! Check Permissions tab.'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),
@@ -6265,7 +6390,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Error adding sample users: $e'),
+            content: Text('âŒ Error adding sample users: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
           ),
@@ -6692,7 +6817,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    '₹12,450.00', // Mocked balance
+                    'â‚¹12,450.00', // Mocked balance
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 36,
@@ -6724,7 +6849,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               Expanded(
                 child: _buildStatCard(
                   'Total Payouts',
-                  '₹45,000',
+                  'â‚¹45,000',
                   Icons.payments,
                   Colors.green,
                 ),
@@ -6733,7 +6858,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               Expanded(
                 child: _buildStatCard(
                   'Pending',
-                  '₹2,450',
+                  'â‚¹2,450',
                   Icons.pending_actions,
                   Colors.orange,
                 ),
@@ -6766,7 +6891,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   title: Text(index % 2 == 0 ? 'Order Payment' : 'Payout Withdrawal'),
                   subtitle: Text('Oct ${20 - index}, 2024'),
                   trailing: Text(
-                    index % 2 == 0 ? '+₹1,200' : '-₹5,000',
+                    index % 2 == 0 ? '+â‚¹1,200' : '-â‚¹5,000',
                     style: TextStyle(
                       color: index % 2 == 0 ? Colors.green : Colors.red,
                       fontWeight: FontWeight.bold,
@@ -7007,7 +7132,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 ),
                                 _buildStatCard(
                                   'Earnings',
-                                  '₹${(completedDeliveries * 50).toString()}', // Mock calculation: ₹50 per delivery
+                                  'â‚¹${(completedDeliveries * 50).toString()}', // Mock calculation: â‚¹50 per delivery
                                   Icons.account_balance_wallet,
                                   Colors.blue,
                                 ),
@@ -7162,7 +7287,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text('${item['name']} x${item['quantity']}'),
-                                      Text('₹${item['price']}'),
+                                      Text('â‚¹${item['price']}'),
                                     ],
                                   ),
                                 ))
@@ -7192,10 +7317,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => _InvoiceDialog(
-        orderData: orderData,
-        sellerId: sellerId,
-        sellerData: sellerData,
+      builder: (context) => AlertDialog(
+        title: const Text('Invoice Generation'),
+        content: const Text('Invoice generation feature is temporarily unavailable.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -7365,7 +7495,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                     ),
                                     _buildStatCard(
                                       'Total Revenue',
-                                      '₹${totalRevenue.toStringAsFixed(0)}',
+                                      'â‚¹${totalRevenue.toStringAsFixed(0)}',
                                       Icons.currency_rupee,
                                       Colors.green,
                                     ),
@@ -7728,7 +7858,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '₹${data['basePrice'] ?? 0} ${data['pricingModel'] == 'range' ? '- ₹${data['maxPrice'] ?? 0}' : ''}',
+                                  'â‚¹${data['basePrice'] ?? 0} ${data['pricingModel'] == 'range' ? '- â‚¹${data['maxPrice'] ?? 0}' : ''}',
                                   style: const TextStyle(
                                     color: Colors.green,
                                     fontWeight: FontWeight.bold,
@@ -7974,7 +8104,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '₹${data['price'] ?? 0}',
+                                'â‚¹${data['price'] ?? 0}',
                                 style: const TextStyle(
                                   color: Colors.green,
                                   fontWeight: FontWeight.bold,
@@ -8166,7 +8296,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Price *',
                               border: OutlineInputBorder(),
-                              prefixText: '₹',
+                              prefixText: 'â‚¹',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
@@ -8423,7 +8553,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Base Price *',
                               border: OutlineInputBorder(),
-                              prefixText: '₹',
+                              prefixText: 'â‚¹',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
@@ -8442,7 +8572,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Max Price',
                                 border: OutlineInputBorder(),
-                                prefixText: '₹',
+                                prefixText: 'â‚¹',
                               ),
                               keyboardType: TextInputType.number,
                             ),
@@ -8666,7 +8796,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Price *',
                               border: OutlineInputBorder(),
-                              prefixText: '₹',
+                              prefixText: 'â‚¹',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
@@ -9045,7 +9175,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Base Price *',
                               border: OutlineInputBorder(),
-                              prefixText: '₹',
+                              prefixText: 'â‚¹',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
@@ -9064,7 +9194,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Max Price',
                                 border: OutlineInputBorder(),
-                                prefixText: '₹',
+                                prefixText: 'â‚¹',
                               ),
                               keyboardType: TextInputType.number,
                               validator: (v) {
@@ -9374,7 +9504,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       decoration: InputDecoration(
                         labelText: priceAction == 'set_fixed' ? 'New Price' : 'Percentage',
                         border: const OutlineInputBorder(),
-                        prefixText: priceAction == 'set_fixed' ? '₹' : '',
+                        prefixText: priceAction == 'set_fixed' ? 'â‚¹' : '',
                         suffixText: priceAction != 'set_fixed' ? '%' : '',
                       ),
                       keyboardType: TextInputType.number,
@@ -9680,7 +9810,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       decoration: InputDecoration(
                         labelText: priceAction == 'set_fixed' ? 'New Price' : 'Percentage',
                         border: const OutlineInputBorder(),
-                        prefixText: priceAction == 'set_fixed' ? '₹' : '',
+                        prefixText: priceAction == 'set_fixed' ? 'â‚¹' : '',
                         suffixText: priceAction != 'set_fixed' ? '%' : '',
                       ),
                       keyboardType: TextInputType.number,
@@ -9697,8 +9827,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             labelText: 'New Category',
                             border: OutlineInputBorder(),
                           ),
-                          items: provider.categories.map((cat) {
-                            return DropdownMenuItem(value: cat, child: Text(cat));
+                          items: provider.serviceCategories.map((cat) {
+                            return DropdownMenuItem(value: cat.name, child: Text(cat.name));
                           }).toList(),
                           onChanged: (val) => setState(() => selectedCategory = val),
                         );
@@ -9812,221 +9942,4 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     );
   }
 }
- 
- / /   I n v o i c e   D i a l o g   W i d g e t  
- c l a s s   _ I n v o i c e D i a l o g   e x t e n d s   S t a t e f u l W i d g e t   {  
-     f i n a l   M a p < S t r i n g ,   d y n a m i c >   o r d e r D a t a ;  
-     f i n a l   S t r i n g   s e l l e r I d ;  
-     f i n a l   M a p < S t r i n g ,   d y n a m i c >   s e l l e r D a t a ;  
-  
-     c o n s t   _ I n v o i c e D i a l o g ( {  
-         r e q u i r e d   t h i s . o r d e r D a t a ,  
-         r e q u i r e d   t h i s . s e l l e r I d ,  
-         r e q u i r e d   t h i s . s e l l e r D a t a ,  
-     } ) ;  
-  
-     @ o v e r r i d e  
-     S t a t e < _ I n v o i c e D i a l o g >   c r e a t e S t a t e ( )   = >   _ I n v o i c e D i a l o g S t a t e ( ) ;  
- }  
-  
- c l a s s   _ I n v o i c e D i a l o g S t a t e   e x t e n d s   S t a t e < _ I n v o i c e D i a l o g >   {  
-     b o o l   _ i s G e n e r a t i n g   =   f a l s e ;  
-     U i n t 8 L i s t ?   _ p d f B y t e s ;  
-     S t r i n g ?   _ e r r o r ;  
-  
-     @ o v e r r i d e  
-     v o i d   i n i t S t a t e ( )   {  
-         s u p e r . i n i t S t a t e ( ) ;  
-         _ g e n e r a t e P D F ( ) ;  
-     }  
-  
-     F u t u r e < v o i d >   _ g e n e r a t e P D F ( )   a s y n c   {  
-         s e t S t a t e ( ( )   {  
-             _ i s G e n e r a t i n g   =   t r u e ;  
-             _ e r r o r   =   n u l l ;  
-         } ) ;  
-  
-         t r y   {  
-             f i n a l   o r d e r I d   =   w i d g e t . o r d e r D a t a [ ' i d ' ]   ? ?   ' U N K N O W N ' ;  
-             f i n a l   p d f B y t e s   =   a w a i t   I n v o i c e G e n e r a t o r . g e n e r a t e I n v o i c e (  
-                 o r d e r D a t a :   w i d g e t . o r d e r D a t a ,  
-                 o r d e r I d :   o r d e r I d ,  
-                 s e l l e r D a t a :   w i d g e t . s e l l e r D a t a ,  
-             ) ;  
-  
-             s e t S t a t e ( ( )   {  
-                 _ p d f B y t e s   =   p d f B y t e s ;  
-                 _ i s G e n e r a t i n g   =   f a l s e ;  
-             } ) ;  
-         }   c a t c h   ( e )   {  
-             s e t S t a t e ( ( )   {  
-                 _ e r r o r   =   e . t o S t r i n g ( ) ;  
-                 _ i s G e n e r a t i n g   =   f a l s e ;  
-             } ) ;  
-         }  
-     }  
-  
-     F u t u r e < v o i d >   _ d o w n l o a d P D F ( )   a s y n c   {  
-         i f   ( _ p d f B y t e s   = =   n u l l )   r e t u r n ;  
-  
-         t r y   {  
-             f i n a l   o r d e r I d   =   w i d g e t . o r d e r D a t a [ ' i d ' ]   ? ?   ' U N K N O W N ' ;  
-             f i n a l   f i l e N a m e   =   ' I n v o i c e _ $ { o r d e r I d . s u b s t r i n g ( 0 ,   8 ) } . p d f ' ;  
-  
-             a w a i t   P r i n t i n g . s h a r e P d f (  
-                 b y t e s :   _ p d f B y t e s ! ,  
-                 f i l e n a m e :   f i l e N a m e ,  
-             ) ;  
-  
-             i f   ( m o u n t e d )   {  
-                 S c a f f o l d M e s s e n g e r . o f ( c o n t e x t ) . s h o w S n a c k B a r (  
-                     c o n s t   S n a c k B a r (  
-                         c o n t e n t :   T e x t ( ' I n v o i c e   d o w n l o a d e d   s u c c e s s f u l l y ! ' ) ,  
-                         b a c k g r o u n d C o l o r :   C o l o r s . g r e e n ,  
-                     ) ,  
-                 ) ;  
-             }  
-         }   c a t c h   ( e )   {  
-             i f   ( m o u n t e d )   {  
-                 S c a f f o l d M e s s e n g e r . o f ( c o n t e x t ) . s h o w S n a c k B a r (  
-                     S n a c k B a r (  
-                         c o n t e n t :   T e x t ( ' E r r o r   d o w n l o a d i n g :   $ e ' ) ,  
-                         b a c k g r o u n d C o l o r :   C o l o r s . r e d ,  
-                     ) ,  
-                 ) ;  
-             }  
-         }  
-     }  
-  
-     F u t u r e < v o i d >   _ p r i n t P D F ( )   a s y n c   {  
-         i f   ( _ p d f B y t e s   = =   n u l l )   r e t u r n ;  
-  
-         t r y   {  
-             a w a i t   P r i n t i n g . l a y o u t P d f (  
-                 o n L a y o u t :   ( f o r m a t )   a s y n c   = >   _ p d f B y t e s ! ,  
-             ) ;  
-         }   c a t c h   ( e )   {  
-             i f   ( m o u n t e d )   {  
-                 S c a f f o l d M e s s e n g e r . o f ( c o n t e x t ) . s h o w S n a c k B a r (  
-                     S n a c k B a r (  
-                         c o n t e n t :   T e x t ( ' E r r o r   p r i n t i n g :   $ e ' ) ,  
-                         b a c k g r o u n d C o l o r :   C o l o r s . r e d ,  
-                     ) ,  
-                 ) ;  
-             }  
-         }  
-     }  
-  
-     @ o v e r r i d e  
-     W i d g e t   b u i l d ( B u i l d C o n t e x t   c o n t e x t )   {  
-         r e t u r n   D i a l o g (  
-             c h i l d :   C o n t a i n e r (  
-                 w i d t h :   8 0 0 ,  
-                 h e i g h t :   6 0 0 ,  
-                 p a d d i n g :   c o n s t   E d g e I n s e t s . a l l ( 2 4 ) ,  
-                 c h i l d :   C o l u m n (  
-                     c r o s s A x i s A l i g n m e n t :   C r o s s A x i s A l i g n m e n t . s t a r t ,  
-                     c h i l d r e n :   [  
-                         / /   H e a d e r  
-                         R o w (  
-                             m a i n A x i s A l i g n m e n t :   M a i n A x i s A l i g n m e n t . s p a c e B e t w e e n ,  
-                             c h i l d r e n :   [  
-                                 c o n s t   T e x t (  
-                                     ' I N V O I C E ' ,  
-                                     s t y l e :   T e x t S t y l e (  
-                                         f o n t S i z e :   2 4 ,  
-                                         f o n t W e i g h t :   F o n t W e i g h t . b o l d ,  
-                                     ) ,  
-                                 ) ,  
-                                 R o w (  
-                                     c h i l d r e n :   [  
-                                         i f   ( _ p d f B y t e s   ! =   n u l l )   . . . [  
-                                             I c o n B u t t o n (  
-                                                 i c o n :   c o n s t   I c o n ( I c o n s . d o w n l o a d ) ,  
-                                                 t o o l t i p :   ' D o w n l o a d   P D F ' ,  
-                                                 o n P r e s s e d :   _ d o w n l o a d P D F ,  
-                                             ) ,  
-                                             I c o n B u t t o n (  
-                                                 i c o n :   c o n s t   I c o n ( I c o n s . p r i n t ) ,  
-                                                 t o o l t i p :   ' P r i n t ' ,  
-                                                 o n P r e s s e d :   _ p r i n t P D F ,  
-                                             ) ,  
-                                         ] ,  
-                                         I c o n B u t t o n (  
-                                             i c o n :   c o n s t   I c o n ( I c o n s . c l o s e ) ,  
-                                             o n P r e s s e d :   ( )   = >   N a v i g a t o r . p o p ( c o n t e x t ) ,  
-                                         ) ,  
-                                     ] ,  
-                                 ) ,  
-                             ] ,  
-                         ) ,  
-                         c o n s t   D i v i d e r ( ) ,  
-                         c o n s t   S i z e d B o x ( h e i g h t :   1 6 ) ,  
-  
-                         / /   C o n t e n t  
-                         E x p a n d e d (  
-                             c h i l d :   _ i s G e n e r a t i n g  
-                                     ?   c o n s t   C e n t e r (  
-                                             c h i l d :   C o l u m n (  
-                                                 m a i n A x i s A l i g n m e n t :   M a i n A x i s A l i g n m e n t . c e n t e r ,  
-                                                 c h i l d r e n :   [  
-                                                     C i r c u l a r P r o g r e s s I n d i c a t o r ( ) ,  
-                                                     S i z e d B o x ( h e i g h t :   1 6 ) ,  
-                                                     T e x t ( ' G e n e r a t i n g   i n v o i c e . . . ' ) ,  
-                                                 ] ,  
-                                             ) ,  
-                                         )  
-                                     :   _ e r r o r   ! =   n u l l  
-                                             ?   C e n t e r (  
-                                                     c h i l d :   C o l u m n (  
-                                                         m a i n A x i s A l i g n m e n t :   M a i n A x i s A l i g n m e n t . c e n t e r ,  
-                                                         c h i l d r e n :   [  
-                                                             c o n s t   I c o n (  
-                                                                 I c o n s . e r r o r _ o u t l i n e ,  
-                                                                 s i z e :   6 4 ,  
-                                                                 c o l o r :   C o l o r s . r e d ,  
-                                                             ) ,  
-                                                             c o n s t   S i z e d B o x ( h e i g h t :   1 6 ) ,  
-                                                             T e x t (  
-                                                                 ' E r r o r   g e n e r a t i n g   i n v o i c e ' ,  
-                                                                 s t y l e :   T e x t S t y l e (  
-                                                                     f o n t S i z e :   1 8 ,  
-                                                                     f o n t W e i g h t :   F o n t W e i g h t . b o l d ,  
-                                                                     c o l o r :   C o l o r s . r e d [ 7 0 0 ] ,  
-                                                                 ) ,  
-                                                             ) ,  
-                                                             c o n s t   S i z e d B o x ( h e i g h t :   8 ) ,  
-                                                             T e x t (  
-                                                                 _ e r r o r ! ,  
-                                                                 t e x t A l i g n :   T e x t A l i g n . c e n t e r ,  
-                                                                 s t y l e :   c o n s t   T e x t S t y l e ( c o l o r :   C o l o r s . g r e y ) ,  
-                                                             ) ,  
-                                                             c o n s t   S i z e d B o x ( h e i g h t :   1 6 ) ,  
-                                                             E l e v a t e d B u t t o n . i c o n (  
-                                                                 o n P r e s s e d :   _ g e n e r a t e P D F ,  
-                                                                 i c o n :   c o n s t   I c o n ( I c o n s . r e f r e s h ) ,  
-                                                                 l a b e l :   c o n s t   T e x t ( ' R e t r y ' ) ,  
-                                                             ) ,  
-                                                         ] ,  
-                                                     ) ,  
-                                                 )  
-                                             :   _ p d f B y t e s   ! =   n u l l  
-                                                     ?   P d f P r e v i e w (  
-                                                             b u i l d :   ( f o r m a t )   = >   _ p d f B y t e s ! ,  
-                                                             c a n C h a n g e P a g e F o r m a t :   f a l s e ,  
-                                                             c a n C h a n g e O r i e n t a t i o n :   f a l s e ,  
-                                                             c a n D e b u g :   f a l s e ,  
-                                                             a l l o w P r i n t i n g :   t r u e ,  
-                                                             a l l o w S h a r i n g :   t r u e ,  
-                                                         )  
-                                                     :   c o n s t   C e n t e r (  
-                                                             c h i l d :   T e x t ( ' N o   i n v o i c e   d a t a   a v a i l a b l e ' ) ,  
-                                                         ) ,  
-                         ) ,  
-                     ] ,  
-                 ) ,  
-             ) ,  
-         ) ;  
-     }  
- }  
- 
+
