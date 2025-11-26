@@ -6,6 +6,7 @@ import '../providers/theme_provider.dart';
 import '../utils/currency.dart';
 import '../screens/cart_screen.dart';
 import '../widgets/more_bottom_sheet.dart';
+import '../services/recommendation_service.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   static const routeName = '/product';
@@ -22,6 +23,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   late final PageController _pageController;
   int _currentIndex = 0;
   int _currentNavIndex = 0;
+  List<Product> _recommendedProducts = [];
 
   List<String> get _images {
     final imgs = widget.product.imageUrls;
@@ -45,6 +47,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _trackView();
+    _loadRecommendations();
+  }
+
+  void _trackView() {
+    RecommendationService().trackProductView(widget.product.id);
+  }
+
+  Future<void> _loadRecommendations() async {
+    final recommendations = await RecommendationService()
+        .getSimilarProducts(widget.product, limit: 4);
+    if (mounted) {
+      setState(() {
+        _recommendedProducts = recommendations;
+      });
+    }
   }
 
   @override
@@ -215,6 +233,90 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 label: const Text('Add to Cart'),
               ),
             ),
+            if (_recommendedProducts.isNotEmpty) ..[
+              const SizedBox(height: 32),
+              const Text(
+                'You May Also Like',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _recommendedProducts.length,
+                  itemBuilder: (ctx, i) {
+                    final product = _recommendedProducts[i];
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (ctx) => ProductDetailScreen(
+                              product: product,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 150,
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Card(
+                          elevation: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(4),
+                                  ),
+                                  child: Image.network(
+                                    product.imageUrl,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (c, e, s) => const Icon(
+                                      Icons.broken_image,
+                                      size: 40,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      product.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      formatINR(product.price),
+                                      style: const TextStyle(
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
         ),
       ),
