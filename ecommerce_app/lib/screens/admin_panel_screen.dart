@@ -19,6 +19,7 @@ import '../models/gift_model.dart';
 import '../models/delivery_partner_model.dart';
 import '../models/payout_model.dart';
 import '../services/payout_service.dart';
+import '../services/analytics_service.dart';
 import '../providers/product_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/service_category_provider.dart';
@@ -82,6 +83,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     'Sellers',            // 7
     'Products',           // 8
     'Services',           // 8
+    'Analytics',          // 9
     'Categories',         // 10
     'Core Staff',         // 10
     'Permissions',        // 11
@@ -100,14 +102,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     4: 11, // Sellers
     5: 1,  // Products
     6: 3,  // Services
-    7: 2,  // Categories
-    8: 9,  // Core Staff
-    9: 10, // Permissions
-    10: 13, // Payout Requests
-    11: 4,  // Featured Sections
-    12: 5,  // Delivery Partners
-    13: 14, // Service Categories
-    14: 12, // Service Providers
+    7: 15, // Analytics
+    8: 2,  // Categories
+    9: 9,  // Core Staff
+    10: 10, // Permissions
+    11: 13, // Payout Requests
+    12: 4,  // Featured Sections
+    13: 5,  // Delivery Partners
+    14: 14, // Service Categories
+    15: 12, // Service Providers
   };
 
   final List<IconData> _menuIcons = [
@@ -118,6 +121,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     Icons.store,               // Sellers
     Icons.inventory_2,         // Products
     Icons.home_repair_service, // Services
+    Icons.analytics,           // Analytics
     Icons.category,            // Categories
     Icons.group,               // Core Staff
     Icons.security,            // Permissions
@@ -459,6 +463,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         _buildRoleBasedUsersTab('service_provider'), // 12
                         _buildPayoutRequestsTab(), // 13
                         _buildServiceCategoriesTab(isAdmin: isAdmin), // 14
+                        _buildAnalyticsTab(), // 15
                       ],
                     ),
                   ),
@@ -9937,6 +9942,179 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // ==================== ANALYTICS TAB ====================
+  
+  Widget _buildAnalyticsTab() {
+    final analyticsService = AnalyticsService();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              Text(
+                'Analytics & Reports',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+              ),
+              const Spacer(),
+              const Icon(Icons.analytics, size: 32, color: Colors.blue),
+            ],
+          ),
+        ),
+
+        // Overview Metrics Cards
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: GridView.count(
+              crossAxisCount: 4,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.5,
+              children: [
+                // Total Revenue Card
+                FutureBuilder<double>(
+                  future: analyticsService.getTotalRevenue(),
+                  builder: (context, snapshot) {
+                    return _buildMetricCard(
+                      title: 'Total Revenue',
+                      value: snapshot.hasData
+                          ? NumberFormat.currency(locale: 'en_IN', symbol: '₹').format(snapshot.data!)
+                          : 'Loading...',
+                      icon: Icons.currency_rupee,
+                      color: Colors.green,
+                      isLoading: !snapshot.hasData,
+                    );
+                  },
+                ),
+
+                // Total Orders Card
+                FutureBuilder<int>(
+                  future: analyticsService.getTotalOrders(),
+                  builder: (context, snapshot) {
+                    return _buildMetricCard(
+                      title: 'Total Orders',
+                      value: snapshot.hasData ? '${snapshot.data}' : 'Loading...',
+                      icon: Icons.shopping_cart,
+                      color: Colors.blue,
+                      isLoading: !snapshot.hasData,
+                    );
+                  },
+                ),
+
+                // Active Users Card
+                FutureBuilder<int>(
+                  future: analyticsService.getActiveUsers(),
+                  builder: (context, snapshot) {
+                    return _buildMetricCard(
+                      title: 'Active Users',
+                      value: snapshot.hasData ? '${snapshot.data}' : 'Loading...',
+                      icon: Icons.people,
+                      color: Colors.orange,
+                      isLoading: !snapshot.hasData,
+                    );
+                  },
+                ),
+
+                // Products Sold Card
+                FutureBuilder<int>(
+                  future: analyticsService.getTotalProductsSold(),
+                  builder: (context, snapshot) {
+                    return _buildMetricCard(
+                      title: 'Products Sold',
+                      value: snapshot.hasData ? '${snapshot.data}' : 'Loading...',
+                      icon: Icons.inventory,
+                      color: Colors.purple,
+                      isLoading: !snapshot.hasData,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    bool isLoading = false,
+  }) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const Spacer(),
+                if (isLoading)
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
       ),
     );
