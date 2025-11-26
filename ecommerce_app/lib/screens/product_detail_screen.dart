@@ -233,7 +233,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 label: const Text('Add to Cart'),
               ),
             ),
-            if (_recommendedProducts.isNotEmpty) ..[
+            if (_recommendedProducts.isNotEmpty) ...[
               const SizedBox(height: 32),
               const Text(
                 'You May Also Like',

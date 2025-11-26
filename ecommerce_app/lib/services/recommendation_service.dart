@@ -21,7 +21,7 @@ class RecommendationService {
           .get();
 
       final products = snapshot.docs
-          .map((doc) => Product.fromMap(doc.data(), doc.id))
+          .map((doc) => Product.fromMap(doc.id, doc.data()))
           .where((p) => p.id != product.id) // Exclude current product
           .take(limit)
           .toList();
@@ -52,7 +52,7 @@ class RecommendationService {
 
       // Filter by price range client-side (Firestore doesn't support multiple range queries)
       final products = snapshot.docs
-          .map((doc) => Product.fromMap(doc.data(), doc.id))
+          .map((doc) => Product.fromMap(doc.id, doc.data()))
           .where((p) =>
               p.id != product.id &&
               p.price >= minPrice &&
@@ -86,7 +86,7 @@ class RecommendationService {
         try {
           final doc = await _firestore.collection('products').doc(id).get();
           if (doc.exists) {
-            products.add(Product.fromMap(doc.data()!, doc.id));
+            products.add(Product.fromMap(doc.id, doc.data()!));
           }
         } catch (e) {
           LoggingService.warning('Failed to load recently viewed product: $id');
@@ -119,7 +119,7 @@ class RecommendationService {
       }
 
       await prefs.setStringList('recently_viewed', viewedIds);
-      Logg​ingService.info('Product view tracked: $productId');
+      LoggingService.info('Product view tracked: $productId');
     } catch (e, stackTrace) {
       LoggingService.error('Error tracking product view', e, stackTrace);
     }
@@ -137,7 +137,7 @@ class RecommendationService {
           .get();
 
       final products = snapshot.docs
-          .map((doc) => Product.fromMap(doc.data(), doc.id))
+          .map((doc) => Product.fromMap(doc.id, doc.data()))
           .toList();
 
       LoggingService.info('Found ${products.length} trending products');

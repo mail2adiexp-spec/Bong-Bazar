@@ -12,6 +12,7 @@ import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import 'cart_screen.dart';
 import 'account_screen.dart';
+import '../services/recommendation_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +24,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late final TextEditingController _searchController;
   String _searchQuery = '';
+  String _sortBy = 'newest'; // newest, price_low, price_high
+  List<Product> _recentlyViewedProducts = [];
+  List<Product> _trendingProducts = [];
 
   @override
   void initState() {
@@ -35,6 +39,18 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         }
       });
+    _loadRecommendations();
+  }
+
+  Future<void> _loadRecommendations() async {
+    final recentlyViewed = await RecommendationService().getRecentlyViewed(limit: 6);
+    final trending = await RecommendationService().getTrendingProducts(limit: 8);
+    if (mounted) {
+      setState(() {
+        _recentlyViewedProducts = recentlyViewed;
+        _trendingProducts = trending;
+      });
+    }
   }
 
   @override
@@ -83,13 +99,22 @@ class _HomeScreenState extends State<HomeScreen> {
       source = source.where((p) => p.category == _selectedCategory).toList();
     }
     // Apply search filter
-    final filteredProducts = _searchQuery.isEmpty
+    var filteredProducts = _searchQuery.isEmpty
         ? source
         : source.where((p) {
             return p.name.toLowerCase().contains(_searchQuery) ||
                 p.description.toLowerCase().contains(_searchQuery) ||
                 (p.category?.toLowerCase().contains(_searchQuery) ?? false);
           }).toList();
+    
+    // Apply sorting
+    if (_sortBy == 'price_low') {
+      filteredProducts.sort((a, b) => a.price.compareTo(b.price));
+    } else if (_sortBy == 'price_high') {
+      filteredProducts.sort((a, b) => b.price.compareTo(a.price));
+    } else {
+      // newest (default) - already sorted by Firestore
+    }
 
     final bool isSearching = _searchQuery.isNotEmpty;
 
@@ -254,6 +279,59 @@ class _HomeScreenState extends State<HomeScreen> {
                           onClear: () => _searchController.clear(),
                         )
                       else ...[
+                        // Sort & Filter Bar
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'Sort by:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: DropdownButton<String>(
+                                    value: _sortBy,
+                                    isExpanded: true,
+                                    underline: const SizedBox(),
+                                    items: const [
+                                      DropdownMenuItem(value: 'newest', child: Text('Newest First')),
+                                      DropdownMenuItem(value: 'price_low', child: Text('Price: Low to High')),
+                                      DropdownMenuItem(value: 'price_high', child: Text('Price: High to Low')),
+                                    ],
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() => _sortBy = value);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Recently Viewed Section
+                        if (_recentlyViewedProducts.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: _buildProductCarousel(
+                              context,
+                              '👁️ Recently Viewed',
+                              _recentlyViewedProducts,
+                            ),
+                          ),
+                        // Trending Products Section
+                        if (_trendingProducts.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: _buildProductCarousel(
+                              context,
+                              '🔥 Trending Now',
+                              _trendingProducts,
+                            ),
+                          ),
                         // Category grid
                         SliverToBoxAdapter(
                           child: Padding(
