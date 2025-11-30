@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../utils/error_display.dart';
+import '../utils/password_validator.dart';
 
 class AuthScreen extends StatefulWidget {
   static const routeName = '/auth';
@@ -99,9 +101,12 @@ class _SignInFormState extends State<_SignInForm> {
       );
       widget.onSuccess();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      if (mounted) {
+        ErrorDisplay.showError(
+          context,
+          e.toString().replaceFirst('Exception: ', ''),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -128,8 +133,9 @@ class _SignInFormState extends State<_SignInForm> {
               controller: _passCtrl,
               decoration: const InputDecoration(labelText: 'Password'),
               obscureText: true,
-              validator: (v) =>
-                  (v == null || v.length < 6) ? 'Min 6 characters' : null,
+              validator: (v) => (v == null || v.isEmpty)
+                  ? 'Please enter your password'
+                  : null,
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -141,8 +147,96 @@ class _SignInFormState extends State<_SignInForm> {
                     : const Text('Sign In'),
               ),
             ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => _showForgotPasswordDialog(context),
+                child: const Text(
+                  'Forgot Password?',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _showForgotPasswordDialog(BuildContext context) async {
+    final emailController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock_reset, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Reset Password'),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter your email address and we\'ll send you a link to reset your password.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) => (v == null || v.isEmpty || !v.contains('@'))
+                    ? 'Enter a valid email'
+                    : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+
+              try {
+                await context.read<AuthProvider>().resetPassword(
+                      email: emailController.text,
+                    );
+                if (ctx.mounted) {
+                  Navigator.of(ctx).pop();
+                  ErrorDisplay.showSuccess(
+                    context,
+                    'Password reset email sent! Please check your inbox.',
+                    duration: const Duration(seconds: 5),
+                  );
+                }
+              } catch (e) {
+                if (ctx.mounted) {
+                  ErrorDisplay.showError(
+                    ctx,
+                    e.toString().replaceFirst('Exception: ', ''),
+                  );
+                }
+              }
+            },
+            child: const Text('Send Reset Link'),
+          ),
+        ],
       ),
     );
   }
@@ -184,9 +278,12 @@ class _SignUpFormState extends State<_SignUpForm> {
       );
       widget.onSuccess();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      if (mounted) {
+        ErrorDisplay.showError(
+          context,
+          e.toString().replaceFirst('Exception: ', ''),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -221,8 +318,7 @@ class _SignUpFormState extends State<_SignUpForm> {
                 controller: _passCtrl,
                 decoration: const InputDecoration(labelText: 'Password'),
                 obscureText: true,
-                validator: (v) =>
-                    (v == null || v.length < 6) ? 'Min 6 characters' : null,
+                validator: PasswordValidator.validate,
               ),
               const SizedBox(height: 12),
               TextFormField(

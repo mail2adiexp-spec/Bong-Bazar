@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/theme_provider.dart';
+import '../providers/settings_provider.dart';
 import '../screens/join_partner_screen.dart';
+import '../screens/manage_addresses_screen.dart';
 
 Future<void> showMoreBottomSheet(BuildContext context) {
   final theme = Theme.of(context);
@@ -348,13 +351,16 @@ class _MoreSheetContent extends StatelessWidget {
 
   // FAQ item helper removed as Help Center is removed
 
-  Widget _settingTile(String title, String subtitle, IconData icon) {
+  Widget _settingTile(String title, String subtitle, IconData icon, {VoidCallback? onTap}) {
     return ListTile(
       leading: Icon(icon),
       title: Text(title),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: () {},
+      onTap: onTap ?? () {
+        // Show coming soon message if no onTap provided
+        // You can customize this behavior
+      },
     );
   }
 
@@ -556,19 +562,155 @@ class _MoreSheetContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _settingTile(
-          'Notifications',
-          'Manage app notifications',
-          Icons.notifications_outlined,
+        Consumer<SettingsProvider>(
+          builder: (context, settings, _) {
+            return _settingTile(
+              'Notifications',
+              settings.notificationsEnabled ? 'On' : 'Off',
+              settings.notificationsEnabled
+                  ? Icons.notifications_active
+                  : Icons.notifications_off_outlined,
+              onTap: () {
+                settings.toggleNotifications(!settings.notificationsEnabled);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      settings.notificationsEnabled
+                          ? 'Notifications enabled'
+                          : 'Notifications disabled',
+                    ),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
+            );
+          },
         ),
-        _settingTile('Language', 'English', Icons.language),
-        _settingTile('Theme', 'Auto (System default)', Icons.palette_outlined),
-        _settingTile('Data & Storage', 'Manage cache and data', Icons.storage),
-        _settingTile('Payment Methods', 'Manage saved cards', Icons.payment),
+        Consumer<SettingsProvider>(
+          builder: (context, settings, _) {
+            return _settingTile(
+              'Language',
+              settings.getLanguageName(),
+              Icons.language,
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text('Choose Language'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        RadioListTile<String>(
+                          title: const Text('English'),
+                          value: 'en',
+                          groupValue: settings.language,
+                          onChanged: (value) {
+                            settings.setLanguage(value!);
+                            Navigator.pop(dialogContext);
+                          },
+                        ),
+                        RadioListTile<String>(
+                          title: const Text('Hindi (हिंदी)'),
+                          value: 'hi',
+                          groupValue: settings.language,
+                          onChanged: (value) {
+                            settings.setLanguage(value!);
+                            Navigator.pop(dialogContext);
+                          },
+                        ),
+                        RadioListTile<String>(
+                          title: const Text('Bengali (বাংলা)'),
+                          value: 'bn',
+                          groupValue: settings.language,
+                          onChanged: (value) {
+                            settings.setLanguage(value!);
+                            Navigator.pop(dialogContext);
+                          },
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('Cancel'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
+        _settingTile(
+          'Theme',
+          'Auto (System default)',
+          Icons.palette_outlined,
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text('Choose Theme'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RadioListTile<ThemeMode>(
+                      title: const Text('Light'),
+                      value: ThemeMode.light,
+                      groupValue: Provider.of<ThemeProvider>(context, listen: false).themeMode,
+                      onChanged: (value) {
+                        Provider.of<ThemeProvider>(context, listen: false).toggleTheme();
+                        Navigator.pop(dialogContext);
+                      },
+                    ),
+                    RadioListTile<ThemeMode>(
+                      title: const Text('Dark'),
+                      value: ThemeMode.dark,
+                      groupValue: Provider.of<ThemeProvider>(context, listen: false).themeMode,
+                      onChanged: (value) {
+                        Provider.of<ThemeProvider>(context, listen: false).toggleTheme();
+                        Navigator.pop(dialogContext);
+                      },
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        _settingTile(
+          'Data & Storage',
+          'Manage cache and data',
+          Icons.storage,
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Storage settings coming soon')),
+            );
+          },
+        ),
+        _settingTile(
+          'Payment Methods',
+          'Manage saved cards',
+          Icons.payment,
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Payment settings coming soon')),
+            );
+          },
+        ),
         _settingTile(
           'Addresses',
           'Manage delivery addresses',
           Icons.location_on_outlined,
+          onTap: () {
+            Navigator.pop(context); // Close bottom sheet
+            Navigator.of(context).pushNamed(ManageAddressesScreen.routeName);
+          },
         ),
         const SizedBox(height: 16),
         const Text(

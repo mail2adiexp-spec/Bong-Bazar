@@ -1,10 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/product_model.dart';
 import 'logging_service.dart';
 
-class RecommendationService {
+class RecommendationService extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  List<Product> _recentlyViewed = [];
+
+  List<Product> get recentlyViewed => _recentlyViewed;
 
   /// Get similar products based on category
   Future<List<Product>> getSimilarProducts(
@@ -68,17 +72,18 @@ class RecommendationService {
     }
   }
 
-  /// Get recently viewed products from local storage
-  Future<List<Product>> getRecentlyViewed({int limit = 6}) async {
+  /// Fetch recently viewed products and update state
+  Future<void> fetchRecentlyViewed({int limit = 6}) async {
     try {
-      LoggingService.info('Getting recently viewed products');
+      LoggingService.info('Fetching recently viewed products');
 
       final prefs = await SharedPreferences.getInstance();
       final viewedIds = prefs.getStringList('recently_viewed') ?? [];
 
       if (viewedIds.isEmpty) {
-        LoggingService.info('No recently viewed products');
-        return [];
+        _recentlyViewed = [];
+        notifyListeners();
+        return;
       }
 
       final products = <Product>[];
@@ -93,15 +98,15 @@ class RecommendationService {
         }
       }
 
+      _recentlyViewed = products;
+      notifyListeners();
       LoggingService.info('Loaded ${products.length} recently viewed products');
-      return products;
     } catch (e, stackTrace) {
       LoggingService.error('Error getting recently viewed', e, stackTrace);
-      return [];
     }
   }
 
-  /// Track product view in local storage
+  /// Track product view in local storage and update state
   Future<void> trackProductView(String productId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -120,6 +125,9 @@ class RecommendationService {
 
       await prefs.setStringList('recently_viewed', viewedIds);
       LoggingService.info('Product view tracked: $productId');
+      
+      // Refresh the list
+      await fetchRecentlyViewed();
     } catch (e, stackTrace) {
       LoggingService.error('Error tracking product view', e, stackTrace);
     }
@@ -153,9 +161,17 @@ class RecommendationService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('recently_viewed');
+      _recentlyViewed = [];
+      notifyListeners();
       LoggingService.info('Recently viewed history cleared');
     } catch (e, stackTrace) {
       LoggingService.error('Error clearing recently viewed', e, stackTrace);
     }
+  }
+
+  // Backward compatibility method if needed, but better to use fetchRecentlyViewed + getter
+  Future<List<Product>> getRecentlyViewed({int limit = 6}) async {
+    await fetchRecentlyViewed(limit: limit);
+    return _recentlyViewed;
   }
 }

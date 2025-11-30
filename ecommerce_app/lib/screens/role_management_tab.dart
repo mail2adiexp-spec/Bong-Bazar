@@ -156,116 +156,159 @@ class _RoleManagementTabState extends State<RoleManagementTab> {
 
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
+                    child: InkWell(
                       onTap: () {
                         if (widget.onViewDashboard != null && !isRequest) {
                           widget.onViewDashboard!(id, data);
                         }
                       },
-                      leading: CircleAvatar(
-                        backgroundColor: statusColor.withOpacity(0.1),
-                        child: Icon(
-                          widget.role == 'seller' ? Icons.store : 
-                          widget.role == 'service_provider' ? Icons.handyman :
-                          Icons.delivery_dining,
-                          color: statusColor,
-                        ),
-                      ),
-                      title: Row(
-                        children: [
-                          Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold))),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: statusColor.withOpacity(0.5)),
-                            ),
-                            child: Text(
-                              status.toUpperCase(),
-                              style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Row(children: [const Icon(Icons.email, size: 14, color: Colors.grey), const SizedBox(width: 4), Text(email)]),
-                          const SizedBox(height: 2),
-                          Row(children: [const Icon(Icons.phone, size: 14, color: Colors.grey), const SizedBox(width: 4), Text(phone)]),
-                          if (servicePincode != null)
-                             Padding(
-                               padding: const EdgeInsets.only(top: 2),
-                               child: Row(children: [const Icon(Icons.location_on, size: 14, color: Colors.grey), const SizedBox(width: 4), Text('Pincode: $servicePincode')]),
-                             ),
-                          if (createdAt != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                'Joined: ${DateFormat('MMM d, yyyy').format(createdAt)}',
-                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            // Leading Avatar
+                            CircleAvatar(
+                              backgroundColor: statusColor.withOpacity(0.1),
+                              child: Icon(
+                                widget.role == 'seller' ? Icons.store : 
+                                widget.role == 'service_provider' ? Icons.handyman :
+                                Icons.delivery_dining,
+                                color: statusColor,
                               ),
                             ),
-                        ],
-                      ),
-                      trailing: isRequest && widget.onRequestAction != null && status == 'pending'
-                          ? Row(
+                            const SizedBox(width: 12),
+                            // Main Content
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Name
+                                  Text(
+                                    name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  // Email
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.email, size: 14, color: Colors.grey),
+                                      const SizedBox(width: 4),
+                                      Flexible(child: Text(email, overflow: TextOverflow.ellipsis)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  // Phone
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.phone, size: 14, color: Colors.grey),
+                                      const SizedBox(width: 4),
+                                      Text(phone),
+                                    ],
+                                  ),
+                                  // Pincode
+                                  if (servicePincode != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                                          const SizedBox(width: 4),
+                                          Text('Pincode: $servicePincode'),
+                                        ],
+                                      ),
+                                    ),
+                                  // Created Date
+                                  if (createdAt != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        'Joined: ${DateFormat('MMM d, yyyy').format(createdAt)}',
+                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            // Right side column with badge on top and menu in center
+                            Column(
                               mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                IconButton(
-                                  icon: const Icon(Icons.check, color: Colors.green),
-                                  onPressed: () => widget.onRequestAction!(id, 'approved'),
-                                  tooltip: 'Approve',
+                                // Approved badge at top
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: statusColor.withOpacity(0.5)),
+                                  ),
+                                  child: Text(
+                                    status.toUpperCase(),
+                                    style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.close, color: Colors.red),
-                                  onPressed: () => widget.onRequestAction!(id, 'rejected'),
-                                  tooltip: 'Reject',
-                                ),
+                                const SizedBox(height: 8),
+                                // 3-dot menu in center
+                                if (isRequest && widget.onRequestAction != null && status == 'pending')
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.check, color: Colors.green),
+                                        onPressed: () => widget.onRequestAction!(id, 'approved'),
+                                        tooltip: 'Approve',
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.close, color: Colors.red),
+                                        onPressed: () => widget.onRequestAction!(id, 'rejected'),
+                                        tooltip: 'Reject',
+                                      ),
+                                    ],
+                                  )
+                                else if (!isRequest)
+                                  PopupMenuButton<String>(
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        widget.onEdit(
+                                          id,
+                                          name,
+                                          email,
+                                          phone,
+                                          widget.role ?? '',
+                                          servicePincode,
+                                        );
+                                      } else if (value == 'delete') {
+                                        widget.onDelete(id, email);
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.edit, size: 20),
+                                            SizedBox(width: 8),
+                                            Text('Edit'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.delete, size: 20, color: Colors.red),
+                                            SizedBox(width: 8),
+                                            Text('Delete', style: TextStyle(color: Colors.red)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                               ],
-                            )
-                          : !isRequest
-                              ? PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    if (value == 'edit') {
-                                      widget.onEdit(
-                                        id,
-                                        name,
-                                        email,
-                                        phone,
-                                        widget.role ?? '',
-                                        servicePincode,
-                                      );
-                                    } else if (value == 'delete') {
-                                      widget.onDelete(id, email);
-                                    }
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.edit, size: 20),
-                                          SizedBox(width: 8),
-                                          Text('Edit'),
-                                        ],
-                                      ),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.delete, size: 20, color: Colors.red),
-                                          SizedBox(width: 8),
-                                          Text('Delete', style: TextStyle(color: Colors.red)),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : null,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 },

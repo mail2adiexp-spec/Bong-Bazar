@@ -19,6 +19,7 @@ import 'package:ecommerce_app/screens/service_provider_dashboard_screen.dart';
 import 'package:ecommerce_app/screens/delivery_partner_dashboard_screen.dart';
 import 'package:ecommerce_app/screens/delivery_partner_registration_screen.dart';
 import 'package:ecommerce_app/screens/my_orders_screen.dart';
+import 'package:ecommerce_app/screens/manage_addresses_screen.dart';
 import 'package:ecommerce_app/models/product_model.dart';
 import 'package:ecommerce_app/providers/cart_provider.dart';
 import 'package:ecommerce_app/providers/auth_provider.dart';
@@ -30,6 +31,8 @@ import 'package:ecommerce_app/providers/category_provider.dart';
 import 'package:ecommerce_app/providers/service_category_provider.dart';
 import 'package:ecommerce_app/providers/featured_section_provider.dart';
 import 'package:ecommerce_app/providers/gift_provider.dart';
+import 'package:ecommerce_app/services/recommendation_service.dart';
+import 'package:ecommerce_app/providers/settings_provider.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -113,6 +116,14 @@ class MyApp extends StatelessWidget {
             provider.fetchSections();
             return provider;
           },
+        ),
+        // RecommendationService
+        ChangeNotifierProvider(
+          create: (_) => RecommendationService(),
+        ),
+        // SettingsProvider
+        ChangeNotifierProvider(
+          create: (_) => SettingsProvider(),
         ),
       ],
       child: Consumer<ThemeProvider>(
@@ -208,6 +219,11 @@ class MyApp extends StatelessWidget {
                   DeliveryPartnerRegistrationScreen.routeName) {
                 return MaterialPageRoute(
                   builder: (_) => const DeliveryPartnerRegistrationScreen(),
+                );
+              }
+              if (settings.name == ManageAddressesScreen.routeName) {
+                return MaterialPageRoute(
+                  builder: (_) => const ManageAddressesScreen(),
                 );
               }
               return null;

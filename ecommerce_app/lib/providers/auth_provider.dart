@@ -221,14 +221,18 @@ class AuthProvider extends ChangeNotifier {
       }
     } on FirebaseAuthException catch (e) {
       if (e.code == 'weak-password') {
-        throw Exception('The password provided is too weak');
+        throw Exception('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
       } else if (e.code == 'email-already-in-use') {
-        throw Exception('An account with this email already exists');
+        throw Exception('This email is already registered. Please sign in or use a different email.');
+      } else if (e.code == 'invalid-email') {
+        throw Exception('Please enter a valid email address.');
+      } else if (e.code == 'operation-not-allowed') {
+        throw Exception('Email/password sign-up is currently disabled. Please contact support.');
       } else {
-        throw Exception(e.message ?? 'Sign up failed');
+        throw Exception(e.message ?? 'Unable to create account. Please try again.');
       }
     } catch (e) {
-      throw Exception('Sign up failed: $e');
+      throw Exception('Network error. Please check your internet connection and try again.');
     }
   }
 
@@ -239,20 +243,50 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        throw Exception('No account found for this email');
-      } else if (e.code == 'wrong-password') {
-        throw Exception('Invalid credentials');
+      // Debug logging
+      debugPrint('🔴 Firebase Auth Error: ${e.code}');
+      debugPrint('🔴 Error message: ${e.message}');
+      
+      // Handle specific error codes (updated for newer Firebase)
+      if (e.code == 'user-not-found' || e.code == 'INVALID_LOGIN_CREDENTIALS') {
+        throw Exception('No account found with this email. Please check your email or sign up.');
+      } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        throw Exception('Incorrect email or password. Please try again.');
+      } else if (e.code == 'invalid-email') {
+        throw Exception('Please enter a valid email address.');
+      } else if (e.code == 'user-disabled') {
+        throw Exception('This account has been disabled. Please contact support.');
+      } else if (e.code == 'too-many-requests') {
+        throw Exception('Too many failed attempts. Please wait a moment and try again.');
+      } else if (e.code == 'network-request-failed') {
+        throw Exception('Network error. Please check your internet connection.');
       } else {
-        throw Exception(e.message ?? 'Sign in failed');
+        // Show actual error code for debugging
+        throw Exception('${e.message ?? "Unable to sign in. Please try again."} (Code: ${e.code})');
       }
     } catch (e) {
-      throw Exception('Sign in failed: $e');
+      throw Exception('Network error. Please check your internet connection and try again.');
     }
   }
 
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  Future<void> resetPassword({required String email}) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        throw Exception('No account found with this email address.');
+      } else if (e.code == 'invalid-email') {
+        throw Exception('Please enter a valid email address.');
+      } else {
+        throw Exception(e.message ?? 'Failed to send reset email. Please try again.');
+      }
+    } catch (e) {
+      throw Exception('Network error. Please check your internet connection and try again.');
+    }
   }
 
   Future<void> updateProfile({required String name}) async {

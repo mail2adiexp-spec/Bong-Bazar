@@ -25,7 +25,6 @@ class _HomeScreenState extends State<HomeScreen> {
   late final TextEditingController _searchController;
   String _searchQuery = '';
   String _sortBy = 'newest'; // newest, price_low, price_high
-  List<Product> _recentlyViewedProducts = [];
   List<Product> _trendingProducts = [];
 
   @override
@@ -43,11 +42,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadRecommendations() async {
-    final recentlyViewed = await RecommendationService().getRecentlyViewed(limit: 6);
-    final trending = await RecommendationService().getTrendingProducts(limit: 8);
+    // Fetch recently viewed via provider
+    context.read<RecommendationService>().fetchRecentlyViewed(limit: 6);
+    
+    // Trending still local for now, or could be moved to provider too
+    final trending = await context.read<RecommendationService>().getTrendingProducts(limit: 8);
     if (mounted) {
       setState(() {
-        _recentlyViewedProducts = recentlyViewed;
         _trendingProducts = trending;
       });
     }
@@ -120,6 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 51,
         // Left: User icon
         leading: Consumer<AuthProvider>(
           builder: (context, auth, _) {
@@ -216,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                   child: Container(
-                    height: 48,
+                    height: 38,
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surfaceVariant,
                       borderRadius: BorderRadius.circular(24),
@@ -236,24 +238,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Theme.of(
                             context,
                           ).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                          fontSize: 13,
                         ),
                         prefixIcon: Icon(
                           Icons.search,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          size: 20,
                         ),
                         suffixIcon: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (_searchQuery.isNotEmpty)
                               IconButton(
-                                icon: const Icon(Icons.clear),
+                                icon: const Icon(Icons.clear, size: 18),
                                 onPressed: () => _searchController.clear(),
                                 color: Theme.of(
                                   context,
                                 ).colorScheme.onSurfaceVariant,
                               ),
                             IconButton(
-                              icon: const Icon(Icons.camera_alt),
+                              icon: const Icon(Icons.camera_alt, size: 18),
                               onPressed: _openCameraSearch,
                               tooltip: 'Search by image',
                               color: Theme.of(context).colorScheme.primary,
@@ -263,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 12,
+                          vertical: 8,
                         ),
                       ),
                     ),
@@ -282,56 +286,68 @@ class _HomeScreenState extends State<HomeScreen> {
                         // Sort & Filter Bar
                         SliverToBoxAdapter(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            child: Row(
-                              children: [
-                                Text(
-                                  'Sort by:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.grey[700],
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                            child: Container(
+                              height: 28,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surfaceVariant,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    'Sort by:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey[700],
+                                      fontSize: 11,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: DropdownButton<String>(
-                                    value: _sortBy,
-                                    isExpanded: true,
-                                    underline: const SizedBox(),
-                                    items: const [
-                                      DropdownMenuItem(value: 'newest', child: Text('Newest First')),
-                                      DropdownMenuItem(value: 'price_low', child: Text('Price: Low to High')),
-                                      DropdownMenuItem(value: 'price_high', child: Text('Price: High to Low')),
-                                    ],
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        setState(() => _sortBy = value);
-                                      }
-                                    },
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: _sortBy,
+                                        isDense: true,
+                                        isExpanded: true,
+                                        icon: const Icon(Icons.arrow_drop_down, size: 18),
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: 'newest', child: Text('Newest First')),
+                                          DropdownMenuItem(value: 'price_low', child: Text('Price: Low to High')),
+                                          DropdownMenuItem(value: 'price_high', child: Text('Price: High to Low')),
+                                        ],
+                                        onChanged: (value) {
+                                          if (value != null) {
+                                            setState(() => _sortBy = value);
+                                          }
+                                        },
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
                         // Recently Viewed Section
-                        if (_recentlyViewedProducts.isNotEmpty)
-                          SliverToBoxAdapter(
-                            child: _buildProductCarousel(
-                              context,
-                              '👁️ Recently Viewed',
-                              _recentlyViewedProducts,
-                            ),
+                        SliverToBoxAdapter(
+                          child: Consumer<RecommendationService>(
+                            builder: (context, recommendationService, _) {
+                              return _buildProductCarousel(
+                                context,
+                                '👁️ Recently Viewed',
+                                recommendationService.recentlyViewed,
+                              );
+                            },
                           ),
-                        // Trending Products Section
-                        if (_trendingProducts.isNotEmpty)
-                          SliverToBoxAdapter(
-                            child: _buildProductCarousel(
-                              context,
-                              '🔥 Trending Now',
-                              _trendingProducts,
-                            ),
-                          ),
+                        ),
+
                         // Category grid
                         SliverToBoxAdapter(
                           child: Padding(
@@ -519,6 +535,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                         ),
+                        // Trending Products Section
+                        if (_trendingProducts.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: _buildProductCarousel(
+                              context,
+                              '🔥 Trending Now',
+                              _trendingProducts,
+                            ),
+                          ),
                         // Daily Needs horizontal carousel (hardcoded fallback)
                         SliverToBoxAdapter(
                           child: _buildProductCarousel(
@@ -725,7 +750,7 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 color: isSelected
                     ? Theme.of(context).colorScheme.primaryContainer
-                    : Theme.of(context).colorScheme.surfaceVariant,
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSelected
@@ -733,6 +758,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       : Colors.transparent,
                   width: 2,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(8.0),

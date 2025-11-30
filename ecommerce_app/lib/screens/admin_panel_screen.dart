@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io';
 import 'dart:typed_data';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -9,6 +11,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../models/product_model.dart';
 import '../models/category_model.dart';
@@ -583,50 +586,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           const SizedBox(height: 16),
           SizedBox(height: 500, child: _buildRecentOrdersList()),
           const SizedBox(height: 32),
-          // Testing Tools Section
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.build, color: Colors.blue, size: 24),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Testing Tools',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Add sample users to test the permissions system',
-                    style: TextStyle(color: Colors.grey, fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _addSampleUsers,
-                    icon: const Icon(Icons.people_alt),
-                    label: const Text('Add Sample Users (2 Sellers, 2 Service Providers, 2 Delivery Partners)'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+
         ],
       ),
     );
@@ -1640,7 +1600,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                   child: TextField(
                                     decoration: const InputDecoration(
                                       labelText: 'Min Price',
-                                      prefixText: 'â‚¹',
+                                      prefixText: '₹',
                                       border: OutlineInputBorder(),
                                       isDense: true,
                                     ),
@@ -1653,7 +1613,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                   child: TextField(
                                     decoration: const InputDecoration(
                                       labelText: 'Max Price',
-                                      prefixText: 'â‚¹',
+                                      prefixText: '₹',
                                       border: OutlineInputBorder(),
                                       isDense: true,
                                     ),
@@ -1966,7 +1926,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Total: â‚¹${total.toStringAsFixed(2)}',
+                            'Total: ₹${total.toStringAsFixed(2)}',
                             style: const TextStyle(fontWeight: FontWeight.w500),
                           ),
                           if (orderDate != null)
@@ -2421,7 +2381,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                             ],
                                           ),
                                         ),
-                                      Text('â‚¹${gift.price.toStringAsFixed(2)}'),
+                                      Text('₹${gift.price.toStringAsFixed(2)}'),
                                       const SizedBox(height: 4),
                                       Wrap(
                                         spacing: 6.0,
@@ -2616,7 +2576,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                   const SizedBox(height: 4),
                                   Text('User: $userId'),
                                   const SizedBox(height: 2),
-                                  Text('Total: â‚¹${total.toStringAsFixed(2)}'),
+                                  Text('Total: ₹${total.toStringAsFixed(2)}'),
                                   const SizedBox(height: 2),
                                   Text(
                                     'Date: ${orderDate != null ? '${orderDate.day.toString().padLeft(2, '0')}-${orderDate.month.toString().padLeft(2, '0')}-${orderDate.year} ${orderDate.hour.toString().padLeft(2, '0')}:${orderDate.minute.toString().padLeft(2, '0')}' : '-'}',
@@ -2976,8 +2936,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     controller: priceCtrl,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Price (â‚¹)',
-                      prefixText: 'â‚¹ ',
+                      labelText: 'Price (₹)',
+                      prefixText: '₹ ',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -3797,7 +3757,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 Text(category.description),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Base Price: â‚¹${category.basePrice.toStringAsFixed(0)}',
+                                  'Base Price: ₹${category.basePrice.toStringAsFixed(0)}',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                     color: Colors.green,
@@ -4018,18 +3978,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: priceCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Base Price (â‚¹) *',
-                      hintText: 'Starting price for this service',
-                      border: OutlineInputBorder(),
-                      prefixText: 'â‚¹ ',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   const Text(
                     'Select Icon (fallback if no image):',
                     style: TextStyle(fontWeight: FontWeight.bold),
@@ -5906,89 +5854,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
   }
 
-  Future<void> _addTestDeliveryPartners() async {
-    try {
-      final now = DateTime.now();
-      final testPartners = [
-        {
-          'id': 'partner_001',
-          'name': 'Raj Kumar',
-          'phone': '9876543210',
-          'email': 'raj@delivery.com',
-          'address': '123 Main Street, City',
-          'vehicleType': 'bike',
-          'vehicleNumber': 'DL-01-AB-1234',
-          'status': 'approved',
-          'createdAt': Timestamp.fromDate(now.subtract(Duration(days: 5))),
-          'approvedAt': Timestamp.fromDate(now.subtract(Duration(days: 4))),
-        },
-        {
-          'id': 'partner_002',
-          'name': 'Priya Singh',
-          'phone': '9876543211',
-          'email': 'priya@delivery.com',
-          'address': '456 Park Avenue, City',
-          'vehicleType': 'car',
-          'vehicleNumber': 'DL-02-CD-5678',
-          'status': 'pending',
-          'createdAt': Timestamp.fromDate(now.subtract(Duration(days: 2))),
-        },
-        {
-          'id': 'partner_003',
-          'name': 'Amit Patel',
-          'phone': '9876543212',
-          'email': 'amit@delivery.com',
-          'address': '789 Market Road, City',
-          'vehicleType': 'bike',
-          'vehicleNumber': 'DL-03-EF-9012',
-          'status': 'approved',
-          'createdAt': Timestamp.fromDate(now.subtract(Duration(days: 3))),
-          'approvedAt': Timestamp.fromDate(now.subtract(Duration(days: 2))),
-        },
-        {
-          'id': 'partner_004',
-          'name': 'Sneha Gupta',
-          'phone': '9876543213',
-          'email': 'sneha@delivery.com',
-          'address': '321 Commercial Zone, City',
-          'vehicleType': 'bike',
-          'vehicleNumber': 'DL-04-GH-3456',
-          'status': 'rejected',
-          'createdAt': Timestamp.fromDate(now.subtract(Duration(days: 7))),
-          'rejectionReason': 'Vehicle documents not verified',
-        },
-      ];
-
-      final batch = FirebaseFirestore.instance.batch();
-      for (var partner in testPartners) {
-        final docRef = FirebaseFirestore.instance
-            .collection('delivery_partners')
-            .doc(partner['id'] as String);
-        batch.set(docRef, partner);
-      }
-
-      await batch.commit();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Test delivery partners added successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error adding test data: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   Widget _buildCoreStaffTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('core_staff').snapshots(),
@@ -6286,123 +6151,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
   }
 
-  // Method to add sample users for testing permissions
-  Future<void> _addSampleUsers() async {
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-      final now = Timestamp.now();
 
-      // Sample Sellers
-      final sellers = [
-        {
-          'name': 'Raj Kumar',
-          'email': 'raj.seller@test.com',
-          'phone': '+919876543210',
-          'role': 'seller',
-          'createdAt': now,
-          'permissions': {
-            'can_add_product': true,
-            'can_manage_products': true,
-            'can_view_orders': true,
-            'can_view_analytics': true,
-          },
-        },
-        {
-          'name': 'Priya Sharma',
-          'email': 'priya.seller@test.com',
-          'phone': '+919876543211',
-          'role': 'seller',
-          'createdAt': now,
-          'permissions': {
-            'can_add_product': true,
-            'can_manage_products': true,
-            'can_view_orders': false, // Restricted for testing
-            'can_view_analytics': true,
-          },
-        },
-      ];
-
-      // Sample Service Providers
-      final serviceProviders = [
-        {
-          'name': 'Amit Electrician',
-          'email': 'amit.service@test.com',
-          'phone': '+919876543212',
-          'role': 'service_provider',
-          'createdAt': now,
-          'permissions': {
-            'can_manage_services': true,
-          },
-        },
-        {
-          'name': 'Neha Plumber',
-          'email': 'neha.service@test.com',
-          'phone': '+919876543213',
-          'role': 'service_provider',
-          'createdAt': now,
-          'permissions': {
-            'can_manage_services': false, // Restricted for testing
-          },
-        },
-      ];
-
-      // Sample Delivery Partners
-      final deliveryPartners = [
-        {
-          'name': 'Suresh Delivery',
-          'email': 'suresh.delivery@test.com',
-          'phone': '+919876543214',
-          'role': 'delivery_partner',
-          'createdAt': now,
-          'permissions': {
-            'can_update_status': true,
-          },
-        },
-        {
-          'name': 'Kavita Delivery',
-          'email': 'kavita.delivery@test.com',
-          'phone': '+919876543215',
-          'role': 'delivery_partner',
-          'createdAt': now,
-          'permissions': {
-            'can_update_status': false, // Restricted for testing
-          },
-        },
-      ];
-
-      // Add all users to batch
-      final allUsers = [...sellers, ...serviceProviders, ...deliveryPartners];
-      for (int i = 0; i < allUsers.length; i++) {
-        final docRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc('test_user_${DateTime.now().millisecondsSinceEpoch}_$i');
-        batch.set(docRef, allUsers[i]);
-      }
-
-      // Commit batch
-      await batch.commit();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('âœ… Sample users added successfully! Check Permissions tab.'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('âŒ Error adding sample users: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    }
-  }
 
   // Permissions Tab
   String _selectedPermissionRole = 'seller';
@@ -6822,7 +6571,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'â‚¹12,450.00', // Mocked balance
+                    '₹12,450.00', // Mocked balance
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 36,
@@ -6854,7 +6603,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               Expanded(
                 child: _buildStatCard(
                   'Total Payouts',
-                  'â‚¹45,000',
+                  '₹45,000',
                   Icons.payments,
                   Colors.green,
                 ),
@@ -6863,7 +6612,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               Expanded(
                 child: _buildStatCard(
                   'Pending',
-                  'â‚¹2,450',
+                  '₹2,450',
                   Icons.pending_actions,
                   Colors.orange,
                 ),
@@ -6896,7 +6645,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   title: Text(index % 2 == 0 ? 'Order Payment' : 'Payout Withdrawal'),
                   subtitle: Text('Oct ${20 - index}, 2024'),
                   trailing: Text(
-                    index % 2 == 0 ? '+â‚¹1,200' : '-â‚¹5,000',
+                    index % 2 == 0 ? '+₹1,200' : '-₹5,000',
                     style: TextStyle(
                       color: index % 2 == 0 ? Colors.green : Colors.red,
                       fontWeight: FontWeight.bold,
@@ -7137,7 +6886,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 ),
                                 _buildStatCard(
                                   'Earnings',
-                                  'â‚¹${(completedDeliveries * 50).toString()}', // Mock calculation: â‚¹50 per delivery
+                                  '₹${(completedDeliveries * 50).toString()}', // Mock calculation: ₹50 per delivery
                                   Icons.account_balance_wallet,
                                   Colors.blue,
                                 ),
@@ -7292,7 +7041,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text('${item['name']} x${item['quantity']}'),
-                                      Text('â‚¹${item['price']}'),
+                                      Text('₹${item['price']}'),
                                     ],
                                   ),
                                 ))
@@ -7500,7 +7249,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                     ),
                                     _buildStatCard(
                                       'Total Revenue',
-                                      'â‚¹${totalRevenue.toStringAsFixed(0)}',
+                                      '₹${totalRevenue.toStringAsFixed(0)}',
                                       Icons.currency_rupee,
                                       Colors.green,
                                     ),
@@ -7863,7 +7612,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'â‚¹${data['basePrice'] ?? 0} ${data['pricingModel'] == 'range' ? '- â‚¹${data['maxPrice'] ?? 0}' : ''}',
+                                  '₹${data['basePrice'] ?? 0} ${data['pricingModel'] == 'range' ? '- ₹${data['maxPrice'] ?? 0}' : ''}',
                                   style: const TextStyle(
                                     color: Colors.green,
                                     fontWeight: FontWeight.bold,
@@ -8109,7 +7858,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'â‚¹${data['price'] ?? 0}',
+                                '₹${data['price'] ?? 0}',
                                 style: const TextStyle(
                                   color: Colors.green,
                                   fontWeight: FontWeight.bold,
@@ -8301,7 +8050,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Price *',
                               border: OutlineInputBorder(),
-                              prefixText: 'â‚¹',
+                              prefixText: '₹',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
@@ -8558,7 +8307,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Base Price *',
                               border: OutlineInputBorder(),
-                              prefixText: 'â‚¹',
+                              prefixText: '₹',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
@@ -8577,7 +8326,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Max Price',
                                 border: OutlineInputBorder(),
-                                prefixText: 'â‚¹',
+                                prefixText: '₹',
                               ),
                               keyboardType: TextInputType.number,
                             ),
@@ -8801,7 +8550,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Price *',
                               border: OutlineInputBorder(),
-                              prefixText: 'â‚¹',
+                              prefixText: '₹',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
@@ -9180,7 +8929,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Base Price *',
                               border: OutlineInputBorder(),
-                              prefixText: 'â‚¹',
+                              prefixText: '₹',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
@@ -9199,7 +8948,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Max Price',
                                 border: OutlineInputBorder(),
-                                prefixText: 'â‚¹',
+                                prefixText: '₹',
                               ),
                               keyboardType: TextInputType.number,
                               validator: (v) {
@@ -9509,7 +9258,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       decoration: InputDecoration(
                         labelText: priceAction == 'set_fixed' ? 'New Price' : 'Percentage',
                         border: const OutlineInputBorder(),
-                        prefixText: priceAction == 'set_fixed' ? 'â‚¹' : '',
+                        prefixText: priceAction == 'set_fixed' ? '₹' : '',
                         suffixText: priceAction != 'set_fixed' ? '%' : '',
                       ),
                       keyboardType: TextInputType.number,
@@ -9815,7 +9564,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       decoration: InputDecoration(
                         labelText: priceAction == 'set_fixed' ? 'New Price' : 'Percentage',
                         border: const OutlineInputBorder(),
-                        prefixText: priceAction == 'set_fixed' ? 'â‚¹' : '',
+                        prefixText: priceAction == 'set_fixed' ? '₹' : '',
                         suffixText: priceAction != 'set_fixed' ? '%' : '',
                       ),
                       keyboardType: TextInputType.number,
@@ -9968,7 +9717,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     ),
               ),
               const Spacer(),
-              const Icon(Icons.analytics, size: 32, color: Colors.blue),
+              IconButton(
+                icon: const Icon(Icons.download, color: Colors.green),
+                onPressed: () => _showDownloadOptionsDialog(),
+                tooltip: 'Download Report',
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.blue),
+                onPressed: () {
+                  setState(() {});
+                },
+                tooltip: 'Refresh Data',
+              ),
             ],
           ),
         ),
@@ -10046,6 +9807,238 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         ),
       ],
     );
+  }
+
+  void _showDownloadOptionsDialog() {
+    String selectedPeriod = 'All Time'; // Last 30 Days, Last 90 Days, Last Year, All Time
+    String selectedFormat = 'CSV'; // CSV or PDF
+    List<String> selectedMetrics = [
+      'Total Revenue',
+      'Total Orders',
+      'Products Sold',
+      'Active Users'
+    ];
+    final availableMetrics = [
+      'Total Revenue',
+      'Total Orders',
+      'Products Sold',
+      'Active Users'
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Download Report Options'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Select Time Period:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: selectedPeriod,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: 'Last 30 Days', child: Text('Last 30 Days')),
+                  DropdownMenuItem(value: 'Last 90 Days', child: Text('Last 90 Days')),
+                  DropdownMenuItem(value: 'Last Year', child: Text('Last Year')),
+                  DropdownMenuItem(value: 'All Time', child: Text('All Time')),
+                ],
+                onChanged: (val) => setState(() => selectedPeriod = val!),
+              ),
+              const SizedBox(height: 16),
+              const Text('Select Format:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: selectedFormat,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: 'CSV', child: Text('CSV')),
+                  DropdownMenuItem(value: 'PDF', child: Text('PDF')),
+                ],
+                onChanged: (val) => setState(() => selectedFormat = val!),
+              ),
+              const SizedBox(height: 16),
+              const Text('Select Metrics:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ...availableMetrics.map((metric) {
+                return CheckboxListTile(
+                  title: Text(metric),
+                  value: selectedMetrics.contains(metric),
+                  onChanged: (bool? value) {
+                    setState(() {
+                      if (value == true) {
+                        selectedMetrics.add(metric);
+                      } else {
+                        selectedMetrics.remove(metric);
+                      }
+                    });
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                );
+              }),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _generateAndDownloadReport(selectedPeriod, selectedMetrics, selectedFormat);
+              },
+              child: const Text('Download'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _generateAndDownloadReport(String period, List<String> metrics, String format) async {
+    try {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Generating report...')),
+        );
+      }
+
+      DateTime? start;
+      DateTime? end = DateTime.now();
+
+      if (period == 'Last 30 Days') {
+        start = end.subtract(const Duration(days: 30));
+      } else if (period == 'Last 90 Days') {
+        start = end.subtract(const Duration(days: 90));
+      } else if (period == 'Last Year') {
+        start = end.subtract(const Duration(days: 365));
+      } else {
+        // All Time
+        start = null;
+        end = null;
+      }
+
+      final analyticsService = AnalyticsService();
+      
+      if (format == 'PDF') {
+        // Generate PDF
+        final pdfBytes = await analyticsService.generatePdfReport(
+          start: start,
+          end: end,
+          metrics: metrics,
+        );
+        
+        if (kIsWeb) {
+          // Web: Download PDF using blob
+          final blob = html.Blob([pdfBytes], 'application/pdf');
+          final url = html.Url.createObjectUrlFromBlob(blob);
+          final anchor = html.AnchorElement(href: url)
+            ..setAttribute('download', 'analytics_report_${DateTime.now().millisecondsSinceEpoch}.pdf')
+            ..click();
+          html.Url.revokeObjectUrl(url);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('PDF report downloaded successfully!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        } else {
+          // Desktop/Mobile: Save PDF to file system
+          Directory? directory;
+          if (Platform.isWindows) {
+            directory = await getDownloadsDirectory();
+          } else {
+            directory = await getApplicationDocumentsDirectory();
+          }
+
+          if (directory != null) {
+            final path = '${directory.path}/analytics_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+            final file = File(path);
+            await file.writeAsBytes(pdfBytes);
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('PDF report saved to: $path'),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            }
+          }
+        }
+      } else {
+        // Generate CSV
+        final csvData = await analyticsService.downloadAnalyticsReport(
+          start: start,
+          end: end,
+          metrics: metrics,
+        );
+        
+        if (kIsWeb) {
+          // Web: Download CSV using blob
+          final bytes = Uint8List.fromList(csvData.codeUnits);
+          final blob = html.Blob([bytes]);
+          final url = html.Url.createObjectUrlFromBlob(blob);
+          final anchor = html.AnchorElement(href: url)
+            ..setAttribute('download', 'analytics_report_${DateTime.now().millisecondsSinceEpoch}.csv')
+            ..click();
+          html.Url.revokeObjectUrl(url);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('CSV report downloaded successfully!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        } else {
+          // Desktop/Mobile: Save CSV to file system
+          Directory? directory;
+          if (Platform.isWindows) {
+            directory = await getDownloadsDirectory();
+          } else {
+            directory = await getApplicationDocumentsDirectory();
+          }
+
+          if (directory != null) {
+            final path = '${directory.path}/analytics_report_${DateTime.now().millisecondsSinceEpoch}.csv';
+            final file = File(path);
+            await file.writeAsString(csvData);
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('CSV report saved to: $path'),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildMetricCard({
