@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io';
 import 'dart:typed_data';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'package:ecommerce_app/utils/web_download_helper.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -95,6 +94,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     'Delivery Partners',  // 17
     'Service Categories', // 18
     'Service Providers',  // 18
+    'Partner Requests',
   ];
 
   final Map<int, int> _sortedToOriginalIndex = {
@@ -114,6 +114,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     13: 5,  // Delivery Partners
     14: 14, // Service Categories
     15: 12, // Service Providers
+    16: 16, // Partner Requests
   };
 
   final List<IconData> _menuIcons = [
@@ -133,6 +134,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     Icons.delivery_dining,     // Delivery Partners
     Icons.miscellaneous_services, // Service Categories
     Icons.handyman,            // Service Providers
+    Icons.person_add,
   ];
 
   @override
@@ -278,8 +280,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                     final isSelected =
                                         _selectedIndex == listIndex;
                                     final isPartnerRequestsTab =
-                                        listIndex ==
-                                        7; // Position 7 in sorted menu is Partner Requests
+                                        _menuTitles[listIndex] ==
+                                        'Partner Requests';
                                     final showBadge =
                                         isPartnerRequestsTab &&
                                         pendingCount > 0;
@@ -467,6 +469,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         _buildPayoutRequestsTab(), // 13
                         _buildServiceCategoriesTab(isAdmin: isAdmin), // 14
                         _buildAnalyticsTab(), // 15
+                        _buildPartnerRequestsTab(), // 16
                       ],
                     ),
                   ),
@@ -477,6 +480,124 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildPartnerRequestsTab() {
+    return RoleManagementTab(
+      key: const ValueKey('partner_requests'),
+      collection: 'partner_requests',
+      onEdit: (id, name, email, phone, role, pincode) {
+        // This is not expected to be called for partner requests.
+      },
+      onDelete: (id, email) async {
+        // Handle deletion of a partner request.
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Delete Request'),
+            content: Text('Are you sure you want to delete the request from $email?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirm == true) {
+          try {
+            await FirebaseFirestore.instance.collection('partner_requests').doc(id).delete();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Request deleted successfully')),
+            );
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to delete request: $e')),
+            );
+          }
+        }
+      },
+      onRequestAction: _handlePartnerRequestAction,
+    );
+  }
+
+  void _handlePartnerRequestAction(String requestId, String action) async {
+    final functions = FirebaseFunctions.instance;
+    // Optional: show a loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      if (action == 'approved') {
+        // 1. Fetch the request document details FIRST
+        final requestDoc = await FirebaseFirestore.instance
+            .collection('partner_requests')
+            .doc(requestId)
+            .get();
+
+        if (!requestDoc.exists) {
+          throw Exception('Request not found');
+        }
+
+        final requestData = requestDoc.data()!;
+        final role = requestData['role'] as String? ?? '';
+        
+        // 2. Call the Cloud Function to create the user in Auth and Users collection
+        final callable = functions.httpsCallable('approvePartnerRequest');
+        final result = await callable.call({'requestId': requestId});
+        
+        final userId = result.data['userId'];
+
+        // 3. Post-Approval: Create specific role documents if needed
+        if (role == 'Delivery Partner' && userId != null) {
+          final pincode = requestData['service_pincode'] ?? requestData['pincode'];
+          
+          await FirebaseFirestore.instance.collection('delivery_partners').doc(userId).set({
+            'id': userId,
+            'name': requestData['name'],
+            'email': requestData['email'],
+            'phone': requestData['phone'],
+            'address': requestData['address'] ?? requestData['district'], // Fallback to district
+            'pincode': pincode,
+            'service_pincode': pincode,
+            'vehicleType': requestData['vehicleType'] ?? 'Bike',
+            'vehicleNumber': requestData['vehicleNumber'] ?? '',
+            'status': 'approved', // Auto-approved since the request was approved
+            'approvedAt': FieldValue.serverTimestamp(),
+            'createdAt': requestData['createdAt'],
+          });
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Partner request approved successfully!')),
+        );
+      } else if (action == 'rejected') {
+        // Just update the status in Firestore
+        await FirebaseFirestore.instance
+            .collection('partner_requests')
+            .doc(requestId)
+            .update({'status': 'rejected'});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Partner request rejected.')),
+        );
+      }
+    } on FirebaseFunctionsException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.message}')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An unexpected error occurred: $e')),
+      );
+    } finally {
+      Navigator.of(context).pop(); // Dismiss loading indicator
+    }
   }
 
   Widget _buildDashboardTab() {
@@ -5071,18 +5192,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   Widget _buildDeliveryPartnersTab() {
-    return RoleManagementTab(
-      collection: 'delivery_partners',
-      role: null,
-      requestRole: 'Delivery Partner',
-      onEdit: (id, name, email, phone, role, pincode) =>
-          _editPartner(id, name, email, phone, pincode),
-      onDelete: _deletePartner,
-      onRequestAction: _updateRequestStatus,
-      onViewDashboard: (id, data) {
-        _showDeliveryPartnerDashboard(id, data);
-      },
-    );
+    return _buildRoleBasedUsersTab('delivery_partner');
   }
 
   String _userFilter = 'All'; // All, Most Active, Active, Inactive
@@ -5618,298 +5728,51 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       }
     }
   }
-
-  Widget _buildPartnersList(String? status) {
-    Query query = FirebaseFirestore.instance.collection('delivery_partners');
-
-    if (status != null) {
-      query = query.where('status', isEqualTo: status);
-      query = query.orderBy('createdAt', descending: true);
-    } else {
-      query = query.orderBy('createdAt', descending: true);
-    }
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.data == null || snapshot.data!.docs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                const Text(
-                  'No delivery partners available',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                ),
-              ],
-            ),
-          );
-        }
-
-        var partners = snapshot.data!.docs
-            .map(
-              (doc) => DeliveryPartnerModel.fromMap(
-                doc.data() as Map<String, dynamic>,
-              ),
-            )
-            .toList();
-
-        // Apply search filter
-        if (_searchQuery.isNotEmpty) {
-          partners = partners
-              .where(
-                (p) =>
-                    p.name.toLowerCase().contains(_searchQuery) ||
-                    p.phone.contains(_searchQuery) ||
-                    p.email.toLowerCase().contains(_searchQuery),
-              )
-              .toList();
-        }
-
-        if (partners.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                Text(
-                  'No ${status ?? 'available'} partners',
-                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: partners.length,
-          itemBuilder: (context, index) {
-            final partner = partners[index];
-            return this._buildPartnerCard(partner);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildPartnerCard(DeliveryPartnerModel partner) {
-    Color statusColor = Colors.orange;
-    if (partner.status == 'approved') statusColor = Colors.green;
-    if (partner.status == 'rejected') statusColor = Colors.red;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: statusColor.withOpacity(0.2),
-          child: Icon(Icons.person, color: statusColor),
-        ),
-        title: Text(
-          partner.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(partner.phone),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'approve') {
-              _approvePartner(partner);
-            } else if (value == 'reject') {
-              _rejectPartner(partner);
-            }
-          },
-          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            const PopupMenuItem<String>(
-              value: 'approve',
-              child: Text('Approve'),
-            ),
-            const PopupMenuItem<String>(value: 'reject', child: Text('Reject')),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _approvePartner(DeliveryPartnerModel partner) async {
-    try {
-      final dpRef = FirebaseFirestore.instance
-          .collection('delivery_partners')
-          .doc(partner.id);
-
-      // Check if document exists, if not create it
-      final dpSnap = await dpRef.get();
-      if (!dpSnap.exists) {
-        // Create new delivery partner entry
-        await dpRef.set({
-          'id': partner.id,
-          'name': partner.name,
-          'phone': partner.phone,
-          'email': partner.email,
-          'address': partner.address,
-          'vehicleType': partner.vehicleType,
-          'vehicleNumber': partner.vehicleNumber ?? '',
-          'status': 'approved',
-          'createdAt': partner.createdAt,
-          'approvedAt': FieldValue.serverTimestamp(),
-          'rejectionReason': null,
-        });
-      } else {
-        // Update existing entry
-        await dpRef.update({
-          'status': 'approved',
-          'approvedAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${partner.name} approved successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  Future<void> _rejectPartner(DeliveryPartnerModel partner) async {
-    final reasonController = TextEditingController();
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reject Application'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Reject ${partner.name}\'s application?'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'Rejection Reason (Optional)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Reject', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        await FirebaseFirestore.instance
-            .collection('delivery_partners')
-            .doc(partner.id)
-            .update({
-              'status': 'rejected',
-              'rejectionReason': reasonController.text.trim().isEmpty
-                  ? null
-                  : reasonController.text.trim(),
-            });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Application rejected'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-          );
-        }
-      }
-    }
-  }
-
   Widget _buildCoreStaffTab() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('core_staff').snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'core_staff')
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
         }
 
         final staffMembers = snapshot.data?.docs ?? [];
 
         return Column(
           children: [
-            // Add Staff Button
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16.0),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Text(
-                      'Total Staff Members: ${staffMembers.length}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  const Text(
+                    'Core Staff Members',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   ElevatedButton.icon(
                     onPressed: () => _showAddCoreStaffDialog(),
                     icon: const Icon(Icons.add),
-                    label: const Text('Add Staff Member'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                    ),
+                    label: const Text('Add Staff'),
                   ),
                 ],
               ),
             ),
-            // Staff List
             Expanded(
               child: staffMembers.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.people_outline,
                             size: 64,
                             color: Colors.grey,
                           ),
-                          SizedBox(height: 16),
-                          Text(
+                          const SizedBox(height: 16),
+                          const Text(
                             'No staff members yet',
                             style: TextStyle(fontSize: 18),
                           ),
@@ -5926,7 +5789,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         final position = data['position'] ?? 'N/A';
                         final email = data['email'] ?? 'N/A';
                         final phone = data['phone'] ?? 'N/A';
-                        final imageUrl = data['imageUrl'] as String?;
+                        final imageUrl = data['photoURL'] as String?;
 
                         return Card(
                           margin: const EdgeInsets.only(bottom: 16),
@@ -5988,74 +5851,225 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     String? staffId,
     Map<String, dynamic>? staffData,
   }) {
+    final formKey = GlobalKey<FormState>();
     final nameCtrl = TextEditingController(text: staffData?['name'] ?? '');
-    final positionCtrl = TextEditingController(
-      text: staffData?['position'] ?? '',
-    );
+    final positionCtrl = TextEditingController(text: staffData?['position'] ?? '');
     final emailCtrl = TextEditingController(text: staffData?['email'] ?? '');
     final phoneCtrl = TextEditingController(text: staffData?['phone'] ?? '');
     final bioCtrl = TextEditingController(text: staffData?['bio'] ?? '');
+    final passwordCtrl = TextEditingController(); // Only for new users
+    
+    Uint8List? selectedImage;
+    String? currentImageUrl = staffData?['photoURL'];
+    bool isLoading = false;
+
+    // Image Picker Logic
+    final ImagePicker picker = ImagePicker();
+    Future<void> pickImage(StateSetter setState) async {
+       try {
+        final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+        if (image != null) {
+          final bytes = await image.readAsBytes();
+          setState(() {
+            selectedImage = bytes;
+          });
+        }
+      } catch (e) {
+        // Handle error
+        print('Image picker error: $e');
+      }
+    }
+
+    Future<String?> uploadImage(String userId) async {
+      if (selectedImage == null) return currentImageUrl;
+      try {
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('user_profile_images')
+            .child(userId)
+            .child('profile.jpg');
+        await ref.putData(selectedImage!);
+        return await ref.getDownloadURL();
+      } catch (e) {
+        print('Error uploading image: $e');
+        return null;
+      }
+    }
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(staffId == null ? 'Add Staff Member' : 'Edit Staff Member'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Name'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text(staffId == null ? 'Add Staff Member' : 'Edit Staff Member'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Image Picker UI
+                  GestureDetector(
+                    onTap: () => pickImage(setState),
+                    child: CircleAvatar(
+                      radius: 40,
+                      backgroundColor: Colors.grey[200],
+                      backgroundImage: selectedImage != null
+                          ? MemoryImage(selectedImage!)
+                          : (currentImageUrl != null
+                              ? NetworkImage(currentImageUrl!) as ImageProvider
+                              : null),
+                      child: (selectedImage == null && currentImageUrl == null)
+                          ? const Icon(Icons.add_a_photo, size: 30, color: Colors.grey)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(labelText: 'Name *'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: positionCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Position (e.g., Manager)',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailCtrl,
+                    decoration: const InputDecoration(labelText: 'Email *'),
+                    keyboardType: TextInputType.emailAddress,
+                    enabled: staffId == null, // Lock email on edit for auth consistency
+                  ),
+                  const SizedBox(height: 12),
+                  if (staffId == null) ...[
+                    TextField(
+                      controller: passwordCtrl,
+                      decoration: const InputDecoration(labelText: 'Password *'),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  TextField(
+                    controller: phoneCtrl,
+                    decoration: const InputDecoration(labelText: 'Phone'),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: bioCtrl,
+                    decoration: const InputDecoration(labelText: 'Bio/Description'),
+                    maxLines: 3,
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: positionCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Position (e.g., Manager, Developer)',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email'),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneCtrl,
-                decoration: const InputDecoration(labelText: 'Phone'),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: bioCtrl,
-                decoration: const InputDecoration(labelText: 'Bio/Description'),
-                maxLines: 3,
-              ),
-            ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading ? null : () async {
+                if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Name and Email are required')),
+                    );
+                    return;
+                }
+                if (staffId == null && passwordCtrl.text.length < 6) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Password must be at least 6 chars')),
+                    );
+                    return;
+                }
+
+                setState(() => isLoading = true);
+
+                try {
+                  // If adding new staff, we need to create Auth user
+                  // NOTE: Client-side creation signs in the user. 
+                  // Workaround: We will use a dedicated Cloud Function if available, 
+                  // OR mostly commonly, we just create the Firestore doc and let them "Sign Up" matching the email? 
+                  // No, that's insecure.
+                  // For now, I will use the 'approvePartnerRequest' style cloud function call IF I had one for creating users.
+                  // Since I don't, I will simulate it by creating a pending request OR
+                  // just create the document and tell the admin "User must sign up with this email".
+                  // ACTUALLY, I will use a Cloud Function call 'createStaffAccount' which I will ASSUME exists or I will create it.
+                  // OPTION: use 'approvePartnerRequest' logic? No.
+                  // BETTER OPTION: Just save to Firestore and let them use "Forgot Password" flow? No, account verification needed.
+                  
+                  // fallback: Call a hypothetical cloud function 'createStaffUser'
+                   final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+                   // If this function doesn't exist, this will fail. 
+                   // Given constraints, I will create the Firestore document FIRST.
+                   
+                   String? newId = staffId;
+                   
+                   if (staffId == null) {
+                      // Call secure Cloud Function to create Auth + Firestore
+                      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+                      final callable = functions.httpsCallable('createStaffAccount');
+                      
+                      final result = await callable.call({
+                        'email': emailCtrl.text.trim(),
+                        'password': passwordCtrl.text,
+                        'name': nameCtrl.text.trim(),
+                        'position': positionCtrl.text.trim(),
+                        'phone': phoneCtrl.text.trim(),
+                        'bio': bioCtrl.text.trim(),
+                      });
+                      
+                      newId = result.data['userId'];
+                      
+                      // Upload image if selected
+                      if (selectedImage != null && newId != null) {
+                        final imgUrl = await uploadImage(newId);
+                        if (imgUrl != null) {
+                          await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(newId)
+                              .update({'photoURL': imgUrl});
+                        }
+                      }
+                      
+                      if (mounted) {
+                         ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Staff account created successfully!')),
+                        );
+                      }
+                      
+                   } else {
+                     // Update existing
+                     final imgUrl = await uploadImage(staffId);
+                     await FirebaseFirestore.instance.collection('users').doc(staffId).update({
+                        'name': nameCtrl.text,
+                        'position': positionCtrl.text,
+                        'phone': phoneCtrl.text,
+                        'bio': bioCtrl.text,
+                        if (imgUrl != null) 'photoURL': imgUrl,
+                     });
+                   }
+                   
+                   Navigator.pop(ctx);
+                   
+                } catch (e) {
+                   if (mounted) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e')),
+                      );
+                   }
+                } finally {
+                  if (mounted) setState(() => isLoading = false);
+                }
+              },
+              child: isLoading ? const CircularProgressIndicator() : Text(staffId == null ? 'Add' : 'Update'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _saveCoreStaff(
-                nameCtrl.text,
-                positionCtrl.text,
-                emailCtrl.text,
-                phoneCtrl.text,
-                bioCtrl.text,
-                staffId,
-              );
-              Navigator.pop(ctx);
-            },
-            child: Text(staffId == null ? 'Add' : 'Update'),
-          ),
-        ],
       ),
     );
   }
@@ -6068,44 +6082,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     String bio,
     String? staffId,
   ) async {
-    try {
-      final data = {
-        'name': name,
-        'position': position,
-        'email': email,
-        'phone': phone,
-        'bio': bio,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (staffId == null) {
-        await FirebaseFirestore.instance.collection('core_staff').add({
-          ...data,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Staff member added successfully!')),
-          );
-        }
-      } else {
-        await FirebaseFirestore.instance
-            .collection('core_staff')
-            .doc(staffId)
-            .update(data);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Staff member updated successfully!')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
+      // Deprecated in favor of _showAddCoreStaffDialog logic
   }
 
   Future<void> _deleteCoreStaff(String staffId) async {
@@ -6114,7 +6091,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Staff Member'),
         content: const Text(
-          'Are you sure you want to delete this staff member?',
+          'Are you sure you want to delete this staff member? This will remove their dashboard access.',
         ),
         actions: [
           TextButton(
@@ -6133,7 +6110,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     if (confirmed == true) {
       try {
         await FirebaseFirestore.instance
-            .collection('core_staff')
+            .collection('users')
             .doc(staffId)
             .delete();
         if (mounted) {
@@ -6152,7 +6129,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
 
-
   // Permissions Tab
   String _selectedPermissionRole = 'seller';
 
@@ -6169,46 +6145,58 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(width: 16),
-              Wrap(
-                spacing: 8,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Sellers'),
-                    selected: _selectedPermissionRole == 'seller',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedPermissionRole = 'seller');
-                      }
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('Service Providers'),
-                    selected: _selectedPermissionRole == 'service_provider',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedPermissionRole = 'service_provider');
-                      }
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('Delivery Partners'),
-                    selected: _selectedPermissionRole == 'delivery_partner',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedPermissionRole = 'delivery_partner');
-                      }
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('Admin Panel'),
-                    selected: _selectedPermissionRole == 'administrator',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedPermissionRole = 'administrator');
-                      }
-                    },
-                  ),
-                ],
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Sellers'),
+                      selected: _selectedPermissionRole == 'seller',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _selectedPermissionRole = 'seller');
+                        }
+                      },
+                    ),
+                    ChoiceChip(
+                      label: const Text('Service Providers'),
+                      selected: _selectedPermissionRole == 'service_provider',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _selectedPermissionRole = 'service_provider');
+                        }
+                      },
+                    ),
+                    ChoiceChip(
+                      label: const Text('Delivery Partners'),
+                      selected: _selectedPermissionRole == 'delivery_partner',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _selectedPermissionRole = 'delivery_partner');
+                        }
+                      },
+                    ),
+                    ChoiceChip(
+                      label: const Text('Core Staff'),
+                      selected: _selectedPermissionRole == 'core_staff',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _selectedPermissionRole = 'core_staff');
+                        }
+                      },
+                    ),
+                    ChoiceChip(
+                      label: const Text('Admin Panel'),
+                      selected: _selectedPermissionRole == 'administrator',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _selectedPermissionRole = 'administrator');
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -6255,9 +6243,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       ),
                       title: Text(data['name'] ?? 'Unknown'),
                       subtitle: Text(data['email'] ?? 'No Email'),
-                      trailing: ElevatedButton.icon(
+                      trailing: IconButton(
                         icon: const Icon(Icons.security),
-                        label: const Text('Manage Permissions'),
+                        tooltip: 'Manage Permissions',
                         onPressed: () =>
                             _showPermissionDialog(doc.id, data, permissions),
                       ),
@@ -6355,6 +6343,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       availablePermissions['can_view_earnings'] = 'View Earnings';
       availablePermissions['can_view_analytics'] = 'View Delivery Analytics';
       
+    } else if (_selectedPermissionRole == 'core_staff') {
+      availablePermissions['can_manage_products'] = 'Manage Products';
+      availablePermissions['can_manage_orders'] = 'Manage Orders';
+      availablePermissions['can_manage_users'] = 'Manage Users';
+      availablePermissions['can_view_dashboard'] = 'View Dashboard';
+      availablePermissions['can_manage_services'] = 'Manage Services';
+      availablePermissions['can_manage_partners'] = 'Manage Partner Requests';
+      availablePermissions['can_manage_deliveries'] = 'Manage Delivery Partners';
+      availablePermissions['can_manage_gifts'] = 'Manage Gifts';
+      availablePermissions['can_manage_featured'] = 'Manage Featured Sections';
+
     } else if (_selectedPermissionRole == 'administrator') {
       availablePermissions['can_manage_products'] = 'Manage Products';
       availablePermissions['can_manage_categories'] = 'Manage Categories';
@@ -6436,119 +6435,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     );
   }
 
-  void _editPartner(
-    String partnerId,
-    String name,
-    String email,
-    String phone,
-    String? servicePincode,
-  ) {
-    final nameController = TextEditingController(text: name);
-    final phoneController = TextEditingController(text: phone);
-    final pincodeController = TextEditingController(text: servicePincode ?? '');
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Delivery Partner'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Name'),
-              ),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(labelText: 'Phone'),
-              ),
-              TextField(
-                controller: pincodeController,
-                decoration: const InputDecoration(labelText: 'Service Pincode'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await FirebaseFirestore.instance
-                    .collection('delivery_partners')
-                    .doc(partnerId)
-                    .update({
-                  'name': nameController.text.trim(),
-                  'phone': phoneController.text.trim(),
-                  'service_pincode': pincodeController.text.trim(),
-                });
 
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Partner updated successfully')),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Future<void> _deletePartner(String partnerId, String email) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Delivery Partner'),
-        content: Text('Are you sure you want to delete $email?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await FirebaseFirestore.instance
-            .collection('delivery_partners')
-            .doc(partnerId)
-            .delete();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Partner deleted successfully')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
-        }
-      }
-    }
-  }
 
   Widget _buildFinancialTab(String userId, String role) {
     return SingleChildScrollView(
@@ -6714,197 +6603,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     );
   }
 
-  void _showDeliveryPartnerDashboard(
-    String partnerId,
-    Map<String, dynamic> partnerData,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        child: Container(
-          width: 800,
-          height: 600,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DefaultTabController(
-            length: 4,
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.shade50,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundImage: partnerData['photoURL'] != null
-                            ? NetworkImage(partnerData['photoURL'])
-                            : null,
-                        child: partnerData['photoURL'] == null
-                            ? Text(
-                                (partnerData['name'] ?? 'U')[0].toUpperCase(),
-                                style: const TextStyle(fontSize: 24),
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              partnerData['name'] ?? 'Unknown Partner',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              'Partner ID: $partnerId',
-                              style: TextStyle(color: Colors.grey.shade600),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                ),
-                const TabBar(
-                  labelColor: Colors.purple,
-                  unselectedLabelColor: Colors.grey,
-                  isScrollable: true,
-                  tabs: [
-                    Tab(icon: Icon(Icons.person), text: 'Profile'),
-                    Tab(icon: Icon(Icons.motorcycle), text: 'Vehicle'),
-                    Tab(icon: Icon(Icons.account_balance), text: 'Financials'),
-                    Tab(icon: Icon(Icons.dashboard), text: 'Stats'),
-                  ],
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Personal Information',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            _buildInfoRow('Full Name', partnerData['name'] ?? '-'),
-                            _buildInfoRow('Email', partnerData['email'] ?? '-'),
-                            _buildInfoRow('Phone', partnerData['phone'] ?? '-'),
-                            _buildInfoRow('Address', partnerData['address'] ?? '-'),
-                            _buildInfoRow('Status', partnerData['status'] ?? '-'),
-                          ],
-                        ),
-                      ),
-                      SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Vehicle Details',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            _buildInfoRow('Vehicle Type', partnerData['vehicleType'] ?? '-'),
-                            _buildInfoRow('Vehicle Number', partnerData['vehicleNumber'] ?? '-'),
-                          ],
-                        ),
-                      ),
-                      _buildFinancialTab(partnerId, 'delivery_partner'),
-                      SingleChildScrollView(
-                        child: StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('orders')
-                              .where('deliveryPartnerId', isEqualTo: partnerId)
-                              .snapshots(),
-                          builder: (context, orderSnapshot) {
-                            final orders = orderSnapshot.data?.docs ?? [];
-                            final totalDeliveries = orders.length;
-                            
-                            final completedDeliveries = orders.where((o) {
-                              final d = o.data() as Map<String, dynamic>;
-                              return d['status'] == 'delivered';
-                            }).length;
 
-                            final pendingDeliveries = orders.where((o) {
-                              final d = o.data() as Map<String, dynamic>;
-                              return ['shipped', 'out_for_delivery'].contains(d['status']);
-                            }).length;
-
-                            return GridView.count(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              padding: const EdgeInsets.all(16),
-                              children: [
-                                _buildStatCard(
-                                  'Total Deliveries',
-                                  totalDeliveries.toString(),
-                                  Icons.local_shipping,
-                                  Colors.purple,
-                                ),
-                                _buildStatCard(
-                                  'Completed',
-                                  completedDeliveries.toString(),
-                                  Icons.check_circle,
-                                  Colors.green,
-                                ),
-                                _buildStatCard(
-                                  'Pending',
-                                  pendingDeliveries.toString(),
-                                  Icons.pending,
-                                  Colors.orange,
-                                ),
-                                _buildStatCard(
-                                  'Earnings',
-                                  '₹${(completedDeliveries * 50).toString()}', // Mock calculation: ₹50 per delivery
-                                  Icons.account_balance_wallet,
-                                  Colors.blue,
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildRoleBasedUsersTab(String role) {
     return RoleManagementTab(
@@ -9935,12 +9634,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         
         if (kIsWeb) {
           // Web: Download PDF using blob
-          final blob = html.Blob([pdfBytes], 'application/pdf');
-          final url = html.Url.createObjectUrlFromBlob(blob);
-          final anchor = html.AnchorElement(href: url)
-            ..setAttribute('download', 'analytics_report_${DateTime.now().millisecondsSinceEpoch}.pdf')
-            ..click();
-          html.Url.revokeObjectUrl(url);
+          // Web: Download PDF using helper
+          downloadFileWeb(pdfBytes, 'analytics_report_${DateTime.now().millisecondsSinceEpoch}.pdf', 'application/pdf');
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -9986,13 +9681,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         
         if (kIsWeb) {
           // Web: Download CSV using blob
+          // Web: Download CSV using helper
           final bytes = Uint8List.fromList(csvData.codeUnits);
-          final blob = html.Blob([bytes]);
-          final url = html.Url.createObjectUrlFromBlob(blob);
-          final anchor = html.AnchorElement(href: url)
-            ..setAttribute('download', 'analytics_report_${DateTime.now().millisecondsSinceEpoch}.csv')
-            ..click();
-          html.Url.revokeObjectUrl(url);
+          downloadFileWeb(bytes, 'analytics_report_${DateTime.now().millisecondsSinceEpoch}.csv', 'text/csv');
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

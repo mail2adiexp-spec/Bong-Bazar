@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/error_display.dart';
 import '../utils/password_validator.dart';
+import '../utils/password_validator.dart';
+import 'join_partner_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   static const routeName = '/auth';
@@ -155,6 +157,23 @@ class _SignInFormState extends State<_SignInForm> {
                 child: const Text(
                   'Forgot Password?',
                   style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+            const Divider(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pushNamed(
+                    JoinPartnerScreen.routeName,
+                  );
+                },
+                icon: const Icon(Icons.store),
+                label: const Text('Join as Partner'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: BorderSide(color: Theme.of(context).primaryColor),
                 ),
               ),
             ),

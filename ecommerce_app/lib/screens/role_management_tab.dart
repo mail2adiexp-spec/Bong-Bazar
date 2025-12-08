@@ -63,10 +63,13 @@ class _RoleManagementTabState extends State<RoleManagementTab> {
         ),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection(widget.collection)
-                .where('role', isEqualTo: widget.role)
-                .snapshots(),
+            stream: () {
+              Query query = FirebaseFirestore.instance.collection(widget.collection);
+              if (widget.role != null) {
+                query = query.where('role', isEqualTo: widget.role);
+              }
+              return query.snapshots();
+            }(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(child: Text('Error: ${snapshot.error}'));
@@ -94,13 +97,13 @@ class _RoleManagementTabState extends State<RoleManagementTab> {
                 }
 
                 // Status Filter
-                final isRequest = _selectedStatus == 'Requests' || _selectedStatus == 'Rejected';
-                final status = isRequest ? (data['status'] as String? ?? 'pending') : 'approved';
-                
-                if (_selectedStatus == 'Requests' && status != 'pending') return false;
-                if (_selectedStatus == 'Rejected' && status != 'rejected') return false;
-                if (_selectedStatus == 'Approved' && status != 'approved') return false;
-                if (_selectedStatus == 'Pending' && status != 'pending') return false;
+                if (_selectedStatus != 'All') {
+                  final status = data.containsKey('status') ? (data['status'] as String? ?? 'pending') : 'approved';
+
+                  if ((_selectedStatus == 'Requests' || _selectedStatus == 'Pending') && status != 'pending') return false;
+                  if (_selectedStatus == 'Approved' && status != 'approved') return false;
+                  if (_selectedStatus == 'Rejected' && status != 'rejected') return false;
+                }
 
                 return true;
               }).toList();
@@ -138,13 +141,20 @@ class _RoleManagementTabState extends State<RoleManagementTab> {
                   final email = data['email'] ?? 'N/A';
                   final phone = data['phone'] ?? 'N/A';
                   final servicePincode = data['service_pincode'] as String?;
-                  final createdAt = data['createdAt'] != null
-                      ? (data['createdAt'] as Timestamp).toDate()
-                      : null;
+                  
+                  final dynamic createdAtData = data['createdAt'];
+                  final DateTime? createdAt;
+                  if (createdAtData is Timestamp) {
+                    createdAt = createdAtData.toDate();
+                  } else if (createdAtData is String) {
+                    createdAt = DateTime.tryParse(createdAtData);
+                  } else {
+                    createdAt = null;
+                  }
                   
                   // Determine if it's a request or a user
-                  final isRequest = _selectedStatus == 'Requests' || _selectedStatus == 'Rejected';
-                  final status = isRequest ? (data['status'] as String? ?? 'pending') : 'approved';
+                  final status = data.containsKey('status') ? (data['status'] as String? ?? 'pending') : 'approved';
+                  final isRequest = status != 'approved';
 
                   Color statusColor;
                   switch (status.toLowerCase()) {

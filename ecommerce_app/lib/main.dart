@@ -17,7 +17,7 @@ import 'package:ecommerce_app/screens/seller_dashboard_screen.dart';
 import 'package:ecommerce_app/screens/book_service_screen.dart';
 import 'package:ecommerce_app/screens/service_provider_dashboard_screen.dart';
 import 'package:ecommerce_app/screens/delivery_partner_dashboard_screen.dart';
-import 'package:ecommerce_app/screens/delivery_partner_registration_screen.dart';
+
 import 'package:ecommerce_app/screens/my_orders_screen.dart';
 import 'package:ecommerce_app/screens/manage_addresses_screen.dart';
 import 'package:ecommerce_app/models/product_model.dart';
@@ -215,12 +215,7 @@ class MyApp extends StatelessWidget {
                   builder: (_) => const DeliveryPartnerDashboardScreen(),
                 );
               }
-              if (settings.name ==
-                  DeliveryPartnerRegistrationScreen.routeName) {
-                return MaterialPageRoute(
-                  builder: (_) => const DeliveryPartnerRegistrationScreen(),
-                );
-              }
+
               if (settings.name == ManageAddressesScreen.routeName) {
                 return MaterialPageRoute(
                   builder: (_) => const ManageAddressesScreen(),

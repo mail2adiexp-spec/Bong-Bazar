@@ -20,18 +20,35 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
   String _role = 'Seller';
   String _gender = 'Male';
   String? _selectedServiceCategoryId;
+  
+  // Common Controllers
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _districtController = TextEditingController();
+  final _districtController = TextEditingController(); // Treated as Address for Delivery Partner
   final _pincodeController = TextEditingController();
-  final _businessController = TextEditingController();
   final _panController = TextEditingController();
   final _aadhaarController = TextEditingController();
+
+  // Seller/Service Provider Specific
+  final _businessController = TextEditingController();
   final _minChargeController = TextEditingController();
+
+  // Delivery Partner Specific
+  String _vehicleType = 'Bike';
+  final _vehicleNumberController = TextEditingController();
+
   Uint8List? _profileImageBytes;
   bool _isSubmitting = false;
+
+  final List<String> _vehicleTypes = [
+    'Bike',
+    'Scooter',
+    'Bicycle',
+    'Car',
+    'Van',
+  ];
 
   Future<void> _pickProfileImage() async {
     try {
@@ -66,6 +83,7 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
     _panController.dispose();
     _aadhaarController.dispose();
     _minChargeController.dispose();
+    _vehicleNumberController.dispose();
     super.dispose();
   }
 
@@ -98,23 +116,7 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
           .collection('partner_requests')
           .doc();
 
-      Map<String, dynamic>? selectedCategoryData;
-      if (_role == 'Service Provider' && _selectedServiceCategoryId != null) {
-        try {
-          final catDoc = await FirebaseFirestore.instance
-              .collection('service_categories')
-              .doc(_selectedServiceCategoryId)
-              .get();
-          if (catDoc.exists) {
-            selectedCategoryData = {
-              'serviceCategoryId': catDoc.id,
-              'serviceCategoryName': catDoc.data()!['name'] ?? '',
-            };
-          }
-        } catch (_) {}
-      }
-
-      await docRef.set({
+      Map<String, dynamic> requestData = {
         'id': docRef.id,
         'role': _role,
         'gender': _gender,
@@ -122,21 +124,54 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
         'phone': _phoneController.text.trim(),
         'email': _emailController.text.trim(),
         'password': _passwordController.text.trim(),
-        'district': _districtController.text.trim(),
+        'district': _districtController.text.trim(), // Acts as 'address' for Delivery Partner
+        'address': _districtController.text.trim(), // Saving as address too for clarity
         'pincode': _pincodeController.text.trim(),
-        'businessName': _role == 'Service Provider'
-            ? (_businessController.text.trim().isEmpty
-                  ? (selectedCategoryData?['serviceCategoryName'] ?? '')
-                  : _businessController.text.trim())
-            : _businessController.text.trim(),
         'panNumber': _panController.text.trim().toUpperCase(),
         'aadhaarNumber': _aadhaarController.text.trim(),
-        'minCharge': double.parse(_minChargeController.text.trim()),
         'profilePicUrl': profilePicUrl,
         'status': 'pending',
-        'createdAt': DateTime.now().toIso8601String(),
-        if (selectedCategoryData != null) ...selectedCategoryData,
-      });
+        'createdAt': Timestamp.now(),
+      };
+
+      if (_role == 'Delivery Partner') {
+        requestData.addAll({
+          'vehicleType': _vehicleType,
+          'vehicleNumber': _vehicleNumberController.text.trim(),
+          'service_pincode': _pincodeController.text.trim(), // For delivery partners
+        });
+      } else {
+        // Sellers & Service Providers
+        requestData.addAll({
+          'minCharge': double.parse(_minChargeController.text.trim()),
+        });
+
+        if (_role == 'Service Provider') {
+           if (_selectedServiceCategoryId != null) {
+             try {
+               final catDoc = await FirebaseFirestore.instance
+                   .collection('service_categories')
+                   .doc(_selectedServiceCategoryId)
+                   .get();
+               if (catDoc.exists) {
+                 requestData.addAll({
+                   'serviceCategoryId': catDoc.id,
+                   'serviceCategoryName': catDoc.data()!['name'] ?? '',
+                 });
+               }
+             } catch (_) {}
+           }
+           requestData['businessName'] = _businessController.text.trim().isEmpty
+               ? (requestData['serviceCategoryName'] ?? '')
+               : _businessController.text.trim();
+        } else {
+          // Seller
+          requestData['businessName'] = _businessController.text.trim();
+        }
+      }
+
+
+      await docRef.set(requestData);
 
       if (!mounted) return;
 
@@ -170,6 +205,8 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDeliveryPartner = _role == 'Delivery Partner';
+
     return Scaffold(
       appBar: AppBar(title: const Text('Join as Partner'), centerTitle: true),
       body: SingleChildScrollView(
@@ -215,6 +252,12 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
                               selected: _role == 'Service Provider',
                               onSelected: (_) =>
                                   setState(() => _role = 'Service Provider'),
+                            ),
+                            ChoiceChip(
+                              label: const Text('Delivery Partner'),
+                              selected: _role == 'Delivery Partner',
+                              onSelected: (_) =>
+                                  setState(() => _role = 'Delivery Partner'),
                             ),
                           ],
                         ),
@@ -356,12 +399,13 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _districtController,
-                      decoration: const InputDecoration(
-                        labelText: 'District',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: isDeliveryPartner ? 'Full Address' : 'District',
+                        border: const OutlineInputBorder(),
                       ),
+                      maxLines: isDeliveryPartner ? 3 : 1,
                       validator: (v) => v == null || v.trim().isEmpty
-                          ? 'Please enter your district'
+                          ? 'Please enter details'
                           : null,
                     ),
                     const SizedBox(height: 12),
@@ -385,56 +429,87 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 12),
-                    // If Service Provider, show category dropdown + optional display name
-                    if (_role == 'Service Provider') ...[
-                      Consumer<ServiceCategoryProvider>(
-                        builder: (context, provider, _) {
-                          final categories = provider.serviceCategories;
-                          return DropdownButtonFormField<String>(
-                            value: _selectedServiceCategoryId,
-                            decoration: const InputDecoration(
-                              labelText: 'Service Category',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: categories
-                                .map(
-                                  (c) => DropdownMenuItem(
-                                    value: c.id,
-                                    child: Text(c.name),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (val) => setState(
-                              () => _selectedServiceCategoryId = val,
-                            ),
-                            validator: (v) => v == null || v.isEmpty
-                                ? 'Select a service category'
-                                : null,
-                          );
-                        },
+                    
+                    if (isDeliveryPartner) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: _vehicleType,
+                        decoration: const InputDecoration(
+                          labelText: 'Vehicle Type',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _vehicleTypes
+                            .map(
+                              (type) =>
+                                  DropdownMenuItem(value: type, child: Text(type)),
+                            )
+                            .toList(),
+                        onChanged: (val) => setState(() => _vehicleType = val!),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
-                        controller: _businessController,
+                        controller: _vehicleNumberController,
                         decoration: const InputDecoration(
-                          labelText: 'Service Display Name (Optional)',
-                          hintText: 'If different from category name',
+                          labelText: 'Vehicle Number (Optional)',
+                          hintText: 'e.g. DL01AB1234',
                           border: OutlineInputBorder(),
                         ),
-                      ),
-                    ] else ...[
-                      TextFormField(
-                        controller: _businessController,
-                        decoration: const InputDecoration(
-                          labelText: 'Business Name',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) => v == null || v.trim().isEmpty
-                            ? 'Please enter your business name'
-                            : null,
                       ),
                     ],
+
+                    if (!isDeliveryPartner) ...[
+                        const SizedBox(height: 12),
+                        // If Service Provider, show category dropdown + optional display name
+                        if (_role == 'Service Provider') ...[
+                          Consumer<ServiceCategoryProvider>(
+                            builder: (context, provider, _) {
+                              final categories = provider.serviceCategories;
+                              return DropdownButtonFormField<String>(
+                                value: _selectedServiceCategoryId,
+                                decoration: const InputDecoration(
+                                  labelText: 'Service Category',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: categories
+                                    .map(
+                                      (c) => DropdownMenuItem(
+                                        value: c.id,
+                                        child: Text(c.name),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) => setState(
+                                  () => _selectedServiceCategoryId = val,
+                                ),
+                                validator: (v) => v == null || v.isEmpty
+                                    ? 'Select a service category'
+                                    : null,
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _businessController,
+                            decoration: const InputDecoration(
+                              labelText: 'Service Display Name (Optional)',
+                              hintText: 'If different from category name',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ] else ...[
+                          TextFormField(
+                            controller: _businessController,
+                            decoration: const InputDecoration(
+                              labelText: 'Business Name',
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (v) => v == null || v.trim().isEmpty
+                                ? 'Please enter your business name'
+                                : null,
+                          ),
+                        ],
+                    ],
+                    
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _panController,
@@ -473,29 +548,33 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _minChargeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Minimum Charge (₹)',
-                        hintText: 'e.g., 199',
-                        border: OutlineInputBorder(),
+
+                    if (!isDeliveryPartner) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _minChargeController,
+                        decoration: const InputDecoration(
+                          labelText: 'Minimum Charge (₹)',
+                          hintText: 'e.g., 199',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          signed: false,
+                          decimal: true,
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Enter your minimum charge';
+                          }
+                          final value = double.tryParse(v.trim());
+                          if (value == null || value <= 0) {
+                            return 'Enter a valid amount';
+                          }
+                          return null;
+                        },
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        signed: false,
-                        decimal: true,
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Enter your minimum charge';
-                        }
-                        final value = double.tryParse(v.trim());
-                        if (value == null || value <= 0) {
-                          return 'Enter a valid amount';
-                        }
-                        return null;
-                      },
-                    ),
+                    ],
+
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,

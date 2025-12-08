@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/settings_provider.dart';
-import '../screens/join_partner_screen.dart';
 import '../screens/manage_addresses_screen.dart';
 
 Future<void> showMoreBottomSheet(BuildContext context) {
@@ -160,29 +159,6 @@ class _MoreSheetContent extends StatelessWidget {
                     ],
                   );
                 },
-              ),
-              // Join as Seller/Service Provider button
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // Close the sheet, then navigate using the parent page context
-                    Navigator.of(context).pop();
-                    Future.microtask(() {
-                      Navigator.of(
-                        rootContext,
-                      ).pushNamed(JoinPartnerScreen.routeName);
-                    });
-                  },
-                  icon: const Icon(Icons.store),
-                  label: const Text('Join as Seller/Service Provider'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
               ),
               // Logout button - full width
               if (isLoggedIn) ...[
