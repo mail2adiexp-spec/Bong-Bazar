@@ -5832,7 +5832,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                     Icons.delete,
                                     color: Colors.red,
                                   ),
-                                  onPressed: () => _deleteCoreStaff(doc.id),
+                                  onPressed: () => _deleteCoreStaff(doc.id, email),
                                 ),
                               ],
                             ),
@@ -6085,7 +6085,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       // Deprecated in favor of _showAddCoreStaffDialog logic
   }
 
-  Future<void> _deleteCoreStaff(String staffId) async {
+  Future<void> _deleteCoreStaff(String staffId, String email) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -6108,20 +6108,36 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     );
 
     if (confirmed == true) {
+      if (!mounted) return;
+      
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const Center(child: CircularProgressIndicator()),
+      );
+
       try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(staffId)
-            .delete();
+        final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+        final callable = functions.httpsCallable('deleteUserAccount');
+        
+        await callable.call({
+          'userId': staffId,
+          'email': email,
+        });
+          
         if (mounted) {
+          Navigator.of(context).pop(); // Dismiss loading
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Staff member deleted successfully!')),
+            const SnackBar(content: Text('Staff member account deleted successfully!')),
           );
         }
+
       } catch (e) {
         if (mounted) {
+          Navigator.of(context).pop(); // Dismiss loading
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text('Error deleting account: $e'), backgroundColor: Colors.red),
           );
         }
       }
