@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
 import '../models/transaction_model.dart';
 import '../services/transaction_service.dart';
 import '../services/payout_service.dart';
@@ -70,35 +73,8 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
           return _buildLimitedAccessView(context, auth);
         }
 
-        final requests = snapshot.data?.docs ?? [];
 
-        if (requests.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.work_outline, size: 80, color: Colors.grey[400]),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'No Service Request Found',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'You haven\'t submitted any service provider request yet.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
+        final requests = snapshot.data?.docs ?? [];
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -220,6 +196,147 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
               ),
               const SizedBox(height: 24),
 
+              // Business Stats
+              Text(
+                'Business Stats',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Services and Bookings
+              Row(
+                children: [
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('services')
+                          .where('providerId', isEqualTo: user.uid)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        final count = snapshot.data?.docs.length ?? 0;
+                        return _buildStatCard(
+                          context,
+                          'Services',
+                          '$count',
+                          Icons.build_circle,
+                          Colors.purple,
+                          isLoading: snapshot.connectionState == ConnectionState.waiting,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('bookings')
+                          .where('providerId', isEqualTo: user.uid)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        final count = snapshot.data?.docs.length ?? 0;
+                        return _buildStatCard(
+                          context,
+                          'Bookings',
+                          '$count',
+                          Icons.calendar_today,
+                          Colors.orange,
+                          isLoading: snapshot.connectionState == ConnectionState.waiting,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              
+              // Revenue and Rating
+              Row(
+                children: [
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('bookings')
+                          .where('providerId', isEqualTo: user.uid)
+                          .where('status', isEqualTo: 'completed')
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return _buildStatCard(
+                            context,
+                            'Revenue',
+                            '₹0',
+                            Icons.currency_rupee,
+                            Colors.green,
+                            isLoading: true,
+                          );
+                        }
+                        
+                        double totalRevenue = 0;
+                        for (var doc in snapshot.data?.docs ?? []) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final cost = (data['totalCost'] as num?)?.toDouble() ?? 0;
+                          totalRevenue += cost;
+                        }
+                        
+                        return _buildStatCard(
+                          context,
+                          'Revenue',
+                          '₹${totalRevenue.toStringAsFixed(0)}',
+                          Icons.currency_rupee,
+                          Colors.green,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('services')
+                          .where('providerId', isEqualTo: user.uid)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return _buildStatCard(
+                            context,
+                            'Rating',
+                            '0.0',
+                            Icons.star,
+                            Colors.amber,
+                            isLoading: true,
+                          );
+                        }
+                        
+                        double totalRating = 0;
+                        int ratedCount = 0;
+                        
+                        for (var doc in snapshot.data?.docs ?? []) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final rating = (data['rating'] as num?)?.toDouble();
+                          if (rating != null && rating > 0) {
+                            totalRating += rating;
+                            ratedCount++;
+                          }
+                        }
+                        
+                        final avg = ratedCount > 0 ? (totalRating / ratedCount) : 0.0;
+                        
+                        return _buildStatCard(
+                          context,
+                          'Rating',
+                          avg.toStringAsFixed(1),
+                          Icons.star,
+                          Colors.amber,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
               // Quick Actions
               Text(
                 'Quick Actions',
@@ -239,13 +356,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
                     if (user.hasPermission('can_manage_services')) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Manage services feature coming soon!',
-                          ),
-                        ),
-                      );
+                      _showManageServicesDialog(context, user);
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -258,6 +369,152 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
                     }
                   },
                 ),
+              ),
+              const SizedBox(height: 12),
+              
+              Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: Colors.blue,
+                    child: Icon(Icons.calendar_month, color: Colors.white),
+                  ),
+                  title: const Text('View Bookings'),
+                  subtitle: const Text('Track and manage your bookings'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    if (user.hasPermission('can_view_bookings')) {
+                      _showViewBookingsDialog(context, user);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Access Denied: You do not have permission to view bookings.',
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              const SizedBox(height: 24),
+
+              // Recent Activity
+              Text(
+                'Recent Activity',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('bookings')
+                    .where('providerId', isEqualTo: user.uid)
+                    .orderBy('createdAt', descending: true)
+                    .limit(5)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    );
+                  }
+
+                  final bookings = snapshot.data?.docs ?? [];
+
+                  if (bookings.isEmpty) {
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              Icon(Icons.inbox_outlined, size: 48, color: Colors.grey[400]),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No recent activity',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Card(
+                    child: Column(
+                      children: bookings.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final serviceName = data['serviceName'] ?? 'Service';
+                        final customerName = data['customerName'] ?? 'Customer';
+                        final status = data['status'] ?? 'pending';
+                        final cost = (data['totalCost'] as num?)?.toDouble() ?? 0;
+
+                        Color statusColor;
+                        switch (status.toLowerCase()) {
+                          case 'completed':
+                            statusColor = Colors.green;
+                            break;
+                          case 'cancelled':
+                            statusColor = Colors.red;
+                            break;
+                          case 'in_progress':
+                            statusColor = Colors.blue;
+                            break;
+                          default:
+                            statusColor = Colors.orange;
+                        }
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: statusColor.withOpacity(0.1),
+                            child: Icon(Icons.work, color: statusColor, size: 20),
+                          ),
+                          title: Text(serviceName),
+                          subtitle: Text(customerName),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '₹${cost.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  status.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: statusColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 24),
 
@@ -780,6 +1037,381 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
     );
   }
 
+  // Manage Services Dialog
+  void _showManageServicesDialog(BuildContext context, dynamic user) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          width: 900,
+          height: 700,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('My Services', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddServiceDialog(context, user),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Service'),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                    ],
+                  ),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 16),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('services').where('providerId', isEqualTo: user.uid).orderBy('createdAt', descending: true).snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                    final services = snapshot.data?.docs ?? [];
+                    if (services.isEmpty) {
+                      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.build_outlined, size: 80, color: Colors.grey[400]), const SizedBox(height: 16), const Text('No services yet', style: TextStyle(fontSize: 18, color: Colors.grey)), const SizedBox(height: 8), ElevatedButton.icon(onPressed: () { Navigator.pop(ctx); _showAddServiceDialog(context, user); }, icon: const Icon(Icons.add), label: const Text('Add Your First Service'))]));
+                    }
+                    return GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.75),
+                      itemCount: services.length,
+                      itemBuilder: (context, index) {
+                        final serviceData = services[index].data() as Map<String, dynamic>;
+                        final serviceId = services[index].id;
+                        final name = serviceData['name'] ?? 'Unknown';
+                        final basePrice = (serviceData['basePrice'] as num?)?.toDouble() ?? 0;
+                        final imageUrl = serviceData['imageUrl'] as String?;
+                        final category = serviceData['category'] ?? 'General';
+                        
+                        return Card(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                  ),
+                                  child: imageUrl != null
+                                      ? ClipRRect(
+                                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                          child: Image.network(
+                                            imageUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 40),
+                                          ),
+                                        )
+                                      : const Icon(Icons.build, size: 40),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '₹${basePrice.toStringAsFixed(0)}/hr',
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      category,
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Edit coming soon!')),
+                                            ),
+                                            icon: const Icon(Icons.edit, size: 16),
+                                            label: const Text('Edit', style: TextStyle(fontSize: 12)),
+                                            style: OutlinedButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () async {
+                                            final confirm = await showDialog<bool>(
+                                              context: context,
+                                              builder: (dialogCtx) => AlertDialog(
+                                                title: const Text('Delete Service'),
+                                                content: Text('Delete "$name"?'),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(dialogCtx, false),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(dialogCtx, true),
+                                                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                                    child: const Text('Delete'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                            
+                                            if (confirm == true) {
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('services')
+                                                    .doc(serviceId)
+                                                    .delete();
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text('Service deleted'),
+                                                      backgroundColor: Colors.green,
+                                                    ),
+                                                  );
+                                                }
+                                              } catch (e) {
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text('Error: $e'),
+                                                      backgroundColor: Colors.red,
+                                                    ),
+                                                  );
+                                                }
+                                              }
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Add Service Dialog
+  void _showAddServiceDialog(BuildContext context, dynamic user) {
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final basePriceController = TextEditingController();
+    String selectedCategory = 'General';
+    bool isLoading = false;
+    List<Uint8List> selectedImages = [];
+    final ImagePicker picker = ImagePicker();
+
+    Future<void> pickImages(StateSetter setState) async {
+      try {
+        final List<XFile> images = await picker.pickMultiImage();
+        if (images.isNotEmpty) {
+          final List<Uint8List> imageBytes = [];
+          for (var image in images.take(6)) { imageBytes.add(await image.readAsBytes()); }
+          setState(() => selectedImages = imageBytes);
+        }
+      } catch (e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'))); }
+    }
+
+    Future<List<String>> uploadImages(String serviceId) async {
+      final List<String> imageUrls = [];
+      for (int i = 0; i < selectedImages.length; i++) {
+        try {
+          final ref = FirebaseStorage.instance.ref().child('services').child(serviceId).child('image_$i.jpg');
+          await ref.putData(selectedImages[i]);
+          imageUrls.add(await ref.getDownloadURL());
+        } catch (e) { print('Error uploading image $i: $e'); }
+      }
+      return imageUrls;
+    }
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (context, setState) => AlertDialog(title: const Text('Add New Service'), content: SingleChildScrollView(child: Form(key: formKey, child: SizedBox(width: 500, child: Column(mainAxisSize: MainAxisSize.min, children: [InkWell(onTap: () => pickImages(setState), child: Container(height: 120, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey[400]!)), child: selectedImages.isEmpty ? const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_photo_alternate, size: 48, color: Colors.grey), SizedBox(height: 8), Text('Tap to add images (max 6)')]) : GridView.builder(padding: const EdgeInsets.all(8), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: selectedImages.length, itemBuilder: (context, index) => ClipRRect(borderRadius: BorderRadius.circular(4), child: Image.memory(selectedImages[index], fit: BoxFit.cover))))), const SizedBox(height: 16), TextFormField(controller: nameController, decoration: const InputDecoration(labelText: 'Service Name *', border: OutlineInputBorder()), validator: (v) => v?.isEmpty == true ? 'Required' : null), const SizedBox(height: 16), TextFormField(controller: descriptionController, decoration: const InputDecoration(labelText: 'Description *', border: OutlineInputBorder()), maxLines: 3, validator: (v) => v?.isEmpty == true ? 'Required' : null), const SizedBox(height: 16), Row(children: [Expanded(child: TextFormField(controller: basePriceController, decoration: const InputDecoration(labelText: 'Base Price/hr *', border: OutlineInputBorder(), prefixText: '₹'), keyboardType: TextInputType.number, validator: (v) { if (v?.isEmpty == true) return 'Required'; final price = double.tryParse(v!); if (price == null || price <= 0) return 'Invalid'; return null; })), const SizedBox(width: 12), Expanded(child: DropdownButtonFormField<String>(value: selectedCategory, decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()), items: ['General', 'Plumbing', 'Electrical', 'Carpentry', 'Cleaning', 'Painting'].map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(), onChanged: (val) => setState(() => selectedCategory = val!)))])])))), actions: [TextButton(onPressed: isLoading ? null : () => Navigator.pop(ctx), child: const Text('Cancel')), ElevatedButton(onPressed: isLoading ? null : () async { if (!formKey.currentState!.validate()) return; if (selectedImages.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add at least 1 image'))); return; } setState(() => isLoading = true); try { final serviceId = FirebaseFirestore.instance.collection('services').doc().id; final imageUrls = await uploadImages(serviceId); if (imageUrls.isEmpty) throw Exception('Upload failed'); await FirebaseFirestore.instance.collection('services').doc(serviceId).set({'id': serviceId, 'providerId': user.uid, 'name': nameController.text.trim(), 'description': descriptionController.text.trim(), 'basePrice': double.parse(basePriceController.text), 'category': selectedCategory, 'imageUrl': imageUrls.first, 'imageUrls': imageUrls, 'createdAt': FieldValue.serverTimestamp(), 'rating': 0.0, 'reviewCount': 0}); if (context.mounted) { Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service added!'), backgroundColor: Colors.green)); } } catch (e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)); } finally { if (mounted) setState(() => isLoading = false); } }, child: isLoading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Add Service'))])));
+  }
+
+  // View Bookings Dialog
+  void _showViewBookingsDialog(BuildContext context, dynamic user) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            String selectedStatus = 'All';
+            return Container(
+              width: 900,
+              height: 700,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('My Bookings', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  
+                  // Status Filter Chips
+                  SizedBox(
+                    height: 40,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: ['All', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'].map((status) {
+                        final isSelected = selectedStatus == status;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            label: Text(status == 'All' ? 'All' : status.toUpperCase()),
+                            selected: isSelected,
+                            onSelected: (selected) => setState(() => selectedStatus = status),
+                            backgroundColor: Colors.grey[200],
+                            selectedColor: Colors.blue[100],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Bookings List
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection('bookings').where('providerId', isEqualTo: user.uid).orderBy('createdAt', descending: true).snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                        
+                        var bookings = snapshot.data?.docs ?? [];
+                        if (selectedStatus != 'All') {
+                          bookings = bookings.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            return (data['status'] ?? 'pending').toLowerCase() == selectedStatus.toLowerCase();
+                          }).toList();
+                        }
+                        
+                        if (bookings.isEmpty) {
+                          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[400]), const SizedBox(height: 16), Text(selectedStatus == 'All' ? 'No bookings yet' : 'No $selectedStatus bookings', style: const TextStyle(fontSize: 18, color: Colors.grey))]));
+                        }
+                        
+                        return ListView.builder(
+                          itemCount: bookings.length,
+                          itemBuilder: (context, index) {
+                            final bookingData = bookings[index].data() as Map<String, dynamic>;
+                            final bookingId = bookings[index].id;
+                            final serviceName = bookingData['serviceName'] ?? 'Service';
+                            final customerName = bookingData['customerName'] ?? 'Customer';
+                            final customerPhone = bookingData['customerPhone'] ?? 'N/A';
+                            final status = bookingData['status'] ?? 'pending';
+                            final totalCost = (bookingData['totalCost'] as num?)?.toDouble() ?? 0;
+                            final bookingDate = (bookingData['bookingDate'] as Timestamp?)?.toDate();
+                            final address = bookingData['address'] ?? 'N/A';
+                            
+                            Color statusColor;
+                            switch (status.toLowerCase()) {
+                              case 'completed': statusColor = Colors.green; break;
+                              case 'cancelled': statusColor = Colors.red; break;
+                              case 'in_progress': statusColor = Colors.blue; break;
+                              case 'confirmed': statusColor = Colors.teal; break;
+                              default: statusColor = Colors.orange;
+                            }
+                            
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: ExpansionTile(
+                                leading: CircleAvatar(backgroundColor: statusColor.withOpacity(0.1), child: Icon(Icons.work, color: statusColor, size: 20)),
+                                title: Text('Booking #${bookingId.substring(0, 8)}...', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text('$serviceName • $customerName'),
+                                trailing: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text('₹${totalCost.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                                      child: Text(status.toUpperCase(), style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildBookingDetailRow(Icons.person, 'Customer', customerName),
+                                        const SizedBox(height: 8),
+                                        _buildBookingDetailRow(Icons.phone, 'Phone', customerPhone),
+                                        const SizedBox(height: 8),
+                                        _buildBookingDetailRow(Icons.build, 'Service', serviceName),
+                                        const SizedBox(height: 8),
+                                        if (bookingDate != null) _buildBookingDetailRow(Icons.calendar_today, 'Date', DateFormat('MMM d, yyyy').format(bookingDate)),
+                                        const SizedBox(height: 8),
+                                        _buildBookingDetailRow(Icons.location_on, 'Address', address),
+                                        const SizedBox(height: 8),
+                                        _buildBookingDetailRow(Icons.currency_rupee, 'Total Cost', '₹${totalCost.toStringAsFixed(2)}'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookingDetailRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.grey[600]),
+        const SizedBox(width: 8),
+        Text('$label: ', style: TextStyle(color: Colors.grey[600], fontSize: 14, fontWeight: FontWeight.w500)),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
+      ],
+    );
+  }
+
   Widget _buildDetailRow(IconData icon, String label, String value) {
     return Row(
       children: [
@@ -796,6 +1428,73 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildStatCard(
+    BuildContext context,
+    String title,
+    String value,
+    IconData icon,
+    Color color, {
+    bool isLoading = false,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(icon, color: color, size: 28),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: isLoading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(color),
+                          ),
+                        )
+                      : Icon(icon, color: color, size: 20),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            isLoading
+                ? SizedBox(
+                    height: 32,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                      ),
+                    ),
+                  )
+                : Text(
+                    value,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
