@@ -64,13 +64,14 @@ class _DeliveryPartnerDashboardScreenState
     }
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Delivery Partner Dashboard'),
           centerTitle: true,
           bottom: const TabBar(
             tabs: [
+              Tab(text: 'Overview', icon: Icon(Icons.dashboard)),
               Tab(text: 'Available Orders', icon: Icon(Icons.notifications_active)),
               Tab(text: 'My Deliveries', icon: Icon(Icons.local_shipping)),
             ],
@@ -88,6 +89,7 @@ class _DeliveryPartnerDashboardScreenState
         ),
         body: TabBarView(
           children: [
+            _buildOverviewTab(deliveryPartnerId),
             _buildAvailableOrdersTab(deliveryPartnerId),
             _buildMyDeliveriesTab(deliveryPartnerId),
           ],
@@ -905,6 +907,1008 @@ class _DeliveryPartnerDashboardScreenState
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== OVERVIEW TAB ====================
+  Widget _buildOverviewTab(String deliveryPartnerId) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Welcome Card
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primary,
+                    Theme.of(context).colorScheme.primaryContainer,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: Colors.white,
+                        child: Icon(
+                          Icons.delivery_dining,
+                          size: 30,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Welcome, ${user?.name ?? "Partner"}',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Delivery Partner',
+                              style: TextStyle(fontSize: 14, color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Business Stats
+          Text(
+            'Business Stats',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+
+          // Row 1: Total Deliveries & Today's Deliveries
+          Row(
+            children: [
+              // Total Deliveries
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data?.docs.length ?? 0;
+                    return _buildStatCard(
+                      context,
+                      'Total Deliveries',
+                      '$count',
+                      Icons.local_shipping,
+                      Colors.blue,
+                      isLoading: snapshot.connectionState == ConnectionState.waiting,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Today's Deliveries
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+                      .where('deliveryStatus', isEqualTo: 'delivered')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return _buildStatCard(
+                        context,
+                        'Completed',
+                        '0',
+                        Icons.check_circle,
+                        Colors.green,
+                        isLoading: true,
+                      );
+                    }
+
+                    final today = DateTime.now();
+                    final todayStart = DateTime(today.year, today.month, today.day);
+                    
+                    int todayCount = 0;
+                    for (var doc in snapshot.data?.docs ?? []) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final deliveredAt = data['deliveredAt'] as Timestamp?;
+                      if (deliveredAt != null) {
+                        final deliveredDate = deliveredAt.toDate();
+                        if (deliveredDate.isAfter(todayStart)) {
+                          todayCount++;
+                        }
+                      }
+                    }
+
+                    return _buildStatCard(
+                      context,
+                      'Completed Today',
+                      '$todayCount',
+                      Icons.today,
+                      Colors.green,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Row 2: Total Earnings & Success Rate
+          Row(
+            children: [
+              // Total Earnings
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+                      .where('deliveryStatus', isEqualTo: 'delivered')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return _buildStatCard(
+                        context,
+                        'Total Earnings',
+                        '₹0',
+                        Icons.currency_rupee,
+                        Colors.orange,
+                        isLoading: true,
+                      );
+                    }
+
+                    double totalEarnings = 0;
+                    for (var doc in snapshot.data?.docs ?? []) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final deliveryFee = (data['deliveryFee'] as num?)?.toDouble() ?? 0;
+                      totalEarnings += deliveryFee;
+                    }
+
+                    return _buildStatCard(
+                      context,
+                      'Total Earnings',
+                      '₹${totalEarnings.toStringAsFixed(0)}',
+                      Icons.currency_rupee,
+                      Colors.orange,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Success Rate
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return _buildStatCard(
+                        context,
+                        'Success Rate',
+                        '0%',
+                        Icons.trending_up,
+                        Colors.purple,
+                        isLoading: true,
+                      );
+                    }
+
+                    final allOrders = snapshot.data?.docs ?? [];
+                    final completedOrders = allOrders.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return data['deliveryStatus'] == 'delivered';
+                    }).length;
+
+                    final successRate = allOrders.isNotEmpty
+                        ? (completedOrders / allOrders.length * 100)
+                        : 0.0;
+
+                    return _buildStatCard(
+                      context,
+                      'Success Rate',
+                      '${successRate.toStringAsFixed(0)}%',
+                      Icons.trending_up,
+                      Colors.purple,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Quick Actions
+          Text(
+            'Quick Actions',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Colors.orange,
+                child: Icon(Icons.account_balance_wallet, color: Colors.white),
+              ),
+              title: const Text('View Earnings'),
+              subtitle: const Text('Track your income and payments'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                _showEarningsDialog(deliveryPartnerId);
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Colors.purple,
+                child: Icon(Icons.bar_chart, color: Colors.white),
+              ),
+              title: const Text('Performance Stats'),
+              subtitle: const Text('View your delivery metrics'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                _showPerformanceDialog(deliveryPartnerId);
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Recent Deliveries
+          Text(
+            'Recent Deliveries',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('orders')
+                .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+                .orderBy('createdAt', descending: true)
+                .limit(5)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+
+              final deliveries = snapshot.data?.docs ?? [];
+
+              if (deliveries.isEmpty) {
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.inbox_outlined, size: 48, color: Colors.grey[400]),
+                          const SizedBox(height: 8),
+                          Text(
+                            'No recent deliveries',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return Card(
+                child: Column(
+                  children: deliveries.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final orderId = doc.id;
+                    final customerName = data['userName'] ?? 'Customer';
+                    final status = data['deliveryStatus'] ?? 'assigned';
+                    final deliveryFee = (data['deliveryFee'] as num?)?.toDouble() ?? 0;
+
+                    Color statusColor;
+                    switch (status.toLowerCase()) {
+                      case 'delivered':
+                        statusColor = Colors.green;
+                        break;
+                      case 'in_transit':
+                        statusColor = Colors.blue;
+                        break;
+                      case 'picked_up':
+                        statusColor = Colors.orange;
+                        break;
+                      default:
+                        statusColor = Colors.grey;
+                    }
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: statusColor.withOpacity(0.1),
+                        child: Icon(Icons.local_shipping, color: statusColor, size: 20),
+                      ),
+                      title: Text('Order #${orderId.substring(0, 8)}...'),
+                      subtitle: Text(customerName),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '₹${deliveryFee.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _getStatusLabel(status).toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: statusColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(
+    BuildContext context,
+    String title,
+    String value,
+    IconData icon,
+    Color color, {
+    bool isLoading = false,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const Spacer(),
+                if (isLoading)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: TextStyle(color: Colors.grey[600], fontSize: 14),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== PHASE 2: EARNINGS DIALOG ====================
+  void _showEarningsDialog(String deliveryPartnerId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          width: 800,
+          height: 600,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Earnings History',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 16),
+
+              // Total Earnings Card
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('orders')
+                    .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+                    .where('deliveryStatus', isEqualTo: 'delivered')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    );
+                  }
+
+                  double totalEarnings = 0;
+                  final deliveries = snapshot.data?.docs ?? [];
+                  
+                  for (var doc in deliveries) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final fee = (data['deliveryFee'] as num?)?.toDouble() ?? 0;
+                    totalEarnings += fee;
+                  }
+
+                  return Card(
+                    color: Colors.green.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.currency_rupee,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Total Earnings',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '₹${totalEarnings.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                                Text(
+                                  'From ${deliveries.length} completed deliveries',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Deliveries List
+              const Text(
+                'Completed Deliveries',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+                      .where('deliveryStatus', isEqualTo: 'delivered')
+                      .orderBy('deliveredAt', descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final deliveries = snapshot.data?.docs ?? [];
+
+                    if (deliveries.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.receipt_long, size: 64, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No completed deliveries yet',
+                              style: TextStyle(fontSize: 16, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: deliveries.length,
+                      itemBuilder: (context, index) {
+                        final data = deliveries[index].data() as Map<String, dynamic>;
+                        final orderId = deliveries[index].id;
+                        final deliveryFee = (data['deliveryFee'] as num?)?.toDouble() ?? 0;
+                        final customerName = data['userName'] ?? 'Customer';
+                        final deliveredAt = (data['deliveredAt'] as Timestamp?)?.toDate();
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.green.shade100,
+                              child: const Icon(Icons.check, color: Colors.green),
+                            ),
+                            title: Text('Order #${orderId.substring(0, 8)}...'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(customerName),
+                                if (deliveredAt != null)
+                                  Text(
+                                    'Delivered: ${DateFormat('MMM d, yyyy - h:mm a').format(deliveredAt)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            trailing: Text(
+                              '₹${deliveryFee.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==================== PHASE 3: PERFORMANCE DIALOG ====================
+  void _showPerformanceDialog(String deliveryPartnerId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          width: 700,
+          height: 600,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Performance Stats',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 16),
+
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final allOrders = snapshot.data?.docs ?? [];
+                    final completedOrders = allOrders.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return data['deliveryStatus'] == 'delivered';
+                    }).toList();
+
+                    // Calculate metrics
+                    final totalDeliveries = allOrders.length;
+                    final successfulDeliveries = completedOrders.length;
+                    final successRate = totalDeliveries > 0
+                        ? (successfulDeliveries / totalDeliveries * 100)
+                        : 0.0;
+
+                    // Today's deliveries
+                    final today = DateTime.now();
+                    final todayStart = DateTime(today.year, today.month, today.day);
+                    final todayDeliveries = completedOrders.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final deliveredAt = (data['deliveredAt'] as Timestamp?)?.toDate();
+                      return deliveredAt != null && deliveredAt.isAfter(todayStart);
+                    }).length;
+
+                    // This month's deliveries
+                    final monthStart = DateTime(today.year, today.month, 1);
+                    final monthDeliveries = completedOrders.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final deliveredAt = (data['deliveredAt'] as Timestamp?)?.toDate();
+                      return deliveredAt != null && deliveredAt.isAfter(monthStart);
+                    }).length;
+
+                    return SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          // Success Rate Card
+                          Card(
+                            color: Colors.purple.shade50,
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.purple,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.trending_up,
+                                      color: Colors.white,
+                                      size: 32,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Success Rate',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${successRate.toStringAsFixed(1)}%',
+                                          style: const TextStyle(
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.purple,
+                                          ),
+                                        ),
+                                        Text(
+                                          '$successfulDeliveries of $totalDeliveries completed',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Performance Grid
+                          GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1.5,
+                            children: [
+                              // Today's Performance
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.blue.shade100,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              Icons.today,
+                                              color: Colors.blue.shade700,
+                                              size: 24,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const Spacer(),
+                                      const Text(
+                                        'Today',
+                                        style: TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '$todayDeliveries',
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const Text(
+                                        'deliveries',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              // This Month
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green.shade100,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              Icons.calendar_month,
+                                              color: Colors.green.shade700,
+                                              size: 24,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const Spacer(),
+                                      const Text(
+                                        'This Month',
+                                        style: TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '$monthDeliveries',
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const Text(
+                                        'deliveries',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              // Total Completed
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.shade100,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              Icons.check_circle,
+                                              color: Colors.orange.shade700,
+                                              size: 24,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const Spacer(),
+                                      const Text(
+                                        'Completed',
+                                        style: TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '$successfulDeliveries',
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const Text(
+                                        'total',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              // Active Deliveries
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red.shade100,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              Icons.local_shipping,
+                                              color: Colors.red.shade700,
+                                              size: 24,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const Spacer(),
+                                      const Text(
+                                        'Active',
+                                        style: TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${totalDeliveries - successfulDeliveries}',
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const Text(
+                                        'in progress',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
