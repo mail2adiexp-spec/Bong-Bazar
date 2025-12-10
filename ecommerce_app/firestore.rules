@@ -184,14 +184,14 @@ service cloud.firestore {
     
     // ==================== PARTNER REQUESTS COLLECTION ====================
     // Read: Own request + Admin
-    // Create: Any authenticated user
+    // Create: Anyone (public - no auth required for partner applications)
     // Update/Delete: Admin only
     match /partner_requests/{requestId} {
       allow read: if isAuthenticated() && (
         resource.data.email == request.auth.token.email ||
         isAdmin()
       );
-      allow create: if isAuthenticated();
+      allow create: if true; // Allow public partner request submissions
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
