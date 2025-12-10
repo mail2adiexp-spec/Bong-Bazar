@@ -346,3 +346,147 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("internal", "An internal error occurred while creating the account.");
   }
 });
+
+/**
+ * Approve Partner Request
+ * Creates user account and updates request status
+ * Only admins can call this function
+ */
+exports.approvePartnerRequest = functions.https.onCall(async (data, context) => {
+  // Check if caller is authenticated
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated",
+    );
+  }
+
+  // Check if caller is admin
+  const callerUid = context.auth.uid;
+  const callerDoc = await admin
+    .firestore()
+    .collection("users")
+    .doc(callerUid)
+    .get();
+
+  const callerRole = callerDoc.data()?.role;
+  const isAdmin =
+    callerRole === "admin" ||
+    callerRole === "administrator" ||
+    context.auth.token.admin === true;
+
+  if (!isAdmin) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Only admins can approve partner requests",
+    );
+  }
+
+  const { requestId } = data;
+
+  if (!requestId) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "requestId is required",
+    );
+  }
+
+  try {
+    // 1. Fetch the partner request
+    const requestRef = admin.firestore().collection("partner_requests").doc(requestId);
+    const requestDoc = await requestRef.get();
+
+    if (!requestDoc.exists) {
+      throw new functions.https.HttpsError(
+        "not-found",
+        "Partner request not found",
+      );
+    }
+
+    const requestData = requestDoc.data();
+    const { email, password, name, phone, role, panNumber, aadhaarNumber, profilePicUrl } = requestData;
+
+    if (!email || !password || !name || !role) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields in partner request",
+      );
+    }
+
+    // 2. Create user in Firebase Authentication
+    const userRecord = await admin.auth().createUser({
+      email: email,
+      password: password,
+      displayName: name,
+      disabled: false,
+    });
+
+    const userId = userRecord.uid;
+
+    // 3. Determine role mapping
+    let userRole = "user";
+    if (role === "Seller") {
+      userRole = "seller";
+    } else if (role === "Service Provider") {
+      userRole = "service_provider";
+    } else if (role === "Delivery Partner") {
+      userRole = "delivery_partner";
+    }
+
+    // 4. Create user document in Firestore
+    const userData = {
+      uid: userId,
+      name: name,
+      email: email,
+      phone: phone || "",
+      role: userRole,
+      panNumber: panNumber || "",
+      aadhaarNumber: aadhaarNumber || "",
+      profilePicUrl: profilePicUrl ||"",
+      permissions: {
+        can_view_dashboard: true,
+      },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    // Add role-specific permissions
+    if (userRole === "seller") {
+      userData.permissions.can_manage_products = true;
+      userData.permissions.can_view_orders = true;
+    } else if (userRole === "service_provider") {
+      userData.permissions.can_manage_services = true;
+      userData.permissions.can_view_bookings = true;
+    } else if (userRole === "delivery_partner") {
+      userData.permissions.can_view_deliveries = true;
+      userData.permissions.can_update_delivery_status = true;
+    }
+
+    await admin.firestore().collection("users").doc(userId).set(userData);
+
+    // 5. Update partner request status
+    await requestRef.update({
+      status: "approved",
+      approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+      userId: userId,
+    });
+
+    return {
+      success: true,
+      message: `Partner request approved successfully for ${email}`,
+      userId: userId,
+    };
+  } catch (error) {
+    console.error("Error approving partner request:", error);
+    
+    // If there's an error after user creation, try to clean up
+    if (error.code && error.code.startsWith("auth/")) {
+      throw new functions.https.HttpsError("already-exists", error.message);
+    }
+    
+    throw new functions.https.HttpsError(
+      "internal",
+      `Failed to approve partner request: ${error.message}`,
+    );
+  }
+});
