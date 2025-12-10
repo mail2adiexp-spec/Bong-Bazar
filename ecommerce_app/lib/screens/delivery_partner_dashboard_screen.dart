@@ -988,160 +988,160 @@ class _DeliveryPartnerDashboardScreenState
           ),
           const SizedBox(height: 12),
 
-          // Row 1: Total Deliveries & Today's Deliveries
-          Row(
-            children: [
-              // Total Deliveries
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    final count = snapshot.data?.docs.length ?? 0;
-                    return _buildStatCard(
-                      context,
-                      'Total Deliveries',
-                      '$count',
-                      Icons.local_shipping,
-                      Colors.blue,
-                      isLoading: snapshot.connectionState == ConnectionState.waiting,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Today's Deliveries
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
-                      .where('deliveryStatus', isEqualTo: 'delivered')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return _buildStatCard(
-                        context,
-                        'Completed',
-                        '0',
-                        Icons.check_circle,
-                        Colors.green,
-                        isLoading: true,
-                      );
-                    }
+          // Single StreamBuilder for all stats
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('orders')
+                .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            context,
+                            'Total Deliveries',
+                            '0',
+                            Icons.local_shipping,
+                            Colors.blue,
+                            isLoading: true,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            context,
+                            'Completed Today',
+                            '0',
+                            Icons.today,
+                            Colors.green,
+                            isLoading: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            context,
+                            'Total Earnings',
+                            '₹0',
+                            Icons.currency_rupee,
+                            Colors.orange,
+                            isLoading: true,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            context,
+                            'Success Rate',
+                            '0%',
+                            Icons.trending_up,
+                            Colors.purple,
+                            isLoading: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
 
-                    final today = DateTime.now();
-                    final todayStart = DateTime(today.year, today.month, today.day);
-                    
-                    int todayCount = 0;
-                    for (var doc in snapshot.data?.docs ?? []) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final deliveredAt = data['deliveredAt'] as Timestamp?;
-                      if (deliveredAt != null) {
-                        final deliveredDate = deliveredAt.toDate();
-                        if (deliveredDate.isAfter(todayStart)) {
-                          todayCount++;
-                        }
-                      }
-                    }
+              final allOrders = snapshot.data?.docs ?? [];
+              final totalCount = allOrders.length;
 
-                    return _buildStatCard(
-                      context,
-                      'Completed Today',
-                      '$todayCount',
-                      Icons.today,
-                      Colors.green,
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+              // Filter completed orders
+              final completedOrders = allOrders.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return data['deliveryStatus'] == 'delivered';
+              }).toList();
 
-          // Row 2: Total Earnings & Success Rate
-          Row(
-            children: [
-              // Total Earnings
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
-                      .where('deliveryStatus', isEqualTo: 'delivered')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return _buildStatCard(
-                        context,
-                        'Total Earnings',
-                        '₹0',
-                        Icons.currency_rupee,
-                        Colors.orange,
-                        isLoading: true,
-                      );
-                    }
+              // Calculate today's deliveries
+              final today = DateTime.now();
+              final todayStart = DateTime(today.year, today.month, today.day);
+              int todayCount = 0;
+              for (var doc in completedOrders) {
+                final data = doc.data() as Map<String, dynamic>;
+                final deliveredAt = data['deliveredAt'] as Timestamp?;
+                if (deliveredAt != null) {
+                  final deliveredDate = deliveredAt.toDate();
+                  if (deliveredDate.isAfter(todayStart)) {
+                    todayCount++;
+                  }
+                }
+              }
 
-                    double totalEarnings = 0;
-                    for (var doc in snapshot.data?.docs ?? []) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final deliveryFee = (data['deliveryFee'] as num?)?.toDouble() ?? 0;
-                      totalEarnings += deliveryFee;
-                    }
+              // Calculate total earnings
+              double totalEarnings = 0;
+              for (var doc in completedOrders) {
+                final data = doc.data() as Map<String, dynamic>;
+                final deliveryFee = (data['deliveryFee'] as num?)?.toDouble() ?? 0;
+                totalEarnings += deliveryFee;
+              }
 
-                    return _buildStatCard(
-                      context,
-                      'Total Earnings',
-                      '₹${totalEarnings.toStringAsFixed(0)}',
-                      Icons.currency_rupee,
-                      Colors.orange,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Success Rate
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return _buildStatCard(
-                        context,
-                        'Success Rate',
-                        '0%',
-                        Icons.trending_up,
-                        Colors.purple,
-                        isLoading: true,
-                      );
-                    }
+              // Calculate success rate
+              final successRate = totalCount > 0
+                  ? (completedOrders.length / totalCount * 100)
+                  : 0.0;
 
-                    final allOrders = snapshot.data?.docs ?? [];
-                    final completedOrders = allOrders.where((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return data['deliveryStatus'] == 'delivered';
-                    }).length;
-
-                    final successRate = allOrders.isNotEmpty
-                        ? (completedOrders / allOrders.length * 100)
-                        : 0.0;
-
-                    return _buildStatCard(
-                      context,
-                      'Success Rate',
-                      '${successRate.toStringAsFixed(0)}%',
-                      Icons.trending_up,
-                      Colors.purple,
-                    );
-                  },
-                ),
-              ),
-            ],
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          context,
+                          'Total Deliveries',
+                          '$totalCount',
+                          Icons.local_shipping,
+                          Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatCard(
+                          context,
+                          'Completed Today',
+                          '$todayCount',
+                          Icons.today,
+                          Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          context,
+                          'Total Earnings',
+                          '₹${totalEarnings.toStringAsFixed(0)}',
+                          Icons.currency_rupee,
+                          Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatCard(
+                          context,
+                          'Success Rate',
+                          '${successRate.toStringAsFixed(0)}%',
+                          Icons.trending_up,
+                          Colors.purple,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 24),
 
