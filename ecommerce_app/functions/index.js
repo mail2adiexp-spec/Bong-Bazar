@@ -282,18 +282,55 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
   }
 
   const callerUid = context.auth.uid;
-  const callerDoc = await admin.firestore().collection("users").doc(callerUid).get();
-  const callerRole = callerDoc.data()?.role;
-  const isAdmin =
-    callerRole === "admin" ||
-    callerRole === "administrator" ||
-    context.auth.token.admin === true;
+  const callerEmail = context.auth.token.email;
 
-  if (!isAdmin) {
-    throw new functions.https.HttpsError(
-      "permission-denied",
-      "Only admins can create staff accounts.",
-    );
+  // CRITICAL: Check super admin email FIRST, before any Firestore lookups
+  // This allows the super admin to bypass document requirements
+  const isSuperAdmin = callerEmail === "mail2adiexp@gmail.com";
+
+  if (isSuperAdmin) {
+    console.log("Super admin access granted for:", callerEmail);
+    // Super admin verified - skip document checks and proceed
+  } else {
+    // For non-super-admin users, fetch and validate Firestore document
+    const callerDoc = await admin.firestore().collection("users").doc(callerUid).get();
+
+    // Log for debugging
+    console.log("createStaffAccount called by regular user:", {
+      uid: callerUid,
+      email: callerEmail,
+      docExists: callerDoc.exists,
+      role: callerDoc.data()?.role,
+    });
+
+    // Check if document exists
+    if (!callerDoc.exists) {
+      console.error("Caller document not found in Firestore for UID:", callerUid);
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "User profile not found. Please ensure your account is properly set up.",
+      );
+    }
+
+    const callerRole = callerDoc.data()?.role;
+
+    // Check if user has admin role
+    const isRegularAdmin =
+      callerRole === "admin" ||
+      callerRole === "administrator" ||
+      context.auth.token.admin === true;
+
+    if (!isRegularAdmin) {
+      console.log("Permission denied for user:", {
+        uid: callerUid,
+        email: callerEmail,
+        role: callerRole,
+      });
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Only admins can create staff accounts.",
+      );
+    }
   }
 
   // 2. Validate input

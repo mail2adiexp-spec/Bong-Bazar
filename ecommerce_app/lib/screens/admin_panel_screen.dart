@@ -6058,8 +6058,29 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                    
                 } catch (e) {
                    if (mounted) {
+                     String errorMessage = 'Error: $e';
+                     
+                     // Check for specific permission error
+                     final errorString = e.toString().toLowerCase();
+                     if (errorString.contains('permission-denied') || 
+                         errorString.contains('only admins can create') ||
+                         errorString.contains('only admins can')) {
+                       errorMessage = 'Permission Denied: केवल Admin ही Core Staff members add कर सकते हैं।\nकृपया admin account से login करें।';
+                     } else if (errorString.contains('already-exists') ||
+                                errorString.contains('email-already-in-use')) {
+                       errorMessage = 'Error: यह email पहले से registered है। कृपया दूसरा email उपयोग करें।';
+                     } else if (errorString.contains('invalid-email')) {
+                       errorMessage = 'Error: Email format गलत है। कृपया valid email enter करें।';
+                     } else if (errorString.contains('weak-password')) {
+                       errorMessage = 'Error: Password कम से कम 6 characters का होना चाहिए।';
+                     }
+                     
                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e')),
+                        SnackBar(
+                          content: Text(errorMessage),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 5),
+                        ),
                       );
                    }
                 } finally {
@@ -6625,7 +6646,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     return RoleManagementTab(
       collection: 'users',
       role: role,
-      requestRole: role == 'seller' ? 'Seller' : 'Service Provider',
+      requestRole: role == 'seller' 
+          ? 'Seller' 
+          : role == 'service_provider'
+              ? 'Service Provider'
+              : 'Delivery Partner',
       onEdit: _editUser,
       onDelete: _deleteUser,
       onRequestAction: _updateRequestStatus,
@@ -6634,6 +6659,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           _showSellerDashboard(id, data);
         } else if (role == 'service_provider') {
           _showServiceProviderDashboard(id, data);
+        } else if (role == 'delivery_partner') {
+          _showDeliveryPartnerDashboard(id, data);
         }
       },
     );
@@ -7168,6 +7195,243 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           },
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDeliveryPartnerDashboard(
+    String partnerId,
+    Map<String, dynamic> partnerData,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          width: 800,
+          height: 600,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: DefaultTabController(
+            length: 3,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundImage: partnerData['photoURL'] != null
+                            ? NetworkImage(partnerData['photoURL'])
+                            : null,
+                        child: partnerData['photoURL'] == null
+                            ? Text(
+                                (partnerData['name'] ?? 'U')[0].toUpperCase(),
+                                style: const TextStyle(fontSize: 24),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              partnerData['name'] ?? 'Unknown Partner',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Partner ID: $partnerId',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const TabBar(
+                  labelColor: Colors.green,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: [
+                    Tab(icon: Icon(Icons.person), text: 'Profile'),
+                    Tab(icon: Icon(Icons.local_shipping), text: 'Deliveries'),
+                    Tab(icon: Icon(Icons.account_balance), text: 'Financials'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      // Profile Tab
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Personal Information',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Divider(),
+                            const SizedBox(height: 16),
+                            _buildInfoRow('Full Name', partnerData['name'] ?? '-'),
+                            _buildInfoRow('Email', partnerData['email'] ?? '-'),
+                            _buildInfoRow('Phone', partnerData['phone'] ?? '-'),
+                            _buildInfoRow(
+                              'Service Pincodes',
+                              (partnerData['servicePincodes'] as List?)?.join(', ') ?? '-',
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Deliveries Tab
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('orders')
+                            .where('deliveryPartnerId', isEqualTo: partnerId)
+                            .orderBy('orderDate', descending: true)
+                            .limit(50)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+
+                          if (snapshot.hasError) {
+                            return Center(child: Text('Error: ${snapshot.error}'));
+                          }
+
+                          final deliveries = snapshot.data?.docs ?? [];
+
+                          if (deliveries.isEmpty) {
+                            return const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.local_shipping, size: 64, color: Colors.grey),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'No deliveries assigned yet',
+                                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: deliveries.length,
+                            itemBuilder: (context, index) {
+                              final doc = deliveries[index];
+                              final data = doc.data() as Map<String, dynamic>;
+                              final orderId = doc.id;
+                              final status = data['deliveryStatus'] ?? 'pending';
+                              final customerName = data['customerName'] ?? 'Unknown';
+                              final deliveryFee = (data['deliveryFee'] as num?)?.toDouble() ?? 0;
+                              final orderDate = data['orderDate'] as Timestamp?;
+
+                              Color statusColor;
+                              switch (status) {
+                                case 'delivered':
+                                  statusColor = Colors.green;
+                                  break;
+                                case 'in_transit':
+                                  statusColor = Colors.blue;
+                                  break;
+                                case 'picked_up':
+                                  statusColor = Colors.orange;
+                                  break;
+                                default:
+                                  statusColor = Colors.grey;
+                              }
+
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: statusColor.withOpacity(0.2),
+                                    child: Icon(Icons.shopping_bag, color: statusColor),
+                                  ),
+                                  title: Text('Order #${orderId.substring(0, 8)}'),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Customer: $customerName'),
+                                      if (orderDate != null)
+                                        Text(
+                                          'Date: ${DateFormat('dd MMM yyyy').format(orderDate.toDate())}',
+                                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                        ),
+                                    ],
+                                  ),
+                                  trailing: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '₹${deliveryFee.toStringAsFixed(0)}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: statusColor.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          status.toUpperCase(),
+                                          style: TextStyle(
+                                            color: statusColor,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                      // Financials Tab
+                      _buildFinancialTab(partnerId, 'delivery_partner'),
                     ],
                   ),
                 ),

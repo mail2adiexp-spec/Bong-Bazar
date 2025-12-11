@@ -8,6 +8,7 @@ import 'edit_profile_screen.dart';
 import 'admin_panel_screen.dart';
 import 'seller_dashboard_screen.dart';
 import 'service_provider_dashboard_screen.dart';
+import 'core_staff_dashboard_screen.dart';
 
 class AccountScreen extends StatefulWidget {
   static const routeName = '/account';
@@ -296,14 +297,9 @@ class _AccountScreenState extends State<AccountScreen> {
                                     title: 'Core Staff Dashboard',
                                     subtitle: 'Manage core operations',
                                     onTap: () {
-                                      ScaffoldMessenger.of(
+                                      Navigator.pushNamed(
                                         context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Core Staff Dashboard - Coming Soon',
-                                          ),
-                                        ),
+                                        CoreStaffDashboardScreen.routeName,
                                       );
                                     },
                                   ),
