@@ -44,8 +44,28 @@ class PermissionChecker {
   bool get canViewServices => isAdmin || (isCoreStaff && (_hasPermission('can_view_services') || _hasPermission('can_manage_services')));
   bool get canManageServices => isAdmin || (isCoreStaff && _hasPermission('can_manage_services'));
 
-  // Core Staff Management (Admin only usually, or specific permission)
+  // Core Staff Management
   bool get canManageCoreStaff => isAdmin || (isCoreStaff && _hasPermission('can_manage_core_staff'));
+
+  // Partner Management (Requests)
+  bool get canManagePartners => isAdmin || (isCoreStaff && _hasPermission('can_manage_partners'));
+  bool get canManageSellers => isAdmin || (isCoreStaff && (_hasPermission('can_manage_sellers') || _hasPermission('can_manage_partners'))); // Fallback for backward compat
+  
+  // Delivery Partner Management
+  bool get canManageDeliveries => isAdmin || (isCoreStaff && (_hasPermission('can_manage_deliveries') || _hasPermission('can_manage_partners')));
+
+  // Feature & Content Management
+  bool get canManageFeatured => isAdmin || (isCoreStaff && _hasPermission('can_manage_featured'));
+  bool get canManageGifts => isAdmin || (isCoreStaff && _hasPermission('can_manage_gifts'));
+
+  // Additional Admin Features
+  bool get canViewAnalytics => isAdmin || (isCoreStaff && _hasPermission('can_view_analytics'));
+  bool get canDownloadReports => isAdmin || (isCoreStaff && _hasPermission('can_download_reports'));
+  bool get canManageCategories => isAdmin || (isCoreStaff && _hasPermission('can_manage_categories'));
+  bool get canManageServiceCategories => isAdmin || (isCoreStaff && _hasPermission('can_manage_service_categories'));
+  bool get canManageServiceProviders => isAdmin || (isCoreStaff && _hasPermission('can_manage_service_providers'));
+  bool get canManagePayouts => isAdmin || (isCoreStaff && _hasPermission('can_manage_payouts'));
+
 
   bool _hasPermission(String key) {
     return permissions[key] == true;

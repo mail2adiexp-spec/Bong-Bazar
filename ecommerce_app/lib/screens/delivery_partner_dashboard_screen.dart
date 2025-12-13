@@ -55,6 +55,12 @@ class _DeliveryPartnerDashboardScreenState
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
     final deliveryPartnerId = auth.currentUser?.uid;
+    print('DEBUG: Delivery Dashboard - ID: $deliveryPartnerId');
+    if (deliveryPartnerId != null) {
+      FirebaseFirestore.instance.collection('users').doc(deliveryPartnerId).get().then((doc) {
+        print('DEBUG: User Role from Firestore: ${doc.data()?['role']}');
+      });
+    }
 
     if (deliveryPartnerId == null) {
       return Scaffold(
@@ -163,11 +169,13 @@ class _DeliveryPartnerDashboardScreenState
                 return const Center(child: CircularProgressIndicator());
               }
 
-              // Client-side filter for unassigned orders (if query index is missing)
+              // Client-side filter for unassigned orders + correct status
               final docs = snapshot.data?.docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                return data['deliveryPartnerId'] == null || 
-                       data['deliveryPartnerId'] == '';
+                final status = data['status'] as String?;
+                final isUnassigned = data['deliveryPartnerId'] == null || data['deliveryPartnerId'] == '';
+                final isValidStatus = status == 'confirmed' || status == 'packed';
+                return isUnassigned && isValidStatus;
               }).toList() ?? [];
 
               if (docs.isEmpty) {
