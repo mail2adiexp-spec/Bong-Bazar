@@ -17,6 +17,16 @@ class OrderModel {
   final String? deliveryPartnerId;
   final String? deliveryPartnerName;
   final String? deliveryPincode;
+  final double deliveryFee; // Internal field for partner earnings, not charged to customer
+  
+  // Payment fields for QR code payment on delivery
+  final String? paymentMethod; // 'qr_code', 'cash', null
+  final String? paymentProofUrl;
+  final DateTime? paymentProofUploadedAt;
+  final String? paymentProofUploadedBy;
+  final bool paymentVerified;
+  final DateTime? paymentVerifiedAt;
+  final String? paymentVerifiedBy;
 
   OrderModel({
     required this.id,
@@ -34,6 +44,14 @@ class OrderModel {
     this.deliveryPartnerId,
     this.deliveryPartnerName,
     this.deliveryPincode,
+    this.deliveryFee = 0.0,
+    this.paymentMethod,
+    this.paymentProofUrl,
+    this.paymentProofUploadedAt,
+    this.paymentProofUploadedBy,
+    this.paymentVerified = false,
+    this.paymentVerifiedAt,
+    this.paymentVerifiedBy,
   });
 
   factory OrderModel.fromMap(Map<String, dynamic> map, String documentId) {
@@ -81,6 +99,18 @@ class OrderModel {
       deliveryPartnerId: map['deliveryPartnerId'],
       deliveryPartnerName: map['deliveryPartnerName'],
       deliveryPincode: map['deliveryPincode'],
+      deliveryFee: (map['deliveryFee'] as num?)?.toDouble() ?? 0.0,
+      paymentMethod: map['paymentMethod'],
+      paymentProofUrl: map['paymentProofUrl'],
+      paymentProofUploadedAt: map['paymentProofUploadedAt'] != null
+          ? _parseDate(map['paymentProofUploadedAt'])
+          : null,
+      paymentProofUploadedBy: map['paymentProofUploadedBy'],
+      paymentVerified: map['paymentVerified'] ?? false,
+      paymentVerifiedAt: map['paymentVerifiedAt'] != null
+          ? _parseDate(map['paymentVerifiedAt'])
+          : null,
+      paymentVerifiedBy: map['paymentVerifiedBy'],
     );
   }
 
@@ -102,6 +132,14 @@ class OrderModel {
       'deliveryPartnerId': deliveryPartnerId,
       'deliveryPartnerName': deliveryPartnerName,
       'deliveryPincode': deliveryPincode,
+      'deliveryFee': deliveryFee,
+      'paymentMethod': paymentMethod,
+      'paymentProofUrl': paymentProofUrl,
+      'paymentProofUploadedAt': paymentProofUploadedAt?.toIso8601String(),
+      'paymentProofUploadedBy': paymentProofUploadedBy,
+      'paymentVerified': paymentVerified,
+      'paymentVerifiedAt': paymentVerifiedAt?.toIso8601String(),
+      'paymentVerifiedBy': paymentVerifiedBy,
     };
   }
 

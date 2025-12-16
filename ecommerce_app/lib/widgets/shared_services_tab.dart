@@ -34,6 +34,30 @@ class _SharedServicesTabState extends State<SharedServicesTab> {
   bool _isServiceSelectionMode = false;
   Set<String> _selectedServiceIds = {};
 
+  late Stream<QuerySnapshot> _servicesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeStream();
+  }
+
+  @override
+  void didUpdateWidget(SharedServicesTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.providerId != oldWidget.providerId) {
+      _initializeStream();
+    }
+  }
+
+  void _initializeStream() {
+    Query query = FirebaseFirestore.instance.collection('services');
+    if (widget.providerId != null) {
+      query = query.where('providerId', isEqualTo: widget.providerId);
+    }
+    _servicesStream = query.orderBy('createdAt', descending: true).snapshots();
+  }
+
   void _showAddServiceDialog() {
     final formKey = GlobalKey<FormState>();
     final nameCtrl = TextEditingController();
@@ -715,13 +739,7 @@ class _SharedServicesTabState extends State<SharedServicesTab> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: () {
-        Query query = FirebaseFirestore.instance.collection('services');
-        if (widget.providerId != null) {
-          query = query.where('providerId', isEqualTo: widget.providerId);
-        }
-        return query.orderBy('createdAt', descending: true).snapshots();
-      }(),
+      stream: _servicesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

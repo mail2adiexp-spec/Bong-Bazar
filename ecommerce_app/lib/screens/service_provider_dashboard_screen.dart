@@ -21,6 +21,61 @@ class ServiceProviderDashboardScreen extends StatefulWidget {
 }
 
 class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboardScreen> {
+  Stream<QuerySnapshot>? _partnerRequestsStream;
+  Stream<QuerySnapshot>? _servicesStream;
+  Stream<QuerySnapshot>? _bookingsCountStream; // Unordered for count
+  Stream<QuerySnapshot>? _revenueStream;
+  Stream<QuerySnapshot>? _recentActivityStream;
+  Stream<QuerySnapshot>? _allBookingsStream; // Ordered for list
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final auth = Provider.of<AuthProvider>(context);
+    final user = auth.currentUser;
+
+    if (user != null) {
+      // Partner requests (depends on email)
+      _partnerRequestsStream ??= FirebaseFirestore.instance
+          .collection('partner_requests')
+          .where('email', isEqualTo: user.email)
+          .snapshots();
+
+      // Services (depends on uid)
+      _servicesStream ??= FirebaseFirestore.instance
+          .collection('services')
+          .where('providerId', isEqualTo: user.uid)
+          .snapshots();
+
+      // Bookings Count
+      _bookingsCountStream ??= FirebaseFirestore.instance
+          .collection('bookings')
+          .where('providerId', isEqualTo: user.uid)
+          .snapshots();
+
+      // Revenue
+      _revenueStream ??= FirebaseFirestore.instance
+          .collection('bookings')
+          .where('providerId', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'completed')
+          .snapshots();
+
+      // Recent Activity
+      _recentActivityStream ??= FirebaseFirestore.instance
+          .collection('bookings')
+          .where('providerId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .limit(5)
+          .snapshots();
+
+      // All Bookings (Transactions Tab)
+      _allBookingsStream ??= FirebaseFirestore.instance
+          .collection('bookings')
+          .where('providerId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .snapshots();
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
@@ -58,10 +113,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
 
   Widget _buildOverviewTab(BuildContext context, dynamic user) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('partner_requests')
-          .where('email', isEqualTo: user.email)
-          .snapshots(),
+      stream: _partnerRequestsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -210,10 +262,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
                 children: [
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('services')
-                          .where('providerId', isEqualTo: user.uid)
-                          .snapshots(),
+                      stream: _servicesStream,
                       builder: (context, snapshot) {
                         final count = snapshot.data?.docs.length ?? 0;
                         return _buildStatCard(
@@ -230,10 +279,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
                   const SizedBox(width: 12),
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('bookings')
-                          .where('providerId', isEqualTo: user.uid)
-                          .snapshots(),
+                      stream: _bookingsCountStream,
                       builder: (context, snapshot) {
                         final count = snapshot.data?.docs.length ?? 0;
                         return _buildStatCard(
@@ -256,11 +302,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
                 children: [
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('bookings')
-                          .where('providerId', isEqualTo: user.uid)
-                          .where('status', isEqualTo: 'completed')
-                          .snapshots(),
+                      stream: _revenueStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return _buildStatCard(
@@ -293,10 +335,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
                   const SizedBox(width: 12),
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('services')
-                          .where('providerId', isEqualTo: user.uid)
-                          .snapshots(),
+                      stream: _servicesStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return _buildStatCard(
@@ -410,12 +449,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
               ),
               const SizedBox(height: 12),
               StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('bookings')
-                    .where('providerId', isEqualTo: user.uid)
-                    .orderBy('createdAt', descending: true)
-                    .limit(5)
-                    .snapshots(),
+                stream: _recentActivityStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Card(
@@ -1308,7 +1342,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
                   // Bookings List
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance.collection('bookings').where('providerId', isEqualTo: user.uid).orderBy('createdAt', descending: true).snapshots(),
+                      stream: _allBookingsStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                         

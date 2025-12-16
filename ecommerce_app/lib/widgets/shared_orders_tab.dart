@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'order_details_dialog.dart';
 
 class SharedOrdersTab extends StatefulWidget {
   final bool canManage;
@@ -29,6 +30,32 @@ class _SharedOrdersTabState extends State<SharedOrdersTab> {
     'cancelled',
   ];
 
+  late Stream<QuerySnapshot> _ordersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeStream();
+  }
+
+  @override
+  void didUpdateWidget(SharedOrdersTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.sellerId != oldWidget.sellerId || widget.isDeliveryPartner != oldWidget.isDeliveryPartner) {
+      _initializeStream();
+    }
+  }
+
+  void _initializeStream() {
+    Query query = FirebaseFirestore.instance.collection('orders').orderBy('orderDate', descending: true);
+    
+    if (widget.isDeliveryPartner) {
+        // Implementation for delivery partner specific stream if needed
+    }
+
+    _ordersStream = query.snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -38,7 +65,7 @@ class _SharedOrdersTabState extends State<SharedOrdersTab> {
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _getOrdersStream(),
+              stream: _ordersStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -116,6 +143,21 @@ class _SharedOrdersTabState extends State<SharedOrdersTab> {
                               ),
                             ),
                             const SizedBox(width: 12),
+                            // View Details Button
+                            IconButton(
+                              icon: const Icon(Icons.info_outline),
+                              tooltip: 'View Order Details',
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => OrderDetailsDialog(
+                                    orderId: orderId,
+                                    orderData: data,
+                                  ),
+                                );
+                              },
+                              color: Colors.blue,
+                            ),
                             if (widget.canManage) ...[
                               DropdownButton<String>(
                                 value: _statuses.contains(status) ? status : 'pending',

@@ -3,6 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/order_model.dart';
+import '../models/app_settings_model.dart';
+import '../widgets/qr_code_display_dialog.dart';
+import '../widgets/payment_proof_upload_widget.dart';
 import 'package:intl/intl.dart';
 
 class DeliveryPartnerDashboardScreen extends StatefulWidget {
@@ -20,10 +23,77 @@ class _DeliveryPartnerDashboardScreenState
   String? _servicePincode;
   bool _isLoadingPincode = true;
 
+  // Cached streams to prevent "Unexpected state" errors
+  Stream<QuerySnapshot>? _availableOrdersStream;
+  Stream<QuerySnapshot>? _myDeliveriesStream;
+  Stream<QuerySnapshot>? _statsStream;
+  Stream<QuerySnapshot>? _recentActivityStream;
+
+  Stream<QuerySnapshot>? _totalEarningsStream;
+  Stream<QuerySnapshot>? _returnsStream;
+
   @override
   void initState() {
     super.initState();
     _fetchServicePincode();
+    // Initialize my deliveries stream immediately as it only depends on user ID
+    // We'll update it in build once we have the ID, or here if possible.
+    // Better to do it when we have the ID.
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final deliveryPartnerId = auth.currentUser?.uid;
+    if (deliveryPartnerId != null) {
+      if (_myDeliveriesStream == null) {
+        _updateMyDeliveriesStream(deliveryPartnerId);
+      }
+      if (_statsStream == null) {
+        _statsStream = FirebaseFirestore.instance
+            .collection('orders')
+            .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+            .snapshots();
+      }
+      if (_recentActivityStream == null) {
+        _recentActivityStream = FirebaseFirestore.instance
+            .collection('orders')
+            .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+            .orderBy('createdAt', descending: true)
+            .limit(5)
+            .snapshots();
+      }
+      if (_totalEarningsStream == null) {
+        _totalEarningsStream = FirebaseFirestore.instance
+            .collection('orders')
+            .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
+            .where('deliveryStatus', isEqualTo: 'delivered')
+            .snapshots();
+      }
+      if (_returnsStream == null) {
+        _returnsStream = FirebaseFirestore.instance
+            .collection('orders')
+            .where('status', isEqualTo: 'return_requested')
+            //.where('deliveryPincode', isEqualTo: _servicePincode) // Ideally filter by pincode
+            .snapshots();
+      }
+    }
+  }
+
+  void _updateMyDeliveriesStream(String partnerId) {
+    _myDeliveriesStream = _getOrdersStream(partnerId);
+  }
+
+  void _updateAvailableOrdersStream() {
+    if (_servicePincode == null) return;
+    
+    // Fetch all orders with matching pincode, then filter on client side
+    // This is because Firestore's isNull doesn't work well with empty strings
+    _availableOrdersStream = FirebaseFirestore.instance
+        .collection('orders')
+        .where('deliveryPincode', isEqualTo: _servicePincode)
+        .snapshots();
   }
 
   Future<void> _fetchServicePincode() async {
@@ -41,6 +111,7 @@ class _DeliveryPartnerDashboardScreenState
         setState(() {
           _servicePincode = doc.data()?['service_pincode'];
           _isLoadingPincode = false;
+          _updateAvailableOrdersStream(); // Initialize stream once pincode is available
         });
       }
     } catch (e) {
@@ -70,7 +141,7 @@ class _DeliveryPartnerDashboardScreenState
     }
 
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Delivery Partner Dashboard'),
@@ -80,6 +151,7 @@ class _DeliveryPartnerDashboardScreenState
               Tab(text: 'Overview', icon: Icon(Icons.dashboard)),
               Tab(text: 'Available Orders', icon: Icon(Icons.notifications_active)),
               Tab(text: 'My Deliveries', icon: Icon(Icons.local_shipping)),
+              Tab(text: 'Returns', icon: Icon(Icons.assignment_return)),
             ],
           ),
           actions: [
@@ -98,6 +170,7 @@ class _DeliveryPartnerDashboardScreenState
             _buildOverviewTab(deliveryPartnerId),
             _buildAvailableOrdersTab(deliveryPartnerId),
             _buildMyDeliveriesTab(deliveryPartnerId),
+            _buildReturnsTab(deliveryPartnerId),
           ],
         ),
       ),
@@ -151,15 +224,7 @@ class _DeliveryPartnerDashboardScreenState
         ),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('orders')
-                .where('deliveryPincode', isEqualTo: _servicePincode)
-                .where('deliveryPartnerId', isNull: true)
-                // Note: This requires a composite index. If it fails, we might need to filter client-side
-                // or just query by pincode and filter in builder.
-                // For now, let's try client-side filtering for partnerId to avoid index issues immediately
-                // .where('status', whereIn: ['confirmed', 'packed']) // Optional: only show ready orders
-                .snapshots(),
+            stream: _availableOrdersStream, // Use cached stream
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(child: Text('Error: ${snapshot.error}'));
@@ -170,13 +235,22 @@ class _DeliveryPartnerDashboardScreenState
               }
 
               // Client-side filter for unassigned orders + correct status
-              final docs = snapshot.data?.docs.where((doc) {
+              final allDocs = snapshot.data?.docs ?? [];
+              print('DEBUG Available Orders: Total docs from Firestore: ${allDocs.length}');
+              
+              final docs = allDocs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final status = data['status'] as String?;
-                final isUnassigned = data['deliveryPartnerId'] == null || data['deliveryPartnerId'] == '';
-                final isValidStatus = status == 'confirmed' || status == 'packed';
+                final deliveryPartnerId = data['deliveryPartnerId'];
+                final deliveryPincode = data['deliveryPincode'];
+                
+                final isUnassigned = deliveryPartnerId == null || deliveryPartnerId == '';
+                final isValidStatus = status == 'pending' || status == 'confirmed' || status == 'packed';
+                
+                print('DEBUG Order ${doc.id}: status=$status, partnerId=$deliveryPartnerId, pincode=$deliveryPincode, unassigned=$isUnassigned, validStatus=$isValidStatus');
+                
                 return isUnassigned && isValidStatus;
-              }).toList() ?? [];
+              }).toList();
 
               if (docs.isEmpty) {
                 return Center(
@@ -356,7 +430,11 @@ class _DeliveryPartnerDashboardScreenState
                 const SizedBox(width: 8),
                 _buildFilterChip('out_for_delivery', 'Out for Delivery'),
                 const SizedBox(width: 8),
+                _buildFilterChip('out_for_pickup', 'Returning'), // New Chip
+                const SizedBox(width: 8),
                 _buildFilterChip('delivered', 'Delivered'),
+                const SizedBox(width: 8),
+                _buildFilterChip('returned', 'Returned'), // New Chip
               ],
             ),
           ),
@@ -365,7 +443,7 @@ class _DeliveryPartnerDashboardScreenState
         // Orders List
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: _getOrdersStream(partnerId),
+            stream: _myDeliveriesStream, // Use cached stream
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -375,7 +453,31 @@ class _DeliveryPartnerDashboardScreenState
                 return Center(child: Text('Error: ${snapshot.error}'));
               }
 
-              final docs = snapshot.data?.docs ?? [];
+              // Sort by orderDate on client side (descending - newest first)
+              final docs = (snapshot.data?.docs ?? [])..sort((a, b) {
+                final dataA = a.data() as Map<String, dynamic>;
+                final dataB = b.data() as Map<String, dynamic>;
+                final dateA = dataA['orderDate'];
+                final dateB = dataB['orderDate'];
+                
+                // Handle different date formats
+                DateTime? parsedA;
+                DateTime? parsedB;
+                
+                try {
+                  if (dateA is String) parsedA = DateTime.parse(dateA);
+                  else if (dateA is Timestamp) parsedA = dateA.toDate();
+                } catch (_) {}
+                
+                try {
+                  if (dateB is String) parsedB = DateTime.parse(dateB);
+                  else if (dateB is Timestamp) parsedB = dateB.toDate();
+                } catch (_) {}
+                
+                if (parsedA == null || parsedB == null) return 0;
+                return parsedB.compareTo(parsedA); // Descending order
+              });
+              
               if (docs.isEmpty) {
                 return Center(
                   child: Column(
@@ -417,6 +519,113 @@ class _DeliveryPartnerDashboardScreenState
     );
   }
 
+  Widget _buildReturnsTab(String partnerId) {
+    if (_servicePincode == null) {
+      return const Center(child: Text('Service Pincode Required'));
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: _returnsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        final docs = snapshot.data?.docs ?? [];
+        
+        if (docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.assignment_return_outlined, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text('No Return Requests', style: TextStyle(fontSize: 18, color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final order = OrderModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+            return _buildReturnOrderCard(order, partnerId);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildReturnOrderCard(OrderModel order, String partnerId) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12), 
+        side: const BorderSide(color: Colors.orange, width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.orange[100], borderRadius: BorderRadius.circular(4)),
+                  child: const Text('RETURN REQUEST', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 10)),
+                ),
+                Text('Order #${order.id.substring(0, 8)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildDetailRow(Icons.location_on, 'Pickup Address', order.deliveryAddress),
+            const SizedBox(height: 8),
+            _buildDetailRow(Icons.phone, 'Customer Phone', order.phoneNumber),
+             const SizedBox(height: 16),
+             
+             // Actions
+             SizedBox(
+               width: double.infinity,
+               child: ElevatedButton.icon(
+                 onPressed: () => _acceptReturnPickup(order.id, partnerId),
+                 icon: const Icon(Icons.local_shipping),
+                 label: const Text('Accept Pickup'),
+                 style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+               ),
+             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _acceptReturnPickup(String orderId, String partnerId) async {
+    try {
+      await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+        'status': 'out_for_pickup',
+        'deliveryPartnerId': partnerId,
+        'statusHistory.out_for_pickup': DateTime.now().toIso8601String(),
+      });
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pickup Accepted!')));
+         setState(() {
+           _selectedFilter = 'out_for_pickup'; 
+         });
+         // Refresh streams if needed
+         final auth = Provider.of<AuthProvider>(context, listen: false);
+         final id = auth.currentUser?.uid;
+         if (id != null) _updateMyDeliveriesStream(id);
+      }
+    } catch (e) {
+      debugPrint('Error accepting pickup: $e');
+    }
+  }
+
   Widget _buildFilterChip(String filter, String label) {
     final isSelected = _selectedFilter == filter;
     return FilterChip(
@@ -425,6 +634,12 @@ class _DeliveryPartnerDashboardScreenState
       onSelected: (selected) {
         setState(() {
           _selectedFilter = filter;
+          // Update the stream when filter changes
+          final auth = Provider.of<AuthProvider>(context, listen: false);
+          final id = auth.currentUser?.uid;
+          if (id != null) {
+            _updateMyDeliveriesStream(id);
+          }
         });
       },
       selectedColor: Theme.of(context).colorScheme.primaryContainer,
@@ -441,11 +656,16 @@ class _DeliveryPartnerDashboardScreenState
     if (_selectedFilter == 'assigned') {
       // Show orders that are confirmed or packed (ready to pick)
       query = query.where('status', whereIn: ['confirmed', 'packed']);
+    } else if (_selectedFilter == 'out_for_pickup') {
+      // Show return pickups
+      query = query.where('status', isEqualTo: 'out_for_pickup');
     } else {
       query = query.where('status', isEqualTo: _selectedFilter);
     }
 
-    return query.orderBy('orderDate', descending: true).snapshots();
+    // Remove orderBy to avoid requiring a composite index
+    // We'll sort on client side instead
+    return query.snapshots();
   }
 
   Widget _buildOrderCard(OrderModel order, String orderId) {
@@ -545,6 +765,79 @@ class _DeliveryPartnerDashboardScreenState
                   ),
                 ],
               ),
+            ],
+
+            // QR Code & Payment Section (for out_for_delivery status)
+            if (order.status == 'out_for_delivery') ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+              
+              // Show QR Code Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showQRCode(context),
+                  icon: const Icon(Icons.qr_code_2),
+                  label: const Text('Show QR Code to Customer'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              
+              // Payment Proof Upload
+              if (order.paymentProofUrl == null)
+                PaymentProofUploadWidget(
+                  orderId: orderId,
+                  deliveryPartnerId: order.deliveryPartnerId ?? '',
+                  onUploadComplete: () {
+                    setState(() {}); // Refresh to show updated data
+                  },
+                )
+              else ...[              const SizedBox(height: 12),
+                Card(
+                  color: Colors.green[50],
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green[700]),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Payment Proof Uploaded',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green[900],
+                                ),
+                              ),
+                              if (!order.paymentVerified)
+                                Text(
+                                  'Awaiting admin verification',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.green[700],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.image),
+                          onPressed: () => _viewPaymentProof(context, order.paymentProofUrl!),
+                          tooltip: 'View Screenshot',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
 
             // Release Order Button (Only if not yet picked up)
@@ -654,10 +947,13 @@ class _DeliveryPartnerDashboardScreenState
     switch (status) {
       case 'confirmed':
       case 'packed':
+      case 'return_requested': // Added
         return Colors.orange;
       case 'shipped':
+      case 'returned': // Added
         return Colors.blue;
       case 'out_for_delivery':
+      case 'out_for_pickup': // Added
         return Colors.purple;
       case 'delivered':
         return Colors.green;
@@ -672,7 +968,8 @@ class _DeliveryPartnerDashboardScreenState
     return currentStatus == 'confirmed' ||
         currentStatus == 'packed' ||
         currentStatus == 'shipped' ||
-        currentStatus == 'out_for_delivery';
+        currentStatus == 'out_for_delivery' ||
+        currentStatus == 'out_for_pickup'; // Added
   }
 
   String _getNextActionLabel(String currentStatus) {
@@ -684,6 +981,8 @@ class _DeliveryPartnerDashboardScreenState
         return 'Start Delivery';
       case 'out_for_delivery':
         return 'Mark Delivered';
+      case 'out_for_pickup': // Added
+        return 'Mark Returned';
       default:
         return 'Update';
     }
@@ -698,6 +997,8 @@ class _DeliveryPartnerDashboardScreenState
         return 'out_for_delivery';
       case 'out_for_delivery':
         return 'delivered';
+      case 'out_for_pickup': // Added
+        return 'returned';
       default:
         return currentStatus;
     }
@@ -716,6 +1017,23 @@ class _DeliveryPartnerDashboardScreenState
             if (nextStatus == 'delivered')
               'actualDelivery': DateTime.now().toIso8601String(),
           });
+
+      // Special handling for QR payment verification
+      if (nextStatus == 'delivered') {
+        final orderDoc = await FirebaseFirestore.instance.collection('orders').doc(orderId).get();
+        if (orderDoc.exists) {
+          final data = orderDoc.data();
+          if (data != null && data['paymentMethod'] == 'qr_code' && data['paymentProofUrl'] == null) {
+            // Revert if payment proof missing for QR code payment
+             await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+              'status': 'out_for_delivery',
+              'statusHistory.delivered': FieldValue.delete(),
+              'actualDelivery': FieldValue.delete(),
+            });
+            throw 'Payment proof required for QR payment before marking delivered';
+          }
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -742,6 +1060,10 @@ class _DeliveryPartnerDashboardScreenState
         return 'Out for Delivery';
       case 'delivered':
         return 'Delivered';
+      case 'out_for_pickup': // Added
+        return 'Picking Up Return';
+      case 'returned': // Added
+        return 'Returned to Seller';
       default:
         return status;
     }
@@ -998,10 +1320,7 @@ class _DeliveryPartnerDashboardScreenState
 
           // Single StreamBuilder for all stats
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('orders')
-                .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
-                .snapshots(),
+            stream: _statsStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Column(
@@ -1200,12 +1519,7 @@ class _DeliveryPartnerDashboardScreenState
           const SizedBox(height: 12),
           
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('orders')
-                .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
-                .orderBy('createdAt', descending: true)
-                .limit(5)
-                .snapshots(),
+            stream: _recentActivityStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Card(
@@ -1363,6 +1677,86 @@ class _DeliveryPartnerDashboardScreenState
     );
   }
 
+  // ==================== PHASE 3: QR CODE & PAYMENT ====================
+  Future<void> _showQRCode(BuildContext context) async {
+    try {
+      // Fetch admin settings for QR code
+      final settingsDoc = await FirebaseFirestore.instance
+          .collection('app_settings')
+          .doc('general')
+          .get();
+
+      if (!settingsDoc.exists || settingsDoc.data()?['upiQRCodeUrl'] == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('QR Code not configured by admin yet'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      final data = settingsDoc.data()!;
+      final qrUrl = data['upiQRCodeUrl'];
+      final upiId = data['upiId'];
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => QRCodeDisplayDialog(
+            qrCodeUrl: qrUrl,
+            upiId: upiId,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading QR code: $e')),
+        );
+      }
+    }
+  }
+
+  void _viewPaymentProof(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(8),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image.network(
+                imageUrl,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const CircularProgressIndicator(color: Colors.white);
+                },
+              ),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ==================== PHASE 2: EARNINGS DIALOG ====================
   void _showEarningsDialog(String deliveryPartnerId) {
     showDialog(
@@ -1394,11 +1788,7 @@ class _DeliveryPartnerDashboardScreenState
 
               // Total Earnings Card
               StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('orders')
-                    .where('deliveryPartnerId', isEqualTo: deliveryPartnerId)
-                    .where('deliveryStatus', isEqualTo: 'delivered')
-                    .snapshots(),
+                stream: _totalEarningsStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Card(

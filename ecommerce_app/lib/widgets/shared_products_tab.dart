@@ -41,10 +41,38 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
   // Image Picker
   final ImagePicker _picker = ImagePicker();
 
+  late Stream<QuerySnapshot> _productsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeStream();
+  }
+
+  @override
+  void didUpdateWidget(SharedProductsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.sellerId != oldWidget.sellerId) {
+      _initializeStream();
+    }
+  }
+
+  void _initializeStream() {
+    Query query = FirebaseFirestore.instance
+        .collection('products')
+        .orderBy('createdAt', descending: true);
+
+    if (widget.sellerId != null) {
+      query = query.where('sellerId', isEqualTo: widget.sellerId);
+    }
+
+    _productsStream = query.snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: _getProductsStream(),
+      stream: _productsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

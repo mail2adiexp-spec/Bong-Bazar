@@ -30,6 +30,30 @@ class _RoleManagementTabState extends State<RoleManagementTab> {
   String _searchQuery = '';
   String _selectedStatus = 'All';
 
+  late Stream<QuerySnapshot> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeStream();
+  }
+
+  @override
+  void didUpdateWidget(RoleManagementTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.collection != oldWidget.collection || widget.role != oldWidget.role) {
+      _initializeStream();
+    }
+  }
+
+  void _initializeStream() {
+    Query query = FirebaseFirestore.instance.collection(widget.collection);
+    if (widget.role != null) {
+      query = query.where('role', isEqualTo: widget.role);
+    }
+    _stream = query.snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -63,13 +87,7 @@ class _RoleManagementTabState extends State<RoleManagementTab> {
         ),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: () {
-              Query query = FirebaseFirestore.instance.collection(widget.collection);
-              if (widget.role != null) {
-                query = query.where('role', isEqualTo: widget.role);
-              }
-              return query.snapshots();
-            }(),
+            stream: _stream,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(child: Text('Error: ${snapshot.error}'));

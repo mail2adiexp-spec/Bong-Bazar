@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../providers/auth_provider.dart';
 import '../models/product_model.dart';
+import '../widgets/seller_orders_dialog.dart';
 
 
 class SellerDashboardScreen extends StatefulWidget {
@@ -17,6 +18,55 @@ class SellerDashboardScreen extends StatefulWidget {
 }
 
 class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
+  Stream<QuerySnapshot>? _productsStream;
+  Stream<QuerySnapshot>? _lowStockStream;
+  Stream<QuerySnapshot>? _recentActivityStream;
+  Stream<QuerySnapshot>? _ordersStream;
+  Stream<QuerySnapshot>? _deliveredOrdersStream;
+  Stream<QuerySnapshot>? _manageProductsStream;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final user = Provider.of<AuthProvider>(context).currentUser;
+    if (user != null && _productsStream == null) {
+      _initializeStreams(user.uid);
+    }
+  }
+
+  void _initializeStreams(String userId) {
+    _productsStream = FirebaseFirestore.instance
+        .collection('products')
+        .where('sellerId', isEqualTo: userId)
+        .snapshots();
+
+    _lowStockStream = FirebaseFirestore.instance
+        .collection('products')
+        .where('sellerId', isEqualTo: userId)
+        .where('stock', isLessThan: 10)
+        .snapshots();
+
+    _recentActivityStream = FirebaseFirestore.instance
+        .collection('orders')
+        .orderBy('orderDate', descending: true)
+        .limit(5)
+        .snapshots();
+
+    _ordersStream = FirebaseFirestore.instance
+        .collection('orders')
+        .snapshots();
+
+    _deliveredOrdersStream = FirebaseFirestore.instance
+        .collection('orders')
+        .where('status', isEqualTo: 'delivered')
+        .snapshots();
+
+    _manageProductsStream = FirebaseFirestore.instance
+        .collection('products')
+        .where('sellerId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
   
   // Add Product Dialog
   void _showAddProductDialog(BuildContext context, AppUser user) {
@@ -343,11 +393,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
               const SizedBox(height: 16),
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('products')
-                      .where('sellerId', isEqualTo: user.uid)
-                      .orderBy('createdAt', descending: true)
-                      .snapshots(),
+                  stream: _manageProductsStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -556,230 +602,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
       context: context,
       builder: (ctx) => Dialog(
         insetPadding: const EdgeInsets.all(16),
-        child: StatefulBuilder(
-          builder: (context, setState) {
-            String selectedStatus = 'All';
-            
-            return Container(
-              width: 900,
-              height: 700,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'My Orders',
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  
-                  // Status Filter
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: ['All', 'pending', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled']
-                          .map((status) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: FilterChip(
-                                  label: Text(status == 'All' ? status : status.replaceAll('_', ' ').toUpperCase()),
-                                  selected: selectedStatus == status,
-                                  onSelected: (selected) {
-                                    setState(() => selectedStatus = status);
-                                  },
-                                ),
-                              ))
-                          .toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  Expanded(
-                    child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('orders')
-                          .orderBy('orderDate', descending: true)
-                          .snapshots(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-
-                        // Filter orders containing seller's products
-                        final allOrders = snapshot.data?.docs ?? [];
-                        final relevantOrders = allOrders.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final items = data['items'] as List<dynamic>? ?? [];
-                          
-                          // Check if order contains seller's products
-                          bool hasSellersProduct = items.any((item) => item['sellerId'] == user.uid);
-                          if (!hasSellersProduct) return false;
-                          
-                          // Apply status filter
-                          if (selectedStatus != 'All') {
-                            final orderStatus = data['status'] ?? 'pending';
-                            return orderStatus == selectedStatus;
-                          }
-                          return true;
-                        }).toList();
-
-                        if (relevantOrders.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey[400]),
-                                const SizedBox(height: 16),
-                                Text(
-                                  selectedStatus == 'All' ? 'No orders yet' : 'No $selectedStatus orders',
-                                  style: const TextStyle(fontSize: 18, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        return ListView.builder(
-                          itemCount: relevantOrders.length,
-                          itemBuilder: (context, index) {
-                            final orderData = relevantOrders[index].data() as Map<String, dynamic>;
-                            final orderId = relevantOrders[index].id;
-                            final status = orderData['status'] ?? 'pending';
-                            final items = orderData['items'] as List<dynamic>? ?? [];
-                            
-                            // Filter only seller's items
-                            final sellerItems = items.where((item) => item['sellerId'] == user.uid).toList();
-                            
-                            // Calculate seller's portion
-                            double sellerTotal = 0;
-                            for (var item in sellerItems) {
-                              final price = (item['price'] as num?)?.toDouble() ?? 0;
-                              final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
-                              sellerTotal += price * quantity;
-                            }
-
-                            Color statusColor;
-                            switch (status.toLowerCase()) {
-                              case 'delivered':
-                                statusColor = Colors.green;
-                                break;
-                              case 'cancelled':
-                                statusColor = Colors.red;
-                                break;
-                              case 'pending':
-                                statusColor = Colors.orange;
-                                break;
-                              default:
-                                statusColor = Colors.blue;
-                            }
-
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              child: ExpansionTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: statusColor.withOpacity(0.1),
-                                  child: Icon(Icons.shopping_bag, color: statusColor),
-                                ),
-                                title: Text(
-                                  'Order #${orderId.substring(0, 8)}...',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                subtitle: Text(
-                                  '${sellerItems.length} item(s) • ₹${sellerTotal.toStringAsFixed(0)}',
-                                ),
-                                trailing: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: statusColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: statusColor.withOpacity(0.3)),
-                                  ),
-                                  child: Text(
-                                    status.toUpperCase(),
-                                    style: TextStyle(
-                                      color: statusColor,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'Your Items:',
-                                          style: TextStyle(fontWeight: FontWeight.bold),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        ...sellerItems.map((item) => Padding(
-                                              padding: const EdgeInsets.only(bottom: 8),
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      '${item['name']} x${item['quantity']}',
-                                                      style: const TextStyle(fontSize: 14),
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    '₹${((item['price'] as num) * (item['quantity'] as num)).toStringAsFixed(0)}',
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            )),
-                                        const Divider(),
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            const Text(
-                                              'Total:',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                            Text(
-                                              '₹${sellerTotal.toStringAsFixed(0)}',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                                color: Colors.green,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+        child: SellerOrdersDialog(user: user),
       ),
     );
   }
@@ -877,10 +700,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
               children: [
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('products')
-                        .where('sellerId', isEqualTo: user.uid)
-                        .snapshots(),
+                    stream: _productsStream,
                     builder: (context, snapshot) {
                       final count = snapshot.data?.docs.length ?? 0;
                       return _buildStatCard(
@@ -897,9 +717,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('orders')
-                        .snapshots(),
+                  stream: _ordersStream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return _buildStatCard(
@@ -942,10 +760,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
               children: [
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('orders')
-                        .where('status', isEqualTo: 'delivered')
-                        .snapshots(),
+                  stream: _deliveredOrdersStream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return _buildStatCard(
@@ -985,10 +800,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('products')
-                        .where('sellerId', isEqualTo: user.uid)
-                        .snapshots(),
+                    stream: _productsStream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return _buildStatCard(
@@ -1156,11 +968,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
             ),
             const SizedBox(height: 12),
             StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('orders')
-                  .orderBy('orderDate', descending: true)
-                  .limit(5)
-                  .snapshots(),
+              stream: _recentActivityStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Card(

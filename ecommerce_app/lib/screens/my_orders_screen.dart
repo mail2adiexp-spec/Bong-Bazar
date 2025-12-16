@@ -372,7 +372,112 @@ class OrderTrackingScreen extends StatelessWidget {
           ],
         ),
       ),
+      bottomNavigationBar: _buildBottomAction(context),
     );
+  }
+
+  Widget? _buildBottomAction(BuildContext context) {
+    // 1. Cancel Logic: Allow cancellation if status is pending or confirmed
+    if (['pending', 'confirmed'].contains(order.status)) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: () => _confirmAction(context, 'cancelled', 'Cancel Order'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+          child: const Text('Cancel Order'),
+        ),
+      );
+    }
+
+    // 2. Return Logic: Allow return if delivered and within 7 days
+    if (order.status == 'delivered') {
+      final deliveredDate = order.statusHistory?['delivered'];
+      if (deliveredDate != null) {
+        final difference = DateTime.now().difference(deliveredDate).inDays;
+        
+        if (difference <= 7) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, -5),
+                ),
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: () => _confirmAction(context, 'return_requested', 'Return Order'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text('Return Order'),
+            ),
+          );
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  Future<void> _confirmAction(BuildContext context, String newStatus, String label) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirm $label'),
+        content: Text('Are you sure you want to $label?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      debugPrint('DEBUG: Converting order ${order.id} to status $newStatus');
+      try {
+        await context.read<OrderProvider>().updateOrderStatus(order.id, newStatus);
+        debugPrint('DEBUG: Order status updated successfully');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Order status updated to $newStatus')),
+          );
+          Navigator.pop(context); // Go back to refresh list
+        }
+      } catch (e) {
+        debugPrint('DEBUG: Error updating order status: $e');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update status: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildTrackingTimeline() {
@@ -383,12 +488,53 @@ class OrderTrackingScreen extends StatelessWidget {
       {'key': 'shipped', 'label': 'Shipped'},
       {'key': 'out_for_delivery', 'label': 'Out for Delivery'},
       {'key': 'delivered', 'label': 'Delivered'},
+      // Return Flow
+      if (['return_requested', 'returned', 'refunded'].contains(order.status)) ...[
+        {'key': 'return_requested', 'label': 'Return Requested'},
+        {'key': 'returned', 'label': 'Returned'},
+        {'key': 'refunded', 'label': 'Refunded'},
+      ],
     ];
 
     final currentIndex = statuses.indexWhere((s) => s['key'] == order.status);
+    final currentStatusLabel = statuses.firstWhere(
+      (s) => s['key'] == order.status, 
+      orElse: () => {'label': order.status}
+    )['label'];
+    final currentColor = _getStatusColor(order.status);
 
-    return Column(
-      children: List.generate(statuses.length, (index) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: currentColor.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.local_shipping_outlined, color: currentColor),
+        ),
+        title: Text(
+          'Status: $currentStatusLabel',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: currentColor,
+            fontSize: 16,
+          ),
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        children: [
+          const Divider(),
+          const SizedBox(height: 16),
+          Column(
+            children: [
+              ...List.generate(statuses.length, (index) {
         final status = statuses[index];
         final isCompleted = index <= currentIndex;
         final isCurrent = index == currentIndex;
@@ -452,19 +598,59 @@ class OrderTrackingScreen extends StatelessWidget {
             ),
           ],
         );
+
       }),
-    );
+      if (order.status == 'returned')
+        Container(
+          margin: const EdgeInsets.only(top: 24, left: 8), // Indent to align with line
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Refund Initiated',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Refund will be processed within 48 hours.',
+                      style: TextStyle(fontSize: 12, color: Colors.black87),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+            ],
+          ),
+        ], // Close ExpansionTile children
+      ), // Close ExpansionTile
+    ); // Close Card
   }
 
   Color _getStatusColor(String status) {
     switch (status) {
       case 'delivered':
+      case 'refunded':
         return Colors.green;
       case 'cancelled':
         return Colors.red;
       case 'out_for_delivery':
+      case 'return_requested':
         return Colors.orange;
       case 'shipped':
+      case 'returned':
         return Colors.blue;
       default:
         return Colors.grey;

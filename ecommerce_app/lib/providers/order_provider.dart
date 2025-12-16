@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/order_model.dart';
 import '../models/transaction_model.dart';
 import '../services/transaction_service.dart';
+import '../services/transaction_service.dart';
+import '../services/notification_service.dart';
 import 'auth_provider.dart';
 
 class OrderProvider extends ChangeNotifier {
@@ -74,6 +76,26 @@ class OrderProvider extends ChangeNotifier {
       final pincodeMatch = pincodeRegex.firstMatch(deliveryAddress);
       final deliveryPincode = pincodeMatch?.group(0);
 
+      // Fetch App Settings for Delivery Fee Calculation
+      double deliveryFee = 0.0;
+      try {
+        final settingsDoc = await _firestore.collection('app_settings').doc('general').get();
+        if (settingsDoc.exists) {
+          final data = settingsDoc.data();
+          if (data != null) {
+            final percentage = (data['deliveryFeePercentage'] as num?)?.toDouble() ?? 0.0;
+            final maxCap = (data['deliveryFeeMaxCap'] as num?)?.toDouble() ?? 0.0;
+            
+            if (percentage > 0) {
+              final calculatedFee = totalAmount * (percentage / 100);
+              deliveryFee = maxCap > 0 && calculatedFee > maxCap ? maxCap : calculatedFee;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching delivery settings: $e');
+      }
+
       final orderData = {
         'userId': userId,
         'items': items.map((item) => item.toMap()).toList(),
@@ -84,6 +106,7 @@ class OrderProvider extends ChangeNotifier {
         'status': 'pending',
         'statusHistory': {'pending': DateTime.now().toIso8601String()},
         'deliveryPincode': deliveryPincode,
+        'deliveryFee': deliveryFee, // Save calculated fee
       };
 
       final docRef = await _firestore.collection('orders').add(orderData);
@@ -119,15 +142,64 @@ class OrderProvider extends ChangeNotifier {
           await _processSellerTransactions(orderId, orderData, TransactionType.credit);
         }
       } 
+      else if (newStatus == 'return_requested') {
+        debugPrint('DEBUG: Processing return request for order $orderId');
+        // Fetch order details for notification
+        final orderDoc = await _firestore.collection('orders').doc(orderId).get();
+        if (orderDoc.exists) {
+           final orderData = orderDoc.data()!;
+           final notificationService = NotificationService();
+
+           // 1. Notify Admin
+           await notificationService.notifyAdmins(
+             title: 'Return Requested', 
+             body: 'Return requested for Order #$orderId', 
+             type: 'return_request',
+             relatedId: orderId,
+           );
+
+           // 2. Notify Delivery Partners (Broadcast for Pickup)
+           await notificationService.notifyDeliveryPartners(
+             title: 'New Return Pickup', 
+             body: 'Return pickup available for Order #$orderId', 
+             type: 'return_pickup',
+             relatedId: orderId,
+           );
+
+           // 3. Notify Sellers
+           final items = (orderData['items'] as List<dynamic>?) ?? [];
+           final Set<String> notifiedSellers = {};
+           
+           for (var item in items) {
+             final sellerId = item['sellerId'] as String?;
+             if (sellerId != null && !notifiedSellers.contains(sellerId)) {
+               await notificationService.sendNotification(
+                 toUserId: sellerId,
+                 title: 'Return Requested',
+                 body: 'A customer requested return for an item in Order #$orderId',
+                 type: 'return_request',
+                 relatedId: orderId,
+               );
+               notifiedSellers.add(sellerId);
+             }
+           }
+        }
+      }
       // Record debit transaction if order is returned
       else if (newStatus == 'returned') {
+        // Notify Admin for Refund
+        final notificationService = NotificationService();
+        await notificationService.notifyAdmins(
+          title: 'Return Received', 
+          body: 'Order #$orderId has been returned. Please process refund.', 
+          type: 'refund_request',
+          relatedId: orderId,
+        );
+
         final orderDoc = await _firestore.collection('orders').doc(orderId).get();
         if (orderDoc.exists) {
           final orderData = orderDoc.data()!;
           // Only debit if it was previously delivered (meaning they were credited)
-          // or if we want to be strict, check status history.
-          // For now, we assume 'returned' flow comes after 'delivered'.
-          
           await _processSellerTransactions(orderId, orderData, TransactionType.debit);
         }
       }
@@ -135,6 +207,7 @@ class OrderProvider extends ChangeNotifier {
       await fetchUserOrders();
     } catch (e) {
       debugPrint('Error updating order status: $e');
+      rethrow; // Rethrow error so UI knows it failed
     }
   }
 

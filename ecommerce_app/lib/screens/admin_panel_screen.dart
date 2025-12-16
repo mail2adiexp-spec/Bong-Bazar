@@ -33,8 +33,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecommerce_app/screens/role_management_tab.dart';
 import '../widgets/shared_products_tab.dart';
 import '../widgets/shared_orders_tab.dart';
+import '../widgets/seller_details_widget.dart';
+import '../widgets/service_provider_details_widget.dart';
 import '../widgets/shared_users_tab.dart';
 import '../widgets/shared_services_tab.dart';
+import 'admin_settings_screen.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   static const routeName = '/admin-panel';
@@ -68,8 +71,74 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   DateTime? _productEndDate;
   
   
+  // Stream variables
+  late Stream<QuerySnapshot> _partnerRequestsStream;
+  late Stream<QuerySnapshot> _serviceProvidersStream;
+  late Stream<QuerySnapshot> _sellersStream;
+  late Stream<QuerySnapshot> _ordersStream;
+  late Stream<QuerySnapshot> _usersStream;
+  late Stream<QuerySnapshot> _cancelledOrdersStream;
+  late Stream<QuerySnapshot> _returnedOrdersStream;
+  Stream<QuerySnapshot>? _topSellingStream;
+  Stream<QuerySnapshot>? _topServicesStream;
+  late Stream<QuerySnapshot> _recentOrdersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeStreams();
+  }
+
+  void _initializeStreams() {
+    _partnerRequestsStream = FirebaseFirestore.instance
+        .collection('partner_requests')
+        .where('status', isEqualTo: 'pending')
+        .snapshots();
+        
+    _serviceProvidersStream = FirebaseFirestore.instance
+        .collection('users')
+        .where('role', isEqualTo: 'service_provider')
+        .snapshots();
+        
+    _sellersStream = FirebaseFirestore.instance
+        .collection('users')
+        .where('role', isEqualTo: 'seller')
+        .snapshots();
+        
+    _ordersStream = FirebaseFirestore.instance
+        .collection('orders')
+        .snapshots();
+        
+    _usersStream = FirebaseFirestore.instance
+        .collection('users')
+        .snapshots();
+        
+    _cancelledOrdersStream = FirebaseFirestore.instance
+        .collection('orders')
+        .where('status', isEqualTo: 'cancelled')
+        .snapshots();
+        
+    _returnedOrdersStream = FirebaseFirestore.instance
+        .collection('orders')
+        .where('status', isEqualTo: 'returned')
+        .snapshots();
+        
+    _recentOrdersStream = FirebaseFirestore.instance
+        .collection('orders')
+        .orderBy('orderDate', descending: true)
+        .limit(10)
+        .snapshots();
+    _topSellingStream = FirebaseFirestore.instance
+        .collection('orders')
+        .snapshots();
+
+    _topServicesStream = FirebaseFirestore.instance
+        .collection('service_categories')
+        .snapshots();
+  }
 
   final List<String> _menuTitles = [
+
     'Dashboard',           // First
     'Users',              // 5
     'Gifts',              // 5
@@ -87,6 +156,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     'Service Categories', // 18
     'Service Providers',  // 18
     'Partner Requests',
+    'Settings',           // 19 - NEW
   ];
 
   final Map<int, int> _sortedToOriginalIndex = {
@@ -107,6 +177,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     14: 14, // Service Categories
     15: 12, // Service Providers
     16: 16, // Partner Requests
+    17: 17, // Settings
   };
 
   final List<IconData> _menuIcons = [
@@ -126,7 +197,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     Icons.delivery_dining,     // Delivery Partners
     Icons.miscellaneous_services, // Service Categories
     Icons.handyman,            // Service Providers
-    Icons.person_add,
+    Icons.person_add,          // Partner Requests
+    Icons.settings,            // Settings
   ];
 
   @override
@@ -254,10 +326,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           // Menu Items - Scrollable
                           Expanded(
                             child: StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('partner_requests')
-                                  .where('status', isEqualTo: 'pending')
-                                  .snapshots(),
+                              stream: _partnerRequestsStream,
                               builder: (context, snapshot) {
                                 final pendingCount = snapshot.hasData
                                     ? snapshot.data!.docs.length
@@ -462,6 +531,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         _buildServiceCategoriesTab(isAdmin: isAdmin), // 14
                         _buildAnalyticsTab(), // 15
                         _buildPartnerRequestsTab(), // 16
+                        const AdminSettingsScreen(), // 17 - Settings
                       ],
                     ),
                   ),
@@ -608,70 +678,49 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             children: [
               _buildDashboardCard(
                 title: 'Total Service Providers',
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .where('role', isEqualTo: 'service_provider')
-                    .snapshots(),
+                stream: _serviceProvidersStream,
                 icon: Icons.home_repair_service,
                 color: Colors.blue,
               ),
               _buildDashboardCard(
                 title: 'Total Sellers',
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .where('role', isEqualTo: 'seller')
-                    .snapshots(),
+                stream: _sellersStream,
                 icon: Icons.store,
                 color: Colors.green,
               ),
               _buildDashboardCard(
                 title: 'Total Orders',
-                stream: FirebaseFirestore.instance
-                    .collection('orders')
-                    .snapshots(),
+                stream: _ordersStream,
                 icon: Icons.receipt_long,
                 color: Colors.orange,
               ),
               _buildDashboardCard(
                 title: 'Total Users',
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .snapshots(),
+                stream: _usersStream,
                 icon: Icons.person,
                 color: Colors.purple,
               ),
               _buildDashboardCard(
                 title: 'Pending Partners',
-                stream: FirebaseFirestore.instance
-                    .collection('partner_requests')
-                    .where('status', isEqualTo: 'pending')
-                    .snapshots(),
+                stream: _partnerRequestsStream,
                 icon: Icons.people_outline,
                 color: Colors.red,
               ),
               _buildDashboardCard(
                 title: 'Total Sell',
-                stream: FirebaseFirestore.instance
-                    .collection('orders')
-                    .snapshots(),
+                stream: _ordersStream,
                 icon: Icons.shopping_cart_checkout,
                 color: Colors.indigo,
               ),
               _buildDashboardCard(
                 title: 'Total Cancel',
-                stream: FirebaseFirestore.instance
-                    .collection('orders')
-                    .where('status', isEqualTo: 'cancelled')
-                    .snapshots(),
+                stream: _cancelledOrdersStream,
                 icon: Icons.cancel,
                 color: Colors.red,
               ),
               _buildDashboardCard(
                 title: 'Total Return',
-                stream: FirebaseFirestore.instance
-                    .collection('orders')
-                    .where('status', isEqualTo: 'returned')
-                    .snapshots(),
+                stream: _returnedOrdersStream,
                 icon: Icons.assignment_return,
                 color: Colors.orange,
               ),
@@ -717,11 +766,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   
   Widget _buildRecentOrdersList() {
     return StreamBuilder(
-      stream: FirebaseFirestore.instance
-          .collection('orders')
-          .orderBy('orderDate', descending: true)
-          .limit(10)
-          .snapshots(),
+      stream: _recentOrdersStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -741,7 +786,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
             final doc = docs[index];
-            final data = doc.data();
+            final data = doc.data() as Map<String, dynamic>;
             final orderId = doc.id;
             final userId = data['userId'] as String? ?? '-';
             final total = (data['totalAmount'] as num?)?.toDouble() ?? 0.0;
@@ -827,7 +872,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Widget _buildTopSellingProducts() {
     return StreamBuilder(
-      stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+      stream: _topSellingStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -914,9 +959,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Widget _buildTopServices() {
     return StreamBuilder(
-      stream: FirebaseFirestore.instance
-          .collection('service_categories')
-          .snapshots(),
+      stream: _topServicesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -4969,87 +5012,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       _buildSellerOrdersTab(sellerId),
                       _buildFinancialTab(sellerId, 'seller'),
                       SingleChildScrollView(
-                        child: StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('products')
-                              .where('sellerId', isEqualTo: sellerId)
-                              .snapshots(),
-                          builder: (context, productSnapshot) {
-                            final productCount =
-                                productSnapshot.data?.docs.length ?? 0;
-
-                            return StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('orders')
-                                  .snapshots(),
-                              builder: (context, orderSnapshot) {
-                                final orders = orderSnapshot.data?.docs ?? [];
-                                final sellerOrders = orders.where((doc) {
-                                  final data = doc.data() as Map<String, dynamic>;
-                                  final items =
-                                      data['items'] as List<dynamic>? ?? [];
-                                  return items.any(
-                                      (item) => item['sellerId'] == sellerId);
-                                }).toList();
-
-                                final orderCount = sellerOrders.length;
-
-                                double totalRevenue = 0;
-                                for (var order in sellerOrders) {
-                                  final data =
-                                      order.data() as Map<String, dynamic>;
-                                  final items =
-                                      data['items'] as List<dynamic>? ?? [];
-                                  for (var item in items) {
-                                    if (item['sellerId'] == sellerId) {
-                                      totalRevenue += (item['price'] ?? 0) *
-                                          (item['quantity'] ?? 1);
-                                    }
-                                  }
-                                }
-
-                                return GridView.count(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 12,
-                                  mainAxisSpacing: 12,
-                                  padding: const EdgeInsets.all(16),
-                                  children: [
-                                    _buildStatCard(
-                                      'Total Products',
-                                      productCount.toString(),
-                                      Icons.inventory_2,
-                                      Colors.blue,
-                                    ),
-                                    _buildStatCard(
-                                      'Total Orders',
-                                      orderCount.toString(),
-                                      Icons.shopping_bag,
-                                      Colors.orange,
-                                    ),
-                                    _buildStatCard(
-                                      'Total Revenue',
-                                      '₹${totalRevenue.toStringAsFixed(0)}',
-                                      Icons.currency_rupee,
-                                      Colors.green,
-                                    ),
-                                    _buildStatCard(
-                                      'Pending Orders',
-                                      sellerOrders.where((o) {
-                                        final d =
-                                            o.data() as Map<String, dynamic>;
-                                        return d['status'] == 'pending';
-                                      }).length.toString(),
-                                      Icons.pending_actions,
-                                      Colors.red,
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                        ),
+                        child: SellerDetailsWidget(sellerId: sellerId),
                       ),
                     ],
                   ),
@@ -5167,72 +5130,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       const Center(child: Text('Services coming soon')),
                       _buildFinancialTab(providerId, 'service_provider'),
                       SingleChildScrollView(
-                        child: StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('services')
-                              .where('providerId', isEqualTo: providerId)
-                              .snapshots(),
-                          builder: (context, serviceSnapshot) {
-                            final serviceCount =
-                                serviceSnapshot.data?.docs.length ?? 0;
-
-                            return StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('service_requests')
-                                  .where('providerId', isEqualTo: providerId)
-                                  .snapshots(),
-                              builder: (context, requestSnapshot) {
-                                final requestCount =
-                                    requestSnapshot.data?.docs.length ?? 0;
-                                final requests =
-                                    requestSnapshot.data?.docs ?? [];
-
-                                return GridView.count(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 12,
-                                  mainAxisSpacing: 12,
-                                  padding: const EdgeInsets.all(16),
-                                  children: [
-                                    _buildStatCard(
-                                      'Total Services',
-                                      serviceCount.toString(),
-                                      Icons.handyman,
-                                      Colors.orange,
-                                    ),
-                                    _buildStatCard(
-                                      'Total Requests',
-                                      requestCount.toString(),
-                                      Icons.assignment,
-                                      Colors.blue,
-                                    ),
-                                    _buildStatCard(
-                                      'Pending Requests',
-                                      requests.where((r) {
-                                        final d =
-                                            r.data() as Map<String, dynamic>;
-                                        return d['status'] == 'pending';
-                                      }).length.toString(),
-                                      Icons.pending_actions,
-                                      Colors.red,
-                                    ),
-                                    _buildStatCard(
-                                      'Completed Requests',
-                                      requests.where((r) {
-                                        final d =
-                                            r.data() as Map<String, dynamic>;
-                                        return d['status'] == 'completed';
-                                      }).length.toString(),
-                                      Icons.task_alt,
-                                      Colors.green,
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                        ),
+                        child: ServiceProviderDetailsWidget(providerId: providerId),
                       ),
                     ],
                   ),

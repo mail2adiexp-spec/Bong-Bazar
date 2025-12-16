@@ -18,6 +18,17 @@ class SharedUsersTab extends StatefulWidget {
 class _SharedUsersTabState extends State<SharedUsersTab> {
   String _userFilter = 'All';
 
+  late Stream<QuerySnapshot> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = FirebaseFirestore.instance
+        .collection('users')
+        .where('role', isEqualTo: 'user')
+        .snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -54,10 +65,7 @@ class _SharedUsersTabState extends State<SharedUsersTab> {
         const Divider(height: 1),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .where('role', isEqualTo: 'user')
-                .snapshots(),
+            stream: _stream,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(child: Text('Error: ${snapshot.error}'));

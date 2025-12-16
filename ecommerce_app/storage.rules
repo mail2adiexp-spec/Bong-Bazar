@@ -141,6 +141,22 @@ service firebase.storage {
       allow delete: if isAdmin();
     }
     
+    // Payment Proofs - Authenticated users (delivery partners) can upload
+    match /payment_proofs/{orderId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+                     isValidImageSize() && 
+                     isValidImageType();
+    }
+    
+    // App Settings (QR Codes) - Admin only
+    match /app_settings/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() &&
+                     isValidImageSize() && 
+                     isValidImageType();
+    }
+    
     // 8. Admin can access everything
     match /{allPaths=**} {
       allow read, write, delete: if isAdmin();

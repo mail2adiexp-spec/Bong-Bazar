@@ -95,7 +95,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && 
                     (resource.data.userId == request.auth.uid || isSeller() || isAdmin() || isCoreStaff() || isDeliveryPartner());
       allow create: if isAuthenticated();
-      allow update: if isAdmin() || isSeller() || isCoreStaff() || isDeliveryPartner();
+      allow update: if isAdmin() || isSeller() || isCoreStaff() || isDeliveryPartner() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow delete: if isAdmin() || isCoreStaff();
     }
 
@@ -259,7 +259,7 @@ service cloud.firestore {
     // Update/Delete: Own notification + Admin
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow create: if isAdmin() || isSeller() || isServiceProvider() || isCoreStaff();
+      allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
         isAdmin()
@@ -277,6 +277,14 @@ service cloud.firestore {
     match /promotions/{promotionId} {
       allow read: if true;
       allow write: if isAdmin() || isCoreStaff();
+    }
+    
+    // ==================== APP SETTINGS COLLECTION ====================
+    // Read: Authenticated users (needed for QR code)
+    // Write: Admin only
+    match /app_settings/{documentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
     // ==================== ANALYTICS/REPORTS COLLECTION ====================
