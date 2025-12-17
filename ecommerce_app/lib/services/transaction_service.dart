@@ -45,7 +45,7 @@ class TransactionService {
 
         if (type == 'credit') {
           balance += amount;
-        } else if (type == 'debit') {
+        } else if (type == 'debit' || type == 'refund') {
           balance -= amount;
         }
       }

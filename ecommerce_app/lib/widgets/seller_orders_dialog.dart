@@ -230,6 +230,77 @@ class _SellerOrdersDialogState extends State<SellerOrdersDialog> {
                                     ),
                                   ],
                                 ),
+                                const SizedBox(height: 16),
+                                if (status == 'pending' || status == 'confirmed')
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      icon: const Icon(Icons.inventory_2),
+                                      label: const Text('Mark as Packed'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      onPressed: () async {
+                                        try {
+                                          await FirebaseFirestore.instance
+                                              .collection('orders')
+                                              .doc(orderId)
+                                              .update({
+                                            'status': 'packed',
+                                            'statusHistory.packed': FieldValue.serverTimestamp(),
+                                            'updatedBy': widget.user.uid,
+                                          });
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Order marked as Packed')),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Error: $e')),
+                                            );
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                if (status == 'packed')
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      icon: const Icon(Icons.airport_shuttle),
+                                      label: const Text('Ready for Pickup'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      onPressed: () async {
+                                        try {
+                                          await FirebaseFirestore.instance
+                                              .collection('orders')
+                                              .doc(orderId)
+                                              .update({
+                                            'status': 'out_for_delivery', // Or a distinct 'ready_for_pickup' status if preferred, but usually handoff implies out_for_delivery or assignment
+                                            'statusHistory.out_for_delivery': FieldValue.serverTimestamp(),
+                                            'updatedBy': widget.user.uid,
+                                          });
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Order marked as Ready/Out for Delivery')),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Error: $e')),
+                                            );
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ),
                               ],
                             ),
                           ),

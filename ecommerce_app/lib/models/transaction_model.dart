@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum TransactionType { credit, debit }
+enum TransactionType { credit, debit, refund }
 enum TransactionStatus { pending, completed, failed }
 
 class TransactionModel {

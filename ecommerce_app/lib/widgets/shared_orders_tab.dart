@@ -7,12 +7,14 @@ class SharedOrdersTab extends StatefulWidget {
   final bool canManage;
   final String? sellerId; // Optional: to filter orders for a specific seller
   final bool isDeliveryPartner; // Optional: for Delivery Partner dashboard specific view
+  final List<String>? matchStatuses; // Optional: to show only specific orders
 
   const SharedOrdersTab({
     Key? key, 
     this.canManage = true,
     this.sellerId,
     this.isDeliveryPartner = false,
+    this.matchStatuses,
   }) : super(key: key);
 
   @override
@@ -28,6 +30,10 @@ class _SharedOrdersTabState extends State<SharedOrdersTab> {
     'out_for_delivery',
     'delivered',
     'cancelled',
+    'return_requested',
+    'out_for_pickup',
+    'returned',
+    'refunded',
   ];
 
   late Stream<QuerySnapshot> _ordersStream;
@@ -75,9 +81,18 @@ class _SharedOrdersTabState extends State<SharedOrdersTab> {
                     child: Text('Failed to load orders: ${snapshot.error}'),
                   );
                 }
-                final docs = snapshot.data?.docs ?? [];
+                var docs = snapshot.data?.docs ?? [];
+                
+                // Client-side filtering if matchStatuses is provided
+                if (widget.matchStatuses != null && widget.matchStatuses!.isNotEmpty) {
+                  docs = docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return widget.matchStatuses!.contains(data['status']);
+                  }).toList();
+                }
+
                 if (docs.isEmpty) {
-                  return const Center(child: Text('No orders found'));
+                  return const Center(child: Text('No matching orders found'));
                 }
 
                 return ListView.separated(
@@ -98,118 +113,256 @@ class _SharedOrdersTabState extends State<SharedOrdersTab> {
                       }
                     } catch (_) {}
 
+                    final items = data['items'] as List<dynamic>? ?? [];
+                    final itemCount = items.length;
+
                     return Card(
-                      elevation: 1,
+                      elevation: 2,
+                      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.grey.shade200),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Order #${orderId.substring(0, orderId.length >= 8 ? 8 : orderId.length)}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
+                            // Header: Order ID & Status
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(Icons.shopping_bag_outlined, color: Colors.blue, size: 20),
                                     ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text('User: $userId'),
-                                  const SizedBox(height: 2),
-                                  Text('Total: ${NumberFormat.currency(locale: 'en_IN', symbol: '₹').format(total)}'),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Date: ${orderDate != null ? DateFormat('dd-MM-yyyy HH:mm').format(orderDate) : '-'}',
-                                  ),
-                                  if (data['deliveryPartnerName'] != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4.0),
-                                      child: Text(
-                                        'Runner: ${data['deliveryPartnerName']}',
-                                        style: TextStyle(
-                                          fontSize: 12, 
-                                          color: Colors.blue[700], 
-                                          fontWeight: FontWeight.w500
+                                    const SizedBox(width: 12),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Order #${orderId.substring(0, 8)}',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                         ),
+                                        Text(
+                                          orderDate != null ? DateFormat('MMM dd, yyyy • hh:mm a').format(orderDate) : '-',
+                                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                if (widget.canManage)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColor(status).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: _getStatusColor(status).withOpacity(0.5)),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: _statuses.contains(status) ? status : 'pending',
+                                        icon: Icon(Icons.arrow_drop_down, color: _getStatusColor(status)),
+                                        style: TextStyle(
+                                          color: _getStatusColor(status),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                        isDense: true,
+                                        items: _statuses.map((s) => DropdownMenuItem(
+                                          value: s, 
+                                          child: Text(s.replaceAll('_', ' ').toUpperCase()),
+                                        )).toList(),
+                                        onChanged: (val) async {
+                                          if (val == null) return;
+                                          try {
+                                            final batch = FirebaseFirestore.instance.batch();
+                                            final orderRef = FirebaseFirestore.instance.collection('orders').doc(orderId);
+                                            batch.update(orderRef, {
+                                              'status': val,
+                                              'statusHistory.$val': FieldValue.serverTimestamp(),
+                                            });
+                                            await batch.commit();
+                                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Status updated to ${val.replaceAll('_', ' ')}')));
+                                          } catch (e) {
+                                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+                                          }
+                                        },
                                       ),
                                     ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // View Details Button
-                            IconButton(
-                              icon: const Icon(Icons.info_outline),
-                              tooltip: 'View Order Details',
-                              onPressed: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => OrderDetailsDialog(
-                                    orderId: orderId,
-                                    orderData: data,
+                                  )
+                                else
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColor(status).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: _getStatusColor(status)),
+                                    ),
+                                    child: Text(
+                                      status.toUpperCase().replaceAll('_', ' '),
+                                      style: TextStyle(
+                                        color: _getStatusColor(status),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
-                                );
-                              },
-                              color: Colors.blue,
+                              ],
                             ),
-                            if (widget.canManage) ...[
-                              DropdownButton<String>(
-                                value: _statuses.contains(status) ? status : 'pending',
-                                items: _statuses.map((s) => DropdownMenuItem(value: s, child: Text(s.replaceAll('_', ' ')))).toList(),
-                                onChanged: (val) async {
-                                  if (val == null) return;
-                                  try {
-                                    final batch = FirebaseFirestore.instance.batch();
-                                    final orderRef = FirebaseFirestore.instance.collection('orders').doc(orderId);
-                                    
-                                    batch.update(orderRef, {
-                                      'status': val,
-                                      'statusHistory.$val': FieldValue.serverTimestamp(),
-                                    });
-
-                                    await batch.commit();
-
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Status updated to ${val.replaceAll('_', ' ')}')));
-                                    }
-                                  } catch (e) {
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
-                                    }
-                                  }
-                                },
-                              ),
-                              if (!widget.isDeliveryPartner) // Don't show assign button to delivery partners themselves generally, unless admin allows
-                                IconButton(
-                                  icon: const Icon(Icons.person_add),
-                                  tooltip: 'Assign Delivery Partner',
-                                  onPressed: () => _showAssignDeliveryPartnerDialog(orderId, data),
-                                  color: Colors.blue,
+                            const Divider(height: 24),
+                            // Body: User, Items, Runner
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _buildInfoRow(Icons.person_outline, 'User ID', userId),
+                                      const SizedBox(height: 8),
+                                      _buildInfoRow(Icons.inventory_2_outlined, 'Items', '$itemCount items'),
+                                      if (data['deliveryPartnerName'] != null) ...[
+                                        const SizedBox(height: 8),
+                                        _buildInfoRow(Icons.delivery_dining_outlined, 'Runner', data['deliveryPartnerName']),
+                                      ]
+                                    ],
+                                  ),
                                 ),
-                            ] else ...[
-                               Container(
-                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                 decoration: BoxDecoration(
-                                   color: _getStatusColor(status).withOpacity(0.1),
-                                   borderRadius: BorderRadius.circular(4),
-                                   border: Border.all(color: _getStatusColor(status)),
-                                 ),
-                                 child: Text(
-                                   status.toUpperCase().replaceAll('_', ' '),
-                                   style: TextStyle(
-                                     color: _getStatusColor(status),
-                                     fontSize: 12,
-                                     fontWeight: FontWeight.bold,
-                                   ),
-                                 ),
-                               ),
-                            ],
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    const Text('Total Amount', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      NumberFormat.currency(locale: 'en_IN', symbol: '₹').format(total),
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green[800]),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            // Footer: Actions
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.info_outline, size: 18),
+                                  label: const Text('Details'),
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => OrderDetailsDialog(orderId: orderId, orderData: data),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                                if (widget.canManage && !widget.isDeliveryPartner) ...[
+                                  const SizedBox(width: 8),
+                                  OutlinedButton.icon(
+                                    icon: const Icon(Icons.person_add_outlined, size: 18),
+                                    label: const Text('Assign Runner'),
+                                    onPressed: () => _showAssignDeliveryPartnerDialog(orderId, data),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                  ),
+                                ],
+                                if (status == 'returned') ...[
+                                  const SizedBox(width: 8),
+                                  ElevatedButton.icon(
+                                    icon: const Icon(Icons.replay_circle_filled, size: 18),
+                                    label: const Text('Refund'),
+                                    onPressed: () async {
+                                      // ... Refund Logic (Keep existing logic but formatted) ...
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) {
+                                          final refundInfo = data['refundDetails'] != null 
+                                              ? data['refundDetails']['paymentInfo'] 
+                                              : 'Not provided';
+                                          return AlertDialog(
+                                            title: const Text('Process Refund'),
+                                            content: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text('Refund Amount: ₹${total.toStringAsFixed(2)}', 
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                                const SizedBox(height: 16),
+                                                const Text('User Payment Details (UPI/Bank):', 
+                                                  style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                                const SizedBox(height: 4),
+                                                Container(
+                                                  width: double.infinity,
+                                                  padding: const EdgeInsets.all(12),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey[100],
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(color: Colors.grey.shade300),
+                                                  ),
+                                                  child: SelectableText(
+                                                    refundInfo,
+                                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                const Text('Mark this order as refunded after sending existing payment?',
+                                                  style: TextStyle(fontSize: 14)),
+                                              ],
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(context, false),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              ElevatedButton(
+                                                onPressed: () => Navigator.pop(context, true),
+                                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                                                child: const Text('Confirm Refund'),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      );
+
+                                      if (confirm == true) {
+                                        try {
+                                          final batch = FirebaseFirestore.instance.batch();
+                                          final orderRef = FirebaseFirestore.instance.collection('orders').doc(orderId);
+                                          batch.update(orderRef, {
+                                            'status': 'refunded',
+                                            'statusHistory.refunded': FieldValue.serverTimestamp(),
+                                          });
+                                          await batch.commit();
+                                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Refund Processed Successfully')));
+                                        } catch (e) {
+                                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to process refund: $e')));
+                                        }
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -221,6 +374,17 @@ class _SharedOrdersTabState extends State<SharedOrdersTab> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey),
+        const SizedBox(width: 8),
+        Text('$label: ', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13), overflow: TextOverflow.ellipsis)),
+      ],
     );
   }
 
@@ -249,6 +413,10 @@ class _SharedOrdersTabState extends State<SharedOrdersTab> {
       case 'out_for_delivery': return Colors.teal;
       case 'delivered': return Colors.green;
       case 'cancelled': return Colors.red;
+      case 'return_requested': return Colors.orange;
+      case 'out_for_pickup': return Colors.blue;
+      case 'returned': return Colors.purple;
+      case 'refunded': return Colors.green;
       default: return Colors.grey;
     }
   }

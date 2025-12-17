@@ -156,7 +156,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     'Service Categories', // 18
     'Service Providers',  // 18
     'Partner Requests',
-    'Settings',           // 19 - NEW
+    'Refund Requests',    // 17
+    'Settings',           // 18 - NEW
   ];
 
   final Map<int, int> _sortedToOriginalIndex = {
@@ -177,7 +178,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     14: 14, // Service Categories
     15: 12, // Service Providers
     16: 16, // Partner Requests
-    17: 17, // Settings
+    17: 18, // Refund Requests
+    18: 17, // Settings
   };
 
   final List<IconData> _menuIcons = [
@@ -198,6 +200,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     Icons.miscellaneous_services, // Service Categories
     Icons.handyman,            // Service Providers
     Icons.person_add,          // Partner Requests
+    Icons.assignment_return,   // Refund Requests
     Icons.settings,            // Settings
   ];
 
@@ -532,6 +535,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         _buildAnalyticsTab(), // 15
                         _buildPartnerRequestsTab(), // 16
                         const AdminSettingsScreen(), // 17 - Settings
+                        _buildRefundRequestsTab(), // 18 - Refund Requests
                       ],
                     ),
                   ),
@@ -541,6 +545,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildRefundRequestsTab() {
+    return const SharedOrdersTab(
+      canManage: true,
+      matchStatuses: ['return_requested', 'out_for_pickup', 'returned', 'refunded'],
     );
   }
 
@@ -668,6 +679,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildFinancialOverview(), // New Financial Section
+          const SizedBox(height: 24),
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -706,12 +719,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 icon: Icons.people_outline,
                 color: Colors.red,
               ),
-              _buildDashboardCard(
-                title: 'Total Sell',
-                stream: _ordersStream,
-                icon: Icons.shopping_cart_checkout,
-                color: Colors.indigo,
-              ),
+              // Removed duplicate Total Sell
               _buildDashboardCard(
                 title: 'Total Cancel',
                 stream: _cancelledOrdersStream,
@@ -1025,6 +1033,116 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildFinancialOverview() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _ordersStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+        double totalRevenue = 0;
+        double returns = 0;
+        double profit = 0;
+        double invest = 0; // Seller Payouts
+
+        for (var doc in snapshot.data!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final status = data['status'] as String? ?? '';
+          final amount = (data['totalAmount'] as num?)?.toDouble() ?? 0;
+          final deliveryFee = (data['deliveryFee'] as num?)?.toDouble() ?? 0;
+          // Assuming a standard commission logic or using delivery fee as profit proxy for now
+          // In a real scenario, you'd fetch 'adminCommission' from order data
+          
+          if (status != 'cancelled') {
+             totalRevenue += amount;
+             
+             if (status == 'returned' || status == 'refunded') {
+               returns += amount;
+             } else {
+               // Valid Sale
+               profit += deliveryFee; 
+               // Future: Add (amount * commission_rate) to profit
+             }
+          }
+        }
+
+        final netSales = totalRevenue - returns;
+        invest = netSales - profit; // Remaining amount is for sellers (Invest)
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.indigo.shade800, Colors.indigo.shade600],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.indigo.withOpacity(0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Financial Overview',
+                style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                   _buildStatItem('Net Sales', netSales, Icons.attach_money, Colors.greenAccent),
+                   Container(height: 40, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 24)),
+                   _buildStatItem('Gross Profit', profit, Icons.trending_up, Colors.amberAccent),
+                   Container(height: 40, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 24)),
+                   _buildStatItem('Seller Payouts', invest, Icons.storefront, Colors.blueAccent),
+                   Container(height: 40, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 24)),
+                   _buildStatItem('Returns', returns, Icons.replay, Colors.redAccent),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatItem(String label, double value, IconData icon, Color color) {
+    return Expanded(
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(value),
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

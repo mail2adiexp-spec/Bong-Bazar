@@ -440,28 +440,86 @@ class OrderTrackingScreen extends StatelessWidget {
   }
 
   Future<void> _confirmAction(BuildContext context, String newStatus, String label) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Confirm $label'),
-        content: Text('Are you sure you want to $label?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('No'),
+    Map<String, dynamic>? refundDetails;
+    bool confirmed = false;
+
+    if (newStatus == 'return_requested') {
+      final upiController = TextEditingController();
+      confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Return Order'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Please provide your Bank Account or UPI ID for refund processing:'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: upiController,
+                decoration: const InputDecoration(
+                  labelText: 'UPI ID / Bank Details',
+                  border: OutlineInputBorder(),
+                  hintText: 'e.g., 9999999999@upi or Acc No + IFSC',
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Refund will be processed within 48 hours to this account.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (upiController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter Valid Refund Details')),
+                  );
+                  return;
+                }
+                refundDetails = {'paymentInfo': upiController.text.trim()};
+                Navigator.pop(context, true);
+              },
+              child: const Text('Confirm Return'),
+            ),
+          ],
+        ),
+      ) ?? false;
+    } else {
+      confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Confirm $label'),
+          content: Text('Are you sure you want to $label?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('No'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Yes'),
+            ),
+          ],
+        ),
+      ) ?? false;
+    }
 
     if (confirmed == true && context.mounted) {
       debugPrint('DEBUG: Converting order ${order.id} to status $newStatus');
       try {
-        await context.read<OrderProvider>().updateOrderStatus(order.id, newStatus);
+        await context.read<OrderProvider>().updateOrderStatus(
+          order.id, 
+          newStatus, 
+          refundDetails: refundDetails
+        );
         debugPrint('DEBUG: Order status updated successfully');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

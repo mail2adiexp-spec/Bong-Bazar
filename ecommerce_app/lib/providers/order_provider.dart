@@ -127,12 +127,18 @@ class OrderProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> updateOrderStatus(String orderId, String newStatus) async {
+  Future<void> updateOrderStatus(String orderId, String newStatus, {Map<String, dynamic>? refundDetails}) async {
     try {
-      await _firestore.collection('orders').doc(orderId).update({
+      final Map<String, dynamic> updates = {
         'status': newStatus,
         'statusHistory.$newStatus': DateTime.now().toIso8601String(),
-      });
+      };
+      
+      if (refundDetails != null) {
+        updates['refundDetails'] = refundDetails;
+      }
+
+      await _firestore.collection('orders').doc(orderId).update(updates);
 
       // Record transaction if order is delivered
       if (newStatus == 'delivered') {
@@ -200,7 +206,7 @@ class OrderProvider extends ChangeNotifier {
         if (orderDoc.exists) {
           final orderData = orderDoc.data()!;
           // Only debit if it was previously delivered (meaning they were credited)
-          await _processSellerTransactions(orderId, orderData, TransactionType.debit);
+          await _processSellerTransactions(orderId, orderData, TransactionType.refund);
         }
       }
 
@@ -246,9 +252,19 @@ class OrderProvider extends ChangeNotifier {
       final sellerId = entry.key;
       final amount = entry.value;
       
-      final description = type == TransactionType.credit 
-          ? 'Earnings for Order #$orderId' 
-          : 'Refund for Order #$orderId';
+      String description;
+      switch (type) {
+        case TransactionType.credit:
+          description = 'Earnings for Order #$orderId';
+          break;
+        case TransactionType.refund:
+          description = 'Refund for Order #$orderId';
+          break;
+        case TransactionType.debit:
+        default:
+          description = 'Debit for Order #$orderId';
+          break;
+      }
 
       final transaction = TransactionModel(
         id: '', // Firestore will generate ID
