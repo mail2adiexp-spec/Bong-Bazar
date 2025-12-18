@@ -76,6 +76,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
           .snapshots();
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
@@ -91,6 +92,7 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        backgroundColor: Colors.grey[100],
         appBar: AppBar(
           title: const Text('Service Provider Dashboard'),
           elevation: 2,
@@ -112,464 +114,59 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
   }
 
   Widget _buildOverviewTab(BuildContext context, dynamic user) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _partnerRequestsStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Welcome Header
+          _buildWelcomeHeader(user),
+          const SizedBox(height: 24),
 
-        if (snapshot.hasError) {
-          // Fallback view when Firestore rules prevent reading partner_requests
-          final auth = Provider.of<AuthProvider>(context, listen: false);
-          return _buildLimitedAccessView(context, auth);
-        }
+          // 2. Business Stats
+          const Text('Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+          const SizedBox(height: 12),
+          _buildStatsGrid(context),
+          const SizedBox(height: 24),
 
+          // 3. Quick Actions
+          const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+          const SizedBox(height: 12),
+          _buildQuickActionsGrid(context, user),
+          const SizedBox(height: 24),
 
-        final requests = snapshot.data?.docs ?? [];
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Welcome Card
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).colorScheme.primary,
-                        Theme.of(context).colorScheme.primaryContainer,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 30,
-                            backgroundColor: Colors.white,
-                            child: Icon(
-                              Icons.person,
-                              size: 30,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Welcome, ${user.name}',
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Service Provider',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Wallet Balance Card
-              FutureBuilder<double>(
-                future: TransactionService().getBalance(user.uid),
-                builder: (context, snapshot) {
-                  final balance = snapshot.data ?? 0.0;
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.account_balance_wallet,
-                                  color: Colors.green,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Wallet Balance',
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                  Text(
-                                    '₹${balance.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // Business Stats
-              Text(
-                'Business Stats',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              
-              // Services and Bookings
-              Row(
-                children: [
-                  Expanded(
-                    child: StreamBuilder<QuerySnapshot>(
-                      stream: _servicesStream,
-                      builder: (context, snapshot) {
-                        final count = snapshot.data?.docs.length ?? 0;
-                        return _buildStatCard(
-                          context,
-                          'Services',
-                          '$count',
-                          Icons.build_circle,
-                          Colors.purple,
-                          isLoading: snapshot.connectionState == ConnectionState.waiting,
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StreamBuilder<QuerySnapshot>(
-                      stream: _bookingsCountStream,
-                      builder: (context, snapshot) {
-                        final count = snapshot.data?.docs.length ?? 0;
-                        return _buildStatCard(
-                          context,
-                          'Bookings',
-                          '$count',
-                          Icons.calendar_today,
-                          Colors.orange,
-                          isLoading: snapshot.connectionState == ConnectionState.waiting,
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              
-              // Revenue and Rating
-              Row(
-                children: [
-                  Expanded(
-                    child: StreamBuilder<QuerySnapshot>(
-                      stream: _revenueStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return _buildStatCard(
-                            context,
-                            'Revenue',
-                            '₹0',
-                            Icons.currency_rupee,
-                            Colors.green,
-                            isLoading: true,
-                          );
-                        }
-                        
-                        double totalRevenue = 0;
-                        for (var doc in snapshot.data?.docs ?? []) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final cost = (data['totalCost'] as num?)?.toDouble() ?? 0;
-                          totalRevenue += cost;
-                        }
-                        
-                        return _buildStatCard(
-                          context,
-                          'Revenue',
-                          '₹${totalRevenue.toStringAsFixed(0)}',
-                          Icons.currency_rupee,
-                          Colors.green,
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StreamBuilder<QuerySnapshot>(
-                      stream: _servicesStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return _buildStatCard(
-                            context,
-                            'Rating',
-                            '0.0',
-                            Icons.star,
-                            Colors.amber,
-                            isLoading: true,
-                          );
-                        }
-                        
-                        double totalRating = 0;
-                        int ratedCount = 0;
-                        
-                        for (var doc in snapshot.data?.docs ?? []) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final rating = (data['rating'] as num?)?.toDouble();
-                          if (rating != null && rating > 0) {
-                            totalRating += rating;
-                            ratedCount++;
-                          }
-                        }
-                        
-                        final avg = ratedCount > 0 ? (totalRating / ratedCount) : 0.0;
-                        
-                        return _buildStatCard(
-                          context,
-                          'Rating',
-                          avg.toStringAsFixed(1),
-                          Icons.star,
-                          Colors.amber,
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              // Quick Actions
-              Text(
-                'Quick Actions',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Colors.purple,
-                    child: Icon(Icons.build, color: Colors.white),
-                  ),
-                  title: const Text('Manage Services'),
-                  subtitle: const Text('Update your service offerings'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    if (user.hasPermission('can_manage_services')) {
-                      _showManageServicesDialog(context, user);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Access Denied: You do not have permission to manage services.',
-                          ),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              
-              Card(
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Colors.blue,
-                    child: Icon(Icons.calendar_month, color: Colors.white),
-                  ),
-                  title: const Text('View Bookings'),
-                  subtitle: const Text('Track and manage your bookings'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    if (user.hasPermission('can_view_bookings')) {
-                      _showViewBookingsDialog(context, user);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Access Denied: You do not have permission to view bookings.',
-                          ),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              const SizedBox(height: 24),
-
-              // Recent Activity
-              Text(
-                'Recent Activity',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              StreamBuilder<QuerySnapshot>(
-                stream: _recentActivityStream,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                    );
-                  }
-
-                  final bookings = snapshot.data?.docs ?? [];
-
-                  if (bookings.isEmpty) {
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Center(
-                          child: Column(
-                            children: [
-                              Icon(Icons.inbox_outlined, size: 48, color: Colors.grey[400]),
-                              const SizedBox(height: 8),
-                              Text(
-                                'No recent activity',
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  return Card(
-                    child: Column(
-                      children: bookings.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final serviceName = data['serviceName'] ?? 'Service';
-                        final customerName = data['customerName'] ?? 'Customer';
-                        final status = data['status'] ?? 'pending';
-                        final cost = (data['totalCost'] as num?)?.toDouble() ?? 0;
-
-                        Color statusColor;
-                        switch (status.toLowerCase()) {
-                          case 'completed':
-                            statusColor = Colors.green;
-                            break;
-                          case 'cancelled':
-                            statusColor = Colors.red;
-                            break;
-                          case 'in_progress':
-                            statusColor = Colors.blue;
-                            break;
-                          default:
-                            statusColor = Colors.orange;
-                        }
-
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: statusColor.withOpacity(0.1),
-                            child: Icon(Icons.work, color: statusColor, size: 20),
-                          ),
-                          title: Text(serviceName),
-                          subtitle: Text(customerName),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '₹${cost.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  status.toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: statusColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // Service Requests Section
-              Text(
-                'Your Service Requests',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-
-              // List of requests
-              ...requests.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return _buildRequestCard(context, data);
-              }).toList(),
-            ],
+          // 4. Partner Request Status
+          StreamBuilder<QuerySnapshot>(
+             stream: _partnerRequestsStream,
+             builder: (context, snapshot) {
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const SizedBox();
+                return Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                      const Text('Service Provider Status', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      const SizedBox(height: 12),
+                      ...snapshot.data!.docs.map((doc) => _buildRequestCard(context, doc.data() as Map<String, dynamic>)),
+                      const SizedBox(height: 24),
+                   ],
+                );
+             }
           ),
-        );
-      },
+
+          // 5. Recent Activity
+          Row(
+             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+             children: [
+                const Text('Recent Bookings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                TextButton(
+                   onPressed: () => _showViewBookingsDialog(context, user),
+                   child: const Text('View All'),
+                ),
+             ],
+          ),
+          const SizedBox(height: 8),
+          _buildRecentActivityList(user),
+        ],
+      ),
     );
   }
 
@@ -1465,70 +1062,299 @@ class _ServiceProviderDashboardScreenState extends State<ServiceProviderDashboar
     );
   }
 
-  Widget _buildStatCard(
-    BuildContext context,
-    String title,
-    String value,
-    IconData icon,
-    Color color, {
-    bool isLoading = false,
-  }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildWelcomeHeader(dynamic user) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.teal.shade800, Colors.teal.shade600],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.teal.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: Colors.white,
+            child: Text(
+              user.name.isNotEmpty ? user.name[0].toUpperCase() : 'S',
+              style: TextStyle(
+                fontSize: 28,
+                color: Colors.teal[800],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, color: color, size: 28),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                Text(
+                  'Welcome back,',
+                  style: TextStyle(color: Colors.teal[100], fontSize: 14),
+                ),
+                Text(
+                  user.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
                   ),
-                  child: isLoading
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(color),
-                          ),
-                        )
-                      : Icon(icon, color: color, size: 20),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            isLoading
-                ? SizedBox(
-                    height: 32,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(color),
-                      ),
-                    ),
-                  )
-                : Text(
-                    value,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey,
-              ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
             ),
-          ],
-        ),
+            child: const Row(
+              children: [
+                Icon(Icons.verified, color: Colors.white, size: 16),
+                SizedBox(width: 4),
+                Text('SERVICE PROVIDER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildStatsGrid(BuildContext context) {
+     return Column(
+        children: [
+           Row(
+              children: [
+                 Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                       stream: _revenueStream,
+                       builder: (context, snapshot) {
+                          double totalRevenue = 0;
+                          for (var doc in snapshot.data?.docs ?? []) {
+                             final data = doc.data() as Map<String, dynamic>;
+                             totalRevenue += (data['totalCost'] as num?)?.toDouble() ?? 0;
+                          }
+                          return _buildModernStatCard('Revenue', '₹${totalRevenue.toStringAsFixed(0)}', Icons.currency_rupee, Colors.green, Colors.green[50]!);
+                       }
+                    ),
+                 ),
+                 const SizedBox(width: 12),
+                 Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                       stream: _bookingsCountStream,
+                       builder: (context, snapshot) {
+                          return _buildModernStatCard('Bookings', '${snapshot.data?.docs.length ?? 0}', Icons.calendar_today, Colors.orange, Colors.orange[50]!);
+                       }
+                    ),
+                 ),
+              ],
+           ),
+           const SizedBox(height: 12),
+           Row(
+              children: [
+                 Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                       stream: _servicesStream,
+                       builder: (context, snapshot) {
+                          return _buildModernStatCard('Services', '${snapshot.data?.docs.length ?? 0}', Icons.build_circle, Colors.purple, Colors.purple[50]!);
+                       }
+                    ),
+                 ),
+                 const SizedBox(width: 12),
+                 Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                       stream: _servicesStream,
+                       builder: (context, snapshot) {
+                          double totalRating = 0;
+                          int ratedCount = 0;
+                          for (var doc in snapshot.data?.docs ?? []) {
+                             final data = doc.data() as Map<String, dynamic>;
+                             final rating = (data['rating'] as num?)?.toDouble();
+                             if (rating != null && rating > 0) { totalRating += rating; ratedCount++; }
+                          }
+                          final avg = ratedCount > 0 ? (totalRating / ratedCount) : 0.0;
+                          return _buildModernStatCard('Rating', avg.toStringAsFixed(1), Icons.star, Colors.amber, Colors.amber[50]!);
+                       }
+                    ),
+                 ),
+              ],
+           ),
+        ],
+     );
+  }
+
+  Widget _buildModernStatCard(String title, String value, IconData icon, Color color, Color bgColor) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsGrid(BuildContext context, dynamic user) {
+     final actions = [
+        {'title': 'My Services', 'icon': Icons.build, 'color': Colors.purple, 'onTap': () {
+            if (user.hasPermission('can_manage_services')) _showManageServicesDialog(context, user);
+            else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Access Denied')));
+        }},
+        {'title': 'My Bookings', 'icon': Icons.calendar_month, 'color': Colors.blue, 'onTap': () {
+            if (user.hasPermission('can_view_bookings')) _showViewBookingsDialog(context, user);
+            else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Access Denied')));
+        }},
+        {'title': 'Add Service', 'icon': Icons.add_circle, 'color': Colors.green, 'onTap': () {
+            if (user.hasPermission('can_manage_services')) _showAddServiceDialog(context, user);
+            else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Access Denied')));
+        }},
+     ];
+
+     return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+           crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.0, 
+        ),
+        itemCount: actions.length,
+        itemBuilder: (context, index) {
+           final action = actions[index];
+           return InkWell(
+              onTap: action['onTap'] as VoidCallback,
+              child: Container(
+                 decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 2))],
+                 ),
+                 child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                       Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: (action['color'] as Color).withOpacity(0.1)),
+                          child: Icon(action['icon'] as IconData, color: action['color'] as Color, size: 28),
+                       ),
+                       const SizedBox(height: 8),
+                       Text(action['title'] as String, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    ],
+                 ),
+              ),
+           );
+        },
+     );
+  }
+
+  Widget _buildRecentActivityList(dynamic user) {
+     return StreamBuilder<QuerySnapshot>(
+        stream: _recentActivityStream,
+        builder: (context, snapshot) {
+           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Container(
+                  width: double.infinity, padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                  child: const Center(child: Text('No recent activity', style: TextStyle(color: Colors.grey))),
+              );
+           }
+           final bookings = snapshot.data!.docs;
+           return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: bookings.length,
+              separatorBuilder: (c, i) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                 final data = bookings[index].data() as Map<String, dynamic>;
+                 final serviceName = data['serviceName'] ?? 'Service';
+                 final customerName = data['customerName'] ?? 'Customer';
+                 final status = data['status'] ?? 'pending';
+                 final cost = (data['totalCost'] as num?)?.toDouble() ?? 0;
+                 
+                 Color statusColor = Colors.orange;
+                 if (status == 'completed') statusColor = Colors.green;
+                 if (status == 'cancelled') statusColor = Colors.red;
+                 if (status == 'in_progress') statusColor = Colors.blue;
+
+                 return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                       color: Colors.white,
+                       borderRadius: BorderRadius.circular(12),
+                       border: Border(
+                         left: BorderSide(color: statusColor, width: 4),
+                         top: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                         right: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                         bottom: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                       ),
+                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
+                    ),
+                    child: Row(
+                       children: [
+                          Expanded(
+                             child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                   Text(serviceName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                   const SizedBox(height: 4),
+                                   Text('$customerName • ₹${cost.toStringAsFixed(0)}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                                ],
+                             ),
+                          ),
+                          Container(
+                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                             decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                             child: Text(status.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                       ],
+                    ),
+                 );
+              },
+           );
+        },
+     );
   }
 }

@@ -132,10 +132,19 @@ class _PaymentProofUploadWidgetState extends State<PaymentProofUploadWidget> {
     }
   }
 
+  void _clearSelection() {
+    setState(() {
+      _proofFile = null;
+      _proofBytes = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
+      elevation: 3,
       margin: const EdgeInsets.symmetric(vertical: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -143,85 +152,133 @@ class _PaymentProofUploadWidgetState extends State<PaymentProofUploadWidget> {
           children: [
             Row(
               children: [
-                Icon(Icons.cloud_upload, color: Colors.blue[700]),
-                const SizedBox(width: 8),
-                const Text(
-                  'Upload Payment Proof',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    shape: BoxShape.circle,
                   ),
+                  child: Icon(Icons.cloud_upload_outlined, color: Colors.blue[700]),
+                ),
+                const SizedBox(width: 12),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Payment Proof',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Upload screenshot of payment',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Please upload screenshot of payment success message',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
             ),
             const SizedBox(height: 16),
 
-            // Image Preview
-            if (_proofFile != null || _proofBytes != null) ...[
-              Center(
+            // Image Picker / Preview Area
+            if (_proofFile == null && _proofBytes == null)
+              InkWell(
+                onTap: _isUploading ? null : _pickImage,
+                borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  constraints: const BoxConstraints(maxHeight: 300),
+                  height: 150,
+                  width: double.infinity,
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blue),
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!, style: BorderStyle.values[1]), // Dashed border simulated
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: kIsWeb
-                        ? Image.memory(_proofBytes!, fit: BoxFit.contain)
-                        : Image.file(_proofFile!, fit: BoxFit.contain),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_photo_alternate_outlined, size: 40, color: Colors.blue[300]),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tap to select screenshot',
+                        style: TextStyle(color: Colors.blue[700], fontWeight: FontWeight.w500),
+                      ),
+                    ],
                   ),
+                ),
+              )
+            else
+              Stack(
+                children: [
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 250),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: kIsWeb
+                          ? Image.memory(_proofBytes!, fit: BoxFit.contain)
+                          : Image.file(_proofFile!, fit: BoxFit.contain),
+                    ),
+                  ),
+                  if (!_isUploading)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: _clearSelection,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            
+            const SizedBox(height: 16),
+
+            // Actions
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: (_proofFile == null && _proofBytes == null) || _isUploading
+                    ? null
+                    : _uploadProof,
+                icon: _isUploading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check_circle_outline),
+                label: Text(
+                  _isUploading ? 'Uploading & Verifying...' : 'Submit Payment Proof',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey[300],
+                  disabledForegroundColor: Colors.grey[600],
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
-
-            // Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isUploading ? null : _pickImage,
-                    icon: const Icon(Icons.image),
-                    label: Text(
-                      _proofFile == null && _proofBytes == null
-                          ? 'Select Screenshot'
-                          : 'Change Screenshot',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: (_proofFile == null && _proofBytes == null) || _isUploading
-                        ? null
-                        : _uploadProof,
-                    icon: _isUploading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.upload),
-                    label: Text(_isUploading ? 'Uploading...' : 'Upload'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
             ),
           ],
         ),

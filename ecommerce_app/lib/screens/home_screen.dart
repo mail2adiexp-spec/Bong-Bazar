@@ -120,6 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isSearching = _searchQuery.isNotEmpty;
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         toolbarHeight: 51,
         // Left: User icon

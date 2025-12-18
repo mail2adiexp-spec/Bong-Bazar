@@ -627,7 +627,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Light background
+      backgroundColor: Colors.grey[100], // Increased contrast from white cards
       appBar: AppBar(
         title: const Text('Seller Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
@@ -891,10 +891,10 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -978,9 +978,9 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.withOpacity(0.1)),
+              border: Border.all(color: Colors.grey.withOpacity(0.3)),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2)),
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 2)),
               ],
             ),
             child: Column(
@@ -1073,11 +1073,11 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                        borderRadius: BorderRadius.circular(12),
                        border: Border(
                          left: BorderSide(color: statusColor, width: 4),
-                         top: BorderSide(color: Colors.grey.withOpacity(0.1)),
-                         right: BorderSide(color: Colors.grey.withOpacity(0.1)),
-                         bottom: BorderSide(color: Colors.grey.withOpacity(0.1)),
+                         top: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                         right: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                         bottom: BorderSide(color: Colors.grey.withOpacity(0.3)),
                        ),
-                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
                     ),
                     child: Row(
                        children: [
