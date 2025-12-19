@@ -8,6 +8,7 @@ import '../providers/cart_provider.dart';
 import '../screens/cart_screen.dart';
 import '../widgets/product_card.dart';
 import '../widgets/more_bottom_sheet.dart';
+import '../models/product_model.dart';
 
 class CategoryProductsScreen extends StatefulWidget {
   static const routeName = '/category-products';
@@ -169,22 +170,24 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                         children: [
                           Icon(
                             filter['icon'] as IconData,
-                            size: 24,
+                            size: 20,
                             color: isSelected
                                 ? Theme.of(context).colorScheme.onPrimary
                                 : Theme.of(context).colorScheme.onSurface,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             filter['label'] as String,
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 10,
                               fontWeight: FontWeight.w500,
                               color: isSelected
                                   ? Theme.of(context).colorScheme.onPrimary
                                   : Theme.of(context).colorScheme.onSurface,
                             ),
                             textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -255,7 +258,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: 3,
-                              childAspectRatio: 0.72,
+                              childAspectRatio: 0.55,
                               crossAxisSpacing: 12,
                               mainAxisSpacing: 12,
                             ),
@@ -266,9 +269,19 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                   )
                 : Consumer<ProductProvider>(
                     builder: (context, productProvider, _) {
-                      var categoryProducts = productProvider.products
-                          .where((product) => product.category == categoryName)
-                          .toList();
+                      List<Product> categoryProducts;
+                      if (categoryName.contains('Trending')) {
+                        categoryProducts = List.from(productProvider.products)
+                          ..sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+                      } else if (categoryName == 'Customer Choices') {
+                        categoryProducts = productProvider.products
+                            .where((product) => product.category == 'Customer Choice')
+                            .toList();
+                      } else {
+                        categoryProducts = productProvider.products
+                            .where((product) => product.category == categoryName)
+                            .toList();
+                      }
                       if (productProvider.isLoading) {
                         return const Center(child: CircularProgressIndicator());
                       }

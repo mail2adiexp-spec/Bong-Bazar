@@ -209,9 +209,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     final auth = Provider.of<AuthProvider>(context);
     final isAdmin = auth.isAdmin;
 
-    // Guard: Only admins can access this screen
     if (!isAdmin) {
-      // Defer navigation pop and snackbar to after first frame
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
@@ -229,321 +227,356 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       );
     }
 
-    return Scaffold(
-      body: SizedBox.expand(
-        child: Column(
-          children: [
-            // Top Header Bar
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primary,
-                    Theme.of(context).colorScheme.primaryContainer,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  // Center: Bong Bazar
-                  Center(
-                    child: Text(
-                      'Bong Bazar',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onPrimary,
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 900;
+
+        return Scaffold(
+          drawer: isMobile
+              ? Drawer(
+                  width: 280,
+                  child: _buildSidebarContent(isMobile: true),
+                )
+              : null,
+          body: SizedBox.expand(
+            child: Column(
+              children: [
+                // Top Header Bar
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).colorScheme.primary,
+                        Theme.of(context).colorScheme.primaryContainer,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  // Right: Logout button
-                  Positioned(
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onPrimary.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.logout,
+                  child: Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      if (isMobile)
+                        Builder(
+                          builder: (context) => IconButton(
+                            icon: Icon(
+                              Icons.menu,
                               color: Theme.of(context).colorScheme.onPrimary,
-                              size: 20,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Logout',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            onPressed: () => Scaffold.of(context).openDrawer(),
+                          ),
+                        ),
+                      // Center: Bong Bazar
+                      Center(
+                        child: Text(
+                          'Bong Bazar',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                      // Right: Logout button
+                      Positioned(
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
                             ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimary
+                                  .withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.logout,
+                                  color: Theme.of(context).colorScheme.onPrimary,
+                                  size: 20,
+                                ),
+                                if (!isMobile) ...[
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Logout',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Main Content Area with Sidebar
+                Expanded(
+                  child: Row(
+                    children: [
+                      // Left Sidebar - Fixed (Desktop Only)
+                      if (!isMobile)
+                        SizedBox(
+                          width: 250,
+                          child: _buildSidebarContent(isMobile: false),
+                        ),
+                      // Right Content Area
+                      Expanded(
+                        child: IndexedStack(
+                          index: _sortedToOriginalIndex[_selectedIndex] ?? 0,
+                          children: [
+                            _buildDashboardTab(), // 0
+                            _buildProductsTab(), // 1
+                            _buildCategoriesTab(), // 2
+                            _buildServicesTab(), // 3
+                            _buildFeaturedSectionsTab(isAdmin: isAdmin), // 4
+                            _buildDeliveryPartnersTab(), // 5
+                            _buildUsersTab(), // 6
+                            _buildGiftsTab(), // 7
+                            _buildOrdersTab(), // 8
+                            _buildCoreStaffTab(), // 9
+                            _buildPermissionsTab(), // 10
+                            _buildRoleBasedUsersTab('seller'), // 11
+                            _buildRoleBasedUsersTab('service_provider'), // 12
+                            _buildPayoutRequestsTab(), // 13
+                            _buildServiceCategoriesTab(isAdmin: isAdmin), // 14
+                            _buildAnalyticsTab(), // 15
+                            _buildPartnerRequestsTab(), // 16
+                            const AdminSettingsScreen(), // 17
+                            _buildRefundRequestsTab(), // 18
                           ],
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            // Main Content Area with Sidebar
-            Expanded(
-              child: Row(
-                children: [
-                  // Left Sidebar - Fixed
-                  SizedBox(
-                    width: 250,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 8,
-                            offset: const Offset(2, 0),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          // Menu Items - Scrollable
-                          Expanded(
-                            child: StreamBuilder<QuerySnapshot>(
-                              stream: _partnerRequestsStream,
-                              builder: (context, snapshot) {
-                                final pendingCount = snapshot.hasData
-                                    ? snapshot.data!.docs.length
-                                    : 0;
+          ),
+        );
+      },
+    );
+  }
 
-                                return ListView.builder(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                  ),
-                                  itemCount: _menuTitles.length,
-                                  itemBuilder: (context, listIndex) {
-                                    final isSelected =
-                                        _selectedIndex == listIndex;
-                                    final isPartnerRequestsTab =
-                                        _menuTitles[listIndex] ==
-                                        'Partner Requests';
-                                    final showBadge =
-                                        isPartnerRequestsTab &&
-                                        pendingCount > 0;
-
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      child: Material(
-                                        color: isSelected
-                                            ? Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                                  .withOpacity(0.15)
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: InkWell(
-                                          onTap: () {
-                                            setState(() {
-                                              _selectedIndex = listIndex;
-                                            });
-                                          },
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 12,
-                                            ),
-                                            decoration: isSelected
-                                                ? BoxDecoration(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                    border: Border(
-                                                      left: BorderSide(
-                                                        color: Theme.of(
-                                                          context,
-                                                        ).colorScheme.primary,
-                                                        width: 4,
-                                                      ),
-                                                    ),
-                                                  )
-                                                : null,
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.start,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                  _menuIcons[listIndex],
-                                                  color: isSelected
-                                                      ? Theme.of(
-                                                          context,
-                                                        ).colorScheme.primary
-                                                      : Theme.of(context)
-                                                            .colorScheme
-                                                            .onSurfaceVariant,
-                                                  size: 24,
-                                                ),
-                                                const SizedBox(width: 16),
-                                                Expanded(
-                                                  child: Text(
-                                                    _menuTitles[listIndex],
-                                                    maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    textAlign: TextAlign.left,
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight: isSelected
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
-                                                      color: isSelected
-                                                          ? Theme.of(context)
-                                                                .colorScheme
-                                                                .primary
-                                                          : Theme.of(context)
-                                                                .colorScheme
-                                                                .onSurfaceVariant,
-                                                    ),
-                                                  ),
-                                                ),
-                                                if (showBadge) ...[
-                                                  const SizedBox(width: 8),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.red,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
-                                                          ),
-                                                    ),
-                                                    child: Text(
-                                                      pendingCount.toString(),
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-                          // Back to App Button
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () => Navigator.pop(context),
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.arrow_back,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                        size: 24,
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Text(
-                                        'Back to App',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+  Widget _buildSidebarContent({required bool isMobile}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(2, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          if (isMobile) ...[
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.admin_panel_settings,
+                      size: 48,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Admin Menu',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
-                  ),
-                  // Right Content Area
-                  Expanded(
-                    child: IndexedStack(
-                      index: _sortedToOriginalIndex[_selectedIndex] ?? 0,
-                      children: [
-                        _buildDashboardTab(), // 0
-                        _buildProductsTab(), // 1
-                        _buildCategoriesTab(), // 2
-                        _buildServicesTab(), // 3
-                        _buildFeaturedSectionsTab(isAdmin: isAdmin), // 4
-                        _buildDeliveryPartnersTab(), // 5
-                        _buildUsersTab(), // 6
-                        _buildGiftsTab(), // 7
-                        _buildOrdersTab(), // 8
-                        _buildCoreStaffTab(), // 9
-                        _buildPermissionsTab(), // 10
-                        _buildRoleBasedUsersTab('seller'), // 11
-                        _buildRoleBasedUsersTab('service_provider'), // 12
-                        _buildPayoutRequestsTab(), // 13
-                        _buildServiceCategoriesTab(isAdmin: isAdmin), // 14
-                        _buildAnalyticsTab(), // 15
-                        _buildPartnerRequestsTab(), // 16
-                        const AdminSettingsScreen(), // 17 - Settings
-                        _buildRefundRequestsTab(), // 18 - Refund Requests
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
-        ),
+          // Menu Items - Scrollable
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _partnerRequestsStream,
+              builder: (context, snapshot) {
+                final pendingCount =
+                    snapshot.hasData ? snapshot.data!.docs.length : 0;
+
+                return ListView.builder(
+                  padding: EdgeInsets.fromLTRB(0, 8, 0, 24 + MediaQuery.of(context).padding.bottom),
+                  itemCount: _menuTitles.length,
+                  itemBuilder: (context, listIndex) {
+                    final isSelected = _selectedIndex == listIndex;
+                    final isPartnerRequestsTab =
+                        _menuTitles[listIndex] == 'Partner Requests';
+                    final showBadge = isPartnerRequestsTab && pendingCount > 0;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: Material(
+                        color: isSelected
+                            ? Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withOpacity(0.15)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _selectedIndex = listIndex;
+                            });
+                            if (isMobile) {
+                              Navigator.pop(context); // Close drawer
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: isSelected
+                                ? BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        width: 4,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _menuIcons[listIndex],
+                                  color: isSelected
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Text(
+                                    _menuTitles[listIndex],
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.left,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isSelected
+                                          ? Theme.of(context).colorScheme.primary
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                                if (showBadge) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      pendingCount.toString(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          if (!isMobile)
+            // Back to App Button (Only in side panel mode)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => Navigator.pop(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.arrow_back,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          'Back to App',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -684,7 +717,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 4,
+            crossAxisCount: MediaQuery.of(context).size.width < 600
+                ? 2
+                : MediaQuery.of(context).size.width < 900
+                    ? 3
+                    : 4,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
             childAspectRatio: 1.3,
@@ -1096,17 +1133,53 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                   _buildStatItem('Net Sales', netSales, Icons.attach_money, Colors.greenAccent),
-                   Container(height: 40, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 24)),
-                   _buildStatItem('Gross Profit', profit, Icons.trending_up, Colors.amberAccent),
-                   Container(height: 40, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 24)),
-                   _buildStatItem('Seller Payouts', invest, Icons.storefront, Colors.blueAccent),
-                   Container(height: 40, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 24)),
-                   _buildStatItem('Returns', returns, Icons.replay, Colors.redAccent),
-                ],
-              ),
+              MediaQuery.of(context).size.width < 900
+                  ? SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildStatItem('Net Sales', netSales,
+                              Icons.attach_money, Colors.greenAccent,
+                              expand: false),
+                          _buildStatItem('Gross Profit', profit,
+                              Icons.trending_up, Colors.amberAccent,
+                              expand: false),
+                          _buildStatItem('Seller Payouts', invest,
+                              Icons.storefront, Colors.blueAccent,
+                              expand: false),
+                          _buildStatItem('Returns', returns, Icons.replay,
+                              Colors.redAccent, expand: false),
+                        ],
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildStatItem('Net Sales', netSales,
+                            Icons.attach_money, Colors.greenAccent),
+                        Container(
+                            height: 40,
+                            width: 1,
+                            color: Colors.white24,
+                            margin: const EdgeInsets.symmetric(horizontal: 24)),
+                        _buildStatItem('Gross Profit', profit,
+                            Icons.trending_up, Colors.amberAccent),
+                        Container(
+                            height: 40,
+                            width: 1,
+                            color: Colors.white24,
+                            margin: const EdgeInsets.symmetric(horizontal: 24)),
+                        _buildStatItem('Seller Payouts', invest,
+                            Icons.storefront, Colors.blueAccent),
+                        Container(
+                            height: 40,
+                            width: 1,
+                            color: Colors.white24,
+                            margin: const EdgeInsets.symmetric(horizontal: 24)),
+                        _buildStatItem('Returns', returns, Icons.replay,
+                            Colors.redAccent),
+                      ],
+                    ),
             ],
           ),
         );
@@ -1114,9 +1187,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, double value, IconData icon, Color color) {
-    return Expanded(
-      child: Row(
+  Widget _buildStatItem(String label, double value, IconData icon, Color color,
+      {bool expand = true}) {
+    final content = Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
@@ -1141,9 +1214,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               ),
             ],
           ),
-        ],
-      ),
+      ],
     );
+
+    return expand
+        ? Expanded(child: content)
+        : Padding(padding: const EdgeInsets.only(right: 32), child: content);
   }
 
   Widget _buildDashboardCard({
@@ -1153,8 +1229,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     required Color color,
   }) {
     return Card(
-      elevation: 8,
-      shadowColor: color.withOpacity(0.5),
+      elevation: 4,
+      shadowColor: color.withOpacity(0.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         decoration: BoxDecoration(
@@ -1164,27 +1240,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.4),
-              offset: const Offset(4, 4),
-              blurRadius: 12,
-            ),
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              offset: const Offset(-2, -2),
-              blurRadius: 8,
-            ),
-          ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(12.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(icon, size: 48, color: Colors.white),
-              const SizedBox(height: 16),
+              Icon(icon, size: 36, color: Colors.white),
+              const SizedBox(height: 12),
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
@@ -1197,8 +1261,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
                             return const SizedBox(
-                              height: 48,
-                              width: 48,
+                              height: 32,
+                              width: 32,
                               child: CircularProgressIndicator(
                                 strokeWidth: 3,
                                 valueColor: AlwaysStoppedAnimation<Color>(
@@ -1209,10 +1273,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           }
                           if (snapshot.hasError) {
                             return const Text(
-                              'Error',
+                              '!',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 42,
+                                fontSize: 32,
                                 fontWeight: FontWeight.bold,
                               ),
                             );
@@ -1221,7 +1285,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             snapshot.data?.docs.length.toString() ?? '0',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 48,
+                              fontSize: 32,
                               fontWeight: FontWeight.bold,
                             ),
                           );
@@ -4247,67 +4311,28 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         // Role Filter
         Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              const Text(
-                'Select Role:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: DropdownButtonFormField<String>(
+              value: _selectedPermissionRole,
+              decoration: const InputDecoration(
+                labelText: 'Select Role',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.group),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ChoiceChip(
-                      label: const Text('Sellers'),
-                      selected: _selectedPermissionRole == 'seller',
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() => _selectedPermissionRole = 'seller');
-                        }
-                      },
-                    ),
-                    ChoiceChip(
-                      label: const Text('Service Providers'),
-                      selected: _selectedPermissionRole == 'service_provider',
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() => _selectedPermissionRole = 'service_provider');
-                        }
-                      },
-                    ),
-                    ChoiceChip(
-                      label: const Text('Delivery Partners'),
-                      selected: _selectedPermissionRole == 'delivery_partner',
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() => _selectedPermissionRole = 'delivery_partner');
-                        }
-                      },
-                    ),
-                    ChoiceChip(
-                      label: const Text('Core Staff'),
-                      selected: _selectedPermissionRole == 'core_staff',
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() => _selectedPermissionRole = 'core_staff');
-                        }
-                      },
-                    ),
-                    ChoiceChip(
-                      label: const Text('Admin Panel'),
-                      selected: _selectedPermissionRole == 'administrator',
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() => _selectedPermissionRole = 'administrator');
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              items: const [
+                DropdownMenuItem(value: 'seller', child: Text('Sellers')),
+                DropdownMenuItem(value: 'service_provider', child: Text('Service Providers')),
+                DropdownMenuItem(value: 'delivery_partner', child: Text('Delivery Partners')),
+                DropdownMenuItem(value: 'core_staff', child: Text('Core Staff')),
+                DropdownMenuItem(value: 'administrator', child: Text('Admin Panel')),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _selectedPermissionRole = val);
+                }
+              },
+            ),
           ),
         ),
         Expanded(
@@ -5411,7 +5436,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               final status = data['deliveryStatus'] ?? 'pending';
                               final customerName = data['customerName'] ?? 'Unknown';
                               final deliveryFee = (data['deliveryFee'] as num?)?.toDouble() ?? 0;
-                              final orderDate = data['orderDate'] as Timestamp?;
+                              DateTime? orderDate;
+                              final rawDate = data['orderDate'];
+                              if (rawDate is Timestamp) {
+                                orderDate = rawDate.toDate();
+                              } else if (rawDate is String) {
+                                orderDate = DateTime.tryParse(rawDate);
+                              }
 
                               Color statusColor;
                               switch (status) {
@@ -5442,7 +5473,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                       Text('Customer: $customerName'),
                                       if (orderDate != null)
                                         Text(
-                                          'Date: ${DateFormat('dd MMM yyyy').format(orderDate.toDate())}',
+                                          'Date: ${DateFormat('dd MMM yyyy').format(orderDate)}',
                                           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                                         ),
                                     ],
@@ -6648,31 +6679,63 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         // Header
         Padding(
           padding: const EdgeInsets.all(24),
-          child: Row(
-            children: [
-              Text(
-                'Analytics & Reports',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
+          child: MediaQuery.of(context).size.width < 600
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Analytics & Reports',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
                     ),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.download, color: Colors.green),
-                onPressed: () => _showDownloadOptionsDialog(),
-                tooltip: 'Download Report',
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.refresh, color: Colors.blue),
-                onPressed: () {
-                  setState(() {});
-                },
-                tooltip: 'Refresh Data',
-              ),
-            ],
-          ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.download, color: Colors.green),
+                          label: const Text('Download Report'),
+                          onPressed: () => _showDownloadOptionsDialog(),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.refresh, color: Colors.blue),
+                          onPressed: () {
+                            setState(() {});
+                          },
+                          tooltip: 'Refresh Data',
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Text(
+                      'Analytics & Reports',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.download, color: Colors.green),
+                      onPressed: () => _showDownloadOptionsDialog(),
+                      tooltip: 'Download Report',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.blue),
+                      onPressed: () {
+                        setState(() {});
+                      },
+                      tooltip: 'Refresh Data',
+                    ),
+                  ],
+                ),
         ),
 
         // Overview Metrics Cards

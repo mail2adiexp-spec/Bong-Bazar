@@ -498,6 +498,7 @@ class _AccountScreenState extends State<AccountScreen> {
                                 ),
                               ),
                             ),
+                            const SizedBox(height: 80), // Increased safe area padding
                           ],
                         ),
                       ),

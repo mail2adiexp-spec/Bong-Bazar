@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Product {
   final String id;
   final String sellerId;
@@ -8,6 +10,7 @@ class Product {
   final List<String>? imageUrls; // Multiple images (minimum 4)
   final String? category; // Product category
   final String? unit; // Unit: Kg, Ltr, Pic, Pkt, Grm
+  final DateTime? createdAt;
 
   Product({
     required this.id,
@@ -19,6 +22,7 @@ class Product {
     this.imageUrls,
     this.category,
     this.unit,
+    this.createdAt,
   });
 
   // Convert Product to Map for Firestore
@@ -50,6 +54,9 @@ class Product {
           : null,
       category: map['category'],
       unit: map['unit'],
+      createdAt: map['createdAt'] is Timestamp 
+          ? (map['createdAt'] as Timestamp).toDate() 
+          : null,
     );
   }
 }

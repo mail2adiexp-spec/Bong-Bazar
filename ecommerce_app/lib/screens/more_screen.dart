@@ -341,7 +341,7 @@ class MoreScreen extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 controller: scrollController,
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 120),
                 child: content,
               ),
             ),
@@ -379,6 +379,7 @@ class MoreScreen extends StatelessWidget {
           'Cookies',
           'We use cookies to improve your browsing experience and remember your preferences. You can disable cookies in your browser settings.',
         ),
+        const SizedBox(height: 100),
       ],
     );
   }
@@ -411,6 +412,7 @@ class MoreScreen extends StatelessWidget {
           'Exchange',
           'If you want to exchange an item, return the original item and place a new order for the desired product.',
         ),
+        const SizedBox(height: 100),
       ],
     );
   }

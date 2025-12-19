@@ -229,12 +229,15 @@ class _MoreSheetContent extends StatelessWidget {
             children: [
               Icon(icon, size: 20, color: foregroundColor),
               const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: foregroundColor,
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: foregroundColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

@@ -704,8 +704,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 sliver: SliverGrid(
                                   gridDelegate:
                                       const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 3,
-                                        childAspectRatio: 2 / 3,
+                                        crossAxisCount: 2,
+                                        childAspectRatio: 0.65, // Taller ratio to prevent bottom overflow
                                         crossAxisSpacing: 10,
                                         mainAxisSpacing: 10,
                                       ),
@@ -849,11 +849,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    if (mounted) {
-                      setState(() {
-                        _selectedCategory = title;
-                      });
-                    }
+                    Navigator.pushNamed(
+                      context,
+                      CategoryProductsScreen.routeName,
+                      arguments: title,
+                    );
                   },
                   child: const Text('View All'),
                 ),

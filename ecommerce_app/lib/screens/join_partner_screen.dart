@@ -210,13 +210,14 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Join as Partner'), centerTitle: true),
       body: SingleChildScrollView(
-        // Remove horizontal padding so the role card can be full-width
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        // Add bottom padding to prevent content from being hidden behind bottom bar
+        padding: const EdgeInsets.only(top: 16, bottom: 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceVariant,
                 borderRadius: BorderRadius.circular(12),
@@ -264,7 +265,7 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   // Right side: Gender
                   Expanded(
                     child: Column(
@@ -576,31 +577,46 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
                     ],
 
                     const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isSubmitting ? null : _submit,
-                        icon: _isSubmitting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.send),
-                        label: Text(_isSubmitting ? 'Submitting...' : 'Submit'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
             ),
           ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              offset: const Offset(0, -4),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isSubmitting ? null : _submit,
+              icon: _isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.send),
+              label: Text(_isSubmitting ? 'Submitting...' : 'Submit Application'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
         ),
       ),
     );

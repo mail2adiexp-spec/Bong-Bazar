@@ -194,36 +194,70 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
       child: Column(
         children: [
           // Top Row: Count and Actions
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-               Text(
-                'Total Products: ${products.length}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              Row(
-                children: [
-                  if (!_isProductSelectionMode && widget.canManage)
-                    OutlinedButton.icon(
-                      onPressed: () => setState(() => _isProductSelectionMode = true),
-                      icon: const Icon(Icons.check_box_outlined),
-                      label: const Text('Select Mode'),
+          // Top Row: Count and Actions
+          MediaQuery.of(context).size.width < 600
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Total Products: ${products.length}',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                  const SizedBox(width: 8),
-                  if (widget.canManage)
-                    ElevatedButton.icon(
-                      onPressed: _showAddProductDialog,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Product'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (!_isProductSelectionMode && widget.canManage)
+                          OutlinedButton.icon(
+                            onPressed: () => setState(() => _isProductSelectionMode = true),
+                            icon: const Icon(Icons.check_box_outlined),
+                            label: const Text('Select Mode'),
+                          ),
+                        if (widget.canManage)
+                          ElevatedButton.icon(
+                            onPressed: _showAddProductDialog,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Product'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                      ],
                     ),
-                ],
-              ),
-            ],
-          ),
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total Products: ${products.length}',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    Row(
+                      children: [
+                        if (!_isProductSelectionMode && widget.canManage)
+                          OutlinedButton.icon(
+                            onPressed: () => setState(() => _isProductSelectionMode = true),
+                            icon: const Icon(Icons.check_box_outlined),
+                            label: const Text('Select Mode'),
+                          ),
+                        const SizedBox(width: 8),
+                        if (widget.canManage)
+                          ElevatedButton.icon(
+                            onPressed: _showAddProductDialog,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Product'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
           
           // Bulk Operations Toolbar
           if(_isProductSelectionMode && widget.canManage) ...[
@@ -285,39 +319,67 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
           const SizedBox(height: 16),
           
           // Search and Category
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search products...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  onChanged: (val) => setState(() => _productSearchQuery = val),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 1,
-                child: DropdownButtonFormField<String>(
-                  decoration: InputDecoration(
-                    hintText: 'Category',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  value: _selectedProductCategory,
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All Categories')),
-                    ...ProductCategory.all.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+          MediaQuery.of(context).size.width < 600
+              ? Column(
+                  children: [
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search products...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onChanged: (val) => setState(() => _productSearchQuery = val),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        hintText: 'Category',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      value: _selectedProductCategory,
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('All Categories')),
+                        ...ProductCategory.all.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                      ],
+                      onChanged: (val) => setState(() => _selectedProductCategory = val),
+                    ),
                   ],
-                  onChanged: (val) => setState(() => _selectedProductCategory = val),
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search products...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        onChanged: (val) => setState(() => _productSearchQuery = val),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 1,
+                      child: DropdownButtonFormField<String>(
+                        decoration: InputDecoration(
+                          hintText: 'Category',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        value: _selectedProductCategory,
+                        items: [
+                          const DropdownMenuItem(value: null, child: Text('All Categories')),
+                          ...ProductCategory.all.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                        ],
+                        onChanged: (val) => setState(() => _selectedProductCategory = val),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
           
           // Advanced Filters Panel
            const SizedBox(height: 8),
@@ -459,7 +521,7 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
         crossAxisCount: 3,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.75,
+        childAspectRatio: 0.72,
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {

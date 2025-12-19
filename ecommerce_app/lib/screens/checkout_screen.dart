@@ -30,6 +30,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _saveAddress = true;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUserData();
+    });
+  }
+
+  Future<void> _loadUserData() async {
+    final auth = context.read<AuthProvider>();
+    final addrProvider = context.read<AddressProvider>();
+
+    if (auth.currentUser != null) {
+      _nameController.text = auth.currentUser!.name;
+      if (auth.currentUser!.phoneNumber != null) {
+        _phoneController.text = auth.currentUser!.phoneNumber!;
+      }
+    }
+
+    await addrProvider.fetch();
+    if (addrProvider.defaultAddress != null) {
+      _fillFromAddress(addrProvider.defaultAddress!);
+    } else {
+      setState(() {});
+    }
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _addressController.dispose();
@@ -251,40 +278,51 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Place Order Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    onPressed: cart.isEmpty || _isPlacingOrder
-                        ? null
-                        : _placeOrder,
-                    icon: _isPlacingOrder
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.shopping_cart_checkout),
-                    label: Text(
-                      _isPlacingOrder ? 'Placing Order...' : 'Place Order',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
               ],
             ),
           ),
         ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              offset: const Offset(0, -4),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: cart.isEmpty || _isPlacingOrder ? null : _placeOrder,
+              icon: _isPlacingOrder
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.shopping_cart_checkout),
+              label: Text(
+                _isPlacingOrder ? 'Placing Order...' : 'Place Order',
+                style: const TextStyle(fontSize: 16),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ),
       ),
+    ),
     );
   }
 

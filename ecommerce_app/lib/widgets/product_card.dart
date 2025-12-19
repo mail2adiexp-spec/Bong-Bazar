@@ -73,9 +73,12 @@ class ProductCard extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    _formatPriceWithUnit(product),
-                    style: TextStyle(fontSize: 14.0, color: Colors.grey[800]),
+                  Expanded(
+                    child: Text(
+                      _formatPriceWithUnit(product),
+                      style: TextStyle(fontSize: 14.0, color: Colors.grey[800]),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.add_shopping_cart),

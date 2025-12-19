@@ -132,31 +132,38 @@ class _SharedOrdersTabState extends State<SharedOrdersTab> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Icons.shopping_bag_outlined, color: Colors.blue, size: 20),
                                       ),
-                                      child: const Icon(Icons.shopping_bag_outlined, color: Colors.blue, size: 20),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Order #${orderId.substring(0, 8)}',
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Order #${orderId.substring(0, 8)}',
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              orderDate != null ? DateFormat('MMM dd, yyyy • hh:mm a').format(orderDate) : '-',
+                                              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ],
                                         ),
-                                        Text(
-                                          orderDate != null ? DateFormat('MMM dd, yyyy • hh:mm a').format(orderDate) : '-',
-                                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                                 if (widget.canManage)
                                   Container(

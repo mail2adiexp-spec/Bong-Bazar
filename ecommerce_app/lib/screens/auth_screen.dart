@@ -120,64 +120,66 @@ class _SignInFormState extends State<_SignInForm> {
       padding: const EdgeInsets.all(16),
       child: Form(
         key: _formKey,
-        child: Column(
-          children: [
-            TextFormField(
-              controller: _emailCtrl,
-              decoration: const InputDecoration(labelText: 'Email'),
-              keyboardType: TextInputType.emailAddress,
-              validator: (v) => (v == null || v.isEmpty || !v.contains('@'))
-                  ? 'Enter a valid email'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _passCtrl,
-              decoration: const InputDecoration(labelText: 'Password'),
-              obscureText: true,
-              validator: (v) => (v == null || v.isEmpty)
-                  ? 'Please enter your password'
-                  : null,
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : const Text('Sign In'),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextFormField(
+                controller: _emailCtrl,
+                decoration: const InputDecoration(labelText: 'Email'),
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) => (v == null || v.isEmpty || !v.contains('@'))
+                    ? 'Enter a valid email'
+                    : null,
               ),
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => _showForgotPasswordDialog(context),
-                child: const Text(
-                  'Forgot Password?',
-                  style: TextStyle(fontSize: 14),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _passCtrl,
+                decoration: const InputDecoration(labelText: 'Password'),
+                obscureText: true,
+                validator: (v) => (v == null || v.isEmpty)
+                    ? 'Please enter your password'
+                    : null,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _submit,
+                  child: _loading
+                      ? const CircularProgressIndicator()
+                      : const Text('Sign In'),
                 ),
               ),
-            ),
-            const Divider(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pushNamed(
-                    JoinPartnerScreen.routeName,
-                  );
-                },
-                icon: const Icon(Icons.store),
-                label: const Text('Join as Partner'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  side: BorderSide(color: Theme.of(context).primaryColor),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => _showForgotPasswordDialog(context),
+                  child: const Text(
+                    'Forgot Password?',
+                    style: TextStyle(fontSize: 14),
+                  ),
                 ),
               ),
-            ),
-          ],
+              const Divider(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pushNamed(
+                      JoinPartnerScreen.routeName,
+                    );
+                  },
+                  icon: const Icon(Icons.store),
+                  label: const Text('Join as Partner'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(color: Theme.of(context).primaryColor),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
