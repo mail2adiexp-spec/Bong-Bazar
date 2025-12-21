@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product_model.dart';
 import '../providers/cart_provider.dart';
 import '../providers/theme_provider.dart';
@@ -54,6 +55,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   void _trackView() {
     context.read<RecommendationService>().trackProductView(widget.product.id);
+    // Increment simple view count for Trending logic
+    try {
+       FirebaseFirestore.instance.collection('products').doc(widget.product.id).update({
+         'viewCount': FieldValue.increment(1),
+       });
+    } catch (e) {
+      debugPrint('Error incrementing view count: $e');
+    }
   }
 
   Future<void> _loadRecommendations() async {

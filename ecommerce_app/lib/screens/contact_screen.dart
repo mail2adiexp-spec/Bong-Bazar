@@ -212,8 +212,22 @@ class _ContactScreenState extends State<ContactScreen> {
                   path: 'support@bongbazar.com',
                   query: 'subject=Customer Support',
                 );
-                if (await canLaunchUrl(emailUri)) {
-                  await launchUrl(emailUri);
+                try {
+                  if (!await launchUrl(
+                    emailUri,
+                    mode: LaunchMode.externalApplication,
+                  )) {
+                    throw Exception('Could not launch');
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Could not launch email app.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
               },
             ),

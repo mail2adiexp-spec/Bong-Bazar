@@ -10,7 +10,15 @@ class Product {
   final List<String>? imageUrls; // Multiple images (minimum 4)
   final String? category; // Product category
   final String? unit; // Unit: Kg, Ltr, Pic, Pkt, Grm
+  final double mrp; // Maximum Retail Price (for strikethrough)
+  final bool isFeatured;
+  final bool isHotDeal;
+  final bool isCustomerChoice;
+  int salesCount;
+  int viewCount;
+  int stock;
   final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   Product({
     required this.id,
@@ -22,7 +30,15 @@ class Product {
     this.imageUrls,
     this.category,
     this.unit,
+    this.mrp = 0.0,
+    this.isFeatured = false,
+    this.isHotDeal = false,
+    this.isCustomerChoice = false,
+    this.salesCount = 0,
+    this.viewCount = 0,
+    this.stock = 0, // Added to constructor
     this.createdAt,
+    this.updatedAt, // Added to constructor
   });
 
   // Convert Product to Map for Firestore
@@ -37,6 +53,15 @@ class Product {
       'imageUrls': imageUrls,
       'category': category,
       'unit': unit,
+      'mrp': mrp,
+      'isFeatured': isFeatured,
+      'isHotDeal': isHotDeal,
+      'isCustomerChoice': isCustomerChoice,
+      'salesCount': salesCount,
+      'viewCount': viewCount,
+      'stock': stock,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
+      'updatedAt': FieldValue.serverTimestamp(),
     };
   }
 
@@ -47,15 +72,24 @@ class Product {
       sellerId: map['sellerId'] ?? '',
       name: map['name'] ?? '',
       description: map['description'] ?? '',
-      price: (map['price'] ?? 0).toDouble(),
+      price: (map['price'] as num?)?.toDouble() ?? 0.0,
       imageUrl: map['imageUrl'] ?? '',
-      imageUrls: map['imageUrls'] != null
-          ? List<String>.from(map['imageUrls'])
-          : null,
+      imageUrls: (map['imageUrls'] as List<dynamic>?)?.map((e) => e.toString()).toList() 
+          ?? (map['images'] as List<dynamic>?)?.map((e) => e.toString()).toList(), // Fallback to 'images'
       category: map['category'],
       unit: map['unit'],
+      mrp: (map['mrp'] as num?)?.toDouble() ?? 0.0,
+      isFeatured: map['isFeatured'] ?? false,
+      isHotDeal: map['isHotDeal'] ?? false,
+      isCustomerChoice: map['isCustomerChoice'] ?? false,
+      salesCount: (map['salesCount'] as num?)?.toInt() ?? 0,
+      viewCount: (map['viewCount'] as num?)?.toInt() ?? 0,
+      stock: (map['stock'] as num?)?.toInt() ?? 0,
       createdAt: map['createdAt'] is Timestamp 
           ? (map['createdAt'] as Timestamp).toDate() 
+          : null,
+      updatedAt: map['updatedAt'] is Timestamp 
+          ? (map['updatedAt'] as Timestamp).toDate() 
           : null,
     );
   }
@@ -76,8 +110,6 @@ class ProductCategory {
   static const List<String> all = [
     snacks,
     dailyNeeds,
-    customerChoice,
-    hotDeals,
     gifts,
     riceAta,
     cookingOils,

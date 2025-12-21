@@ -1707,7 +1707,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         builder: (ctx, setState) => AlertDialog(
           title: Text(existing == null ? 'Add Gift' : 'Edit Gift'),
           content: SizedBox(
-            width: 600,
+            width: MediaQuery.of(context).size.width > 600 ? 600 : double.maxFinite,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1995,7 +1995,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   ElevatedButton.icon(
                     onPressed: () => _showAddCategoryDialog(null),
                     icon: const Icon(Icons.add),
-                    label: const Text('Add Category'),
+                    label: const Text('Add'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
                       foregroundColor: Colors.white,
@@ -2039,26 +2039,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         ],
                       ),
                     )
-                  : ReorderableListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                       itemCount: categories.length,
-                      onReorder: (oldIndex, newIndex) async {
-                        if (newIndex > oldIndex) newIndex--;
-                        final item = categories.removeAt(oldIndex);
-                        categories.insert(newIndex, item);
-                        // Update order in Firestore
-                        for (int i = 0; i < categories.length; i++) {
-                          await categoryProvider.updateCategory(
-                            categories[i].id,
-                            Category(
-                              id: categories[i].id,
-                              name: categories[i].name,
-                              imageUrl: categories[i].imageUrl,
-                              order: i,
-                            ),
-                          );
-                        }
-                      },
                       itemBuilder: (ctx, index) {
                         final category = categories[index];
                         return Card(
@@ -2088,80 +2071,87 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               ),
                             ),
                             subtitle: Text('Order: ${category.order}'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.edit,
-                                    color: Colors.blue,
-                                  ),
-                                  onPressed: () =>
-                                      _showAddCategoryDialog(category),
-                                  tooltip: 'Edit',
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  tooltip: 'Delete',
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: ctx,
-                                      builder: (dialogCtx) => AlertDialog(
-                                        title: const Text('Confirm Delete'),
-                                        content: Text(
-                                          'Delete "${category.name}" category?',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(dialogCtx, false),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () =>
-                                                Navigator.pop(dialogCtx, true),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.red,
-                                            ),
-                                            child: const Text('Delete'),
-                                          ),
-                                        ],
+                            trailing: PopupMenuButton<String>(
+                              onSelected: (value) async {
+                                if (value == 'edit') {
+                                  _showAddCategoryDialog(category);
+                                } else if (value == 'delete') {
+                                  final confirm = await showDialog<bool>(
+                                    context: ctx,
+                                    builder: (dialogCtx) => AlertDialog(
+                                      title: const Text('Confirm Delete'),
+                                      content: Text(
+                                        'Delete "${category.name}" category?',
                                       ),
-                                    );
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(dialogCtx, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () =>
+                                              Navigator.pop(dialogCtx, true),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                          ),
+                                          child: const Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
 
-                                    if (confirm == true) {
-                                      try {
-                                        await categoryProvider.deleteCategory(
-                                          category.id,
+                                  if (confirm == true) {
+                                    try {
+                                      await categoryProvider.deleteCategory(
+                                        category.id,
+                                      );
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(
+                                          ctx,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Category deleted successfully!',
+                                            ),
+                                          ),
                                         );
-                                        if (ctx.mounted) {
-                                          ScaffoldMessenger.of(
-                                            ctx,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Category deleted successfully!',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      } catch (e) {
-                                        if (ctx.mounted) {
-                                          ScaffoldMessenger.of(
-                                            ctx,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text('Error: $e'),
-                                              backgroundColor: Colors.red,
-                                            ),
-                                          );
-                                        }
+                                      }
+                                    } catch (e) {
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(
+                                          ctx,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Error: $e'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
                                       }
                                     }
-                                  },
+                                  }
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit, color: Colors.blue),
+                                      SizedBox(width: 8),
+                                      Text('Edit'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Delete'),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -2274,7 +2264,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           ),
           content: SingleChildScrollView(
             child: SizedBox(
-              width: 400,
+              width: MediaQuery.of(context).size.width > 400 ? 400 : double.maxFinite,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -2474,7 +2464,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     ? () => _showAddEditServiceCategoryDialog()
                     : null,
                 icon: const Icon(Icons.add),
-                label: const Text('Add Service Category'),
+                label: const Text('Add'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 48),
                 ),
@@ -2554,29 +2544,43 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 ),
                               ],
                             ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.edit,
-                                    color: Colors.blue,
+                            trailing: PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (!isAdmin) return;
+                                if (value == 'edit') {
+                                  _showAddEditServiceCategoryDialog(category: category);
+                                } else if (value == 'delete') {
+                                  _deleteServiceCategory(category);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                if (isAdmin) ...[
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit, color: Colors.blue),
+                                        SizedBox(width: 8),
+                                        Text('Edit'),
+                                      ],
+                                    ),
                                   ),
-                                  onPressed: isAdmin
-                                      ? () => _showAddEditServiceCategoryDialog(
-                                          category: category,
-                                        )
-                                      : null,
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text('Delete'),
+                                      ],
+                                    ),
                                   ),
-                                  onPressed: isAdmin
-                                      ? () => _deleteServiceCategory(category)
-                                      : null,
-                                ),
+                                ] else
+                                  const PopupMenuItem(
+                                    value: 'none',
+                                    enabled: false,
+                                    child: Text('Read-only'),
+                                  ),
                               ],
                             ),
                           ),
@@ -2677,7 +2681,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             category == null ? 'Add Service Category' : 'Edit Service Category',
           ),
           content: SizedBox(
-            width: 500,
+            width: MediaQuery.of(context).size.width > 500 ? 500 : double.maxFinite,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -3101,35 +3105,52 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               'Category: ${section.categoryName}\n'
                               'Status: ${section.isActive ? "Active" : "Inactive"}',
                             ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Switch(
-                                  value: section.isActive,
-                                  onChanged: isAdmin
-                                      ? (val) => featuredProvider.toggleActive(
-                                          section.id,
-                                        )
-                                      : null,
+                            trailing: PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _showEditFeaturedSectionDialog(featuredProvider, section);
+                                } else if (value == 'delete') {
+                                  _confirmDeleteFeaturedSection(featuredProvider, section.id);
+                                } else if (value == 'toggle') {
+                                  featuredProvider.toggleActive(section.id);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  value: 'toggle',
+                                  enabled: isAdmin,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        section.isActive ? Icons.visibility_off : Icons.visibility,
+                                        color: Colors.grey,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(section.isActive ? 'Deactivate' : 'Activate'),
+                                    ],
+                                  ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  onPressed: isAdmin
-                                      ? () => _showEditFeaturedSectionDialog(
-                                          featuredProvider,
-                                          section,
-                                        )
-                                      : null,
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  enabled: isAdmin,
+                                  child: const Row(
+                                    children: [
+                                      Icon(Icons.edit, color: Colors.blue),
+                                      SizedBox(width: 8),
+                                      Text('Edit'),
+                                    ],
+                                  ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete),
-                                  color: Colors.red,
-                                  onPressed: isAdmin
-                                      ? () => _confirmDeleteFeaturedSection(
-                                          featuredProvider,
-                                          section.id,
-                                        )
-                                      : null,
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  enabled: isAdmin,
+                                  child: const Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Delete'),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -3953,22 +3974,37 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 Text('Phone: $phone'),
                               ],
                             ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  onPressed: () => _showAddCoreStaffDialog(
+                            trailing: PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _showAddCoreStaffDialog(
                                     staffId: doc.id,
                                     staffData: data,
+                                  );
+                                } else if (value == 'delete') {
+                                  _deleteCoreStaff(doc.id, email);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit, color: Colors.blue),
+                                      SizedBox(width: 8),
+                                      Text('Edit'),
+                                    ],
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Delete'),
+                                    ],
                                   ),
-                                  onPressed: () => _deleteCoreStaff(doc.id, email),
                                 ),
                               ],
                             ),
@@ -5479,6 +5515,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                     ],
                                   ),
                                   trailing: Column(
+                                    mainAxisSize: MainAxisSize.min,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
@@ -5486,7 +5523,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                         '₹${deliveryFee.toStringAsFixed(0)}',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                                          fontSize: 14,
                                         ),
                                       ),
                                       const SizedBox(height: 4),

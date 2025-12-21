@@ -215,94 +215,65 @@ class _JoinPartnerScreenState extends State<JoinPartnerScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Left side: Choose your role
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Choose your role',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceVariant,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    // Role Dropdown
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _role,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Role',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                         ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ChoiceChip(
-                              label: const Text('Seller'),
-                              selected: _role == 'Seller',
-                              onSelected: (_) =>
-                                  setState(() => _role = 'Seller'),
-                            ),
-                            ChoiceChip(
-                              label: const Text('Service Provider'),
-                              selected: _role == 'Service Provider',
-                              onSelected: (_) =>
-                                  setState(() => _role = 'Service Provider'),
-                            ),
-                            ChoiceChip(
-                              label: const Text('Delivery Partner'),
-                              selected: _role == 'Delivery Partner',
-                              onSelected: (_) =>
-                                  setState(() => _role = 'Delivery Partner'),
-                            ),
-                          ],
-                        ),
-                      ],
+                        isExpanded: true,
+                        items: ['Seller', 'Service Provider', 'Delivery Partner']
+                            .map((role) => DropdownMenuItem(
+                                  value: role,
+                                  child: Text(
+                                    role,
+                                    style: const TextStyle(fontSize: 14),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _role = val);
+                        },
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Right side: Gender
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Gender',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    const SizedBox(width: 12),
+                    // Gender Dropdown
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _gender,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Gender',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                         ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ChoiceChip(
-                              label: const Text('Male'),
-                              selected: _gender == 'Male',
-                              onSelected: (_) =>
-                                  setState(() => _gender = 'Male'),
-                            ),
-                            ChoiceChip(
-                              label: const Text('Female'),
-                              selected: _gender == 'Female',
-                              onSelected: (_) =>
-                                  setState(() => _gender = 'Female'),
-                            ),
-                          ],
-                        ),
-                      ],
+                        isExpanded: true, // Prevent overflow
+                        items: ['Male', 'Female', 'Other']
+                            .map((gender) => DropdownMenuItem(
+                                  value: gender,
+                                  child: Text(gender),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _gender = val);
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             const SizedBox(height: 16),
             // Keep the rest content neatly padded
             Padding(

@@ -134,8 +134,8 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
-              child: SizedBox(
-                width: 500,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -249,6 +249,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            isExpanded: true,
                             value: selectedCategory,
                             decoration: const InputDecoration(
                               labelText: 'Category',
@@ -263,6 +264,7 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            isExpanded: true,
                             value: selectedUnit,
                             decoration: const InputDecoration(
                               labelText: 'Unit',

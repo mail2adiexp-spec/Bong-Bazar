@@ -13,6 +13,11 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasDiscount = product.mrp > product.price;
+    final discountPercent = hasDiscount 
+        ? ((product.mrp - product.price) / product.mrp * 100).round() 
+        : 0;
+
     return InkWell(
       onTap: () {
         Navigator.pushNamed(
@@ -30,59 +35,128 @@ class ProductCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(10.0),
-                  topRight: Radius.circular(10.0),
-                ),
-                child: Hero(
-                  tag: '${heroTagPrefix ?? ''}product-image-${product.id}',
-                  child: Image.network(
-                    (product.imageUrls != null && product.imageUrls!.isNotEmpty)
-                        ? product.imageUrls!.first
-                        : product.imageUrl,
-                    fit: BoxFit.cover,
-                    // Basic error handling for images
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Center(
-                        child: Icon(
-                          Icons.broken_image,
-                          size: 50,
-                          color: Colors.grey,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(10.0),
+                      topRight: Radius.circular(10.0),
+                    ),
+                    child: Hero(
+                      tag: '${heroTagPrefix ?? ''}product-image-${product.id}',
+                      child: Container(
+                        width: double.infinity,
+                        height: double.infinity,
+                        color: Colors.white, // Ensure background is white
+                        child: Image.network(
+                          (product.imageUrls != null && product.imageUrls!.isNotEmpty)
+                              ? product.imageUrls!.first
+                              : product.imageUrl,
+                          fit: BoxFit.contain, // Prevents cropping
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
-                ),
+                  if (hasDiscount)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '$discountPercent% OFF',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (product.isHotDeal && !hasDiscount) // Show Hot Deal if manual flag is on but no discount based (or both)
+                     Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'HOT DEAL',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.only(left: 8.0, right: 8.0, top: 4.0, bottom: 0.0),
               child: Text(
                 product.name,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16.0,
+                  fontSize: 13.0,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
+              padding: const EdgeInsets.only(left: 8.0, right: 4.0, bottom: 8.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Text(
-                      _formatPriceWithUnit(product),
-                      style: TextStyle(fontSize: 14.0, color: Colors.grey[800]),
-                      overflow: TextOverflow.ellipsis,
+                   Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (hasDiscount)
+                          Text(
+                            formatINR(product.mrp),
+                            style: const TextStyle(
+                              fontSize: 10.0,
+                              color: Colors.grey,
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                        Text(
+                          _formatPriceWithUnit(product),
+                          style: TextStyle(
+                            fontSize: 12.0, 
+                            color: hasDiscount ? Colors.red : Colors.grey[800],
+                            fontWeight: FontWeight.bold
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.add_shopping_cart),
+                    icon: const Icon(Icons.add_shopping_cart, size: 20),
                     color: Theme.of(context).primaryColor,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    visualDensity: VisualDensity.compact,
                     onPressed: () {
                       context.read<CartProvider>().addProduct(product);
                       ScaffoldMessenger.of(context).hideCurrentSnackBar();

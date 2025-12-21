@@ -2092,7 +2092,7 @@ class _DeliveryPartnerDashboardScreenState
                             crossAxisCount: 2,
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
-                            childAspectRatio: 1.5,
+                            childAspectRatio: 0.85,
                             children: [
                               // Today's Performance
                               Card(

@@ -93,6 +93,7 @@ class MyApp extends StatelessWidget {
           create: (_) {
             final provider = CategoryProvider();
             provider.startListening();
+            provider.seedDefaultCategories(); // Seed categories if missing
             return provider;
           },
         ),

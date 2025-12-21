@@ -297,6 +297,18 @@ service cloud.firestore {
       allow read, write: if isAdmin() || isCoreStaff();
     }
     
+    // ==================== TRANSACTIONS COLLECTION ====================
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        isCoreStaff()
+      );
+      // Allow creation by authenticated users (for now, to facilitate orders/payments)
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isCoreStaff(); // Only admin should modify history
+    }
+    
     // ==================== ADMIN FALLBACK ====================
     // 5. Admin gets full access to everything
     match /{document=**} {

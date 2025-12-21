@@ -117,6 +117,17 @@ class OrderProvider extends ChangeNotifier {
         'orderCount': FieldValue.increment(1),
       });
 
+      // Increment salesCount for each product
+      for (var item in items) {
+        try {
+          await _firestore.collection('products').doc(item.productId).update({
+            'salesCount': FieldValue.increment(item.quantity),
+          });
+        } catch (e) {
+          debugPrint('Error incrementing salesCount for ${item.productId}: $e');
+        }
+      }
+
       await fetchUserOrders(); // Refresh orders
       debugPrint('OrderProvider: Orders refreshed, count: ${_orders.length}');
 

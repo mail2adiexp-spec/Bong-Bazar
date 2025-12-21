@@ -96,4 +96,33 @@ class CategoryProvider with ChangeNotifier {
       rethrow;
     }
   }
+  Future<void> seedDefaultCategories() async {
+    const defaultCategories = [
+      {'name': 'Snacks', 'image': 'assets/images/snacks.png', 'id': 'snacks'},
+      {'name': 'Daily Needs', 'image': 'assets/images/daily_needs.png', 'id': 'daily_needs'},
+      {'name': 'Gifts', 'image': 'assets/images/gifts.png', 'id': 'gifts'},
+      {'name': 'Rice & Ata', 'image': 'assets/images/rice.png', 'id': 'rice_ata'},
+      {'name': 'Cooking Oils', 'image': 'assets/images/oil.png', 'id': 'cooking_oils'},
+      {'name': 'Fast Food', 'image': 'assets/images/fast_food.png', 'id': 'fast_food'},
+      {'name': 'Cold Drinks', 'image': 'assets/images/drinks.png', 'id': 'cold_drinks'},
+    ];
+
+    print('🌱 Seeding default categories...');
+    for (var cat in defaultCategories) {
+      final id = cat['id']!;
+      final doc = await _firestore.collection('categories').doc(id).get();
+      if (!doc.exists) {
+        print('   + Adding missing category: ${cat['name']}');
+        await _firestore.collection('categories').doc(id).set({
+          'name': cat['name'],
+          'imageUrl': cat['image'], // Placeholder, should be updated with actual URLs
+          'order': defaultCategories.indexOf(cat),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        print('   - Category already exists: ${cat['name']}');
+      }
+    }
+    print('✅ Seeding complete.');
+  }
 }

@@ -26,20 +26,7 @@ class ProductProvider with ChangeNotifier {
               ..clear()
               ..addAll(
                 snapshot.docs.map((doc) {
-                  final data = doc.data();
-                  return Product(
-                    id: doc.id,
-                    name: data['name'] ?? '',
-                    price: (data['price'] ?? 0).toDouble(),
-                    imageUrl: data['imageUrl'] ?? '',
-                    description: data['description'] ?? '',
-                    imageUrls: data['imageUrls'] != null
-                        ? List<String>.from(data['imageUrls'])
-                        : null,
-                    category: data['category'],
-                    unit: data['unit'],
-                    sellerId: data['sellerId'] ?? '',
-                  );
+                  return Product.fromMap(doc.id, doc.data());
                 }),
               );
             _isLoading = false;

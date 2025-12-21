@@ -114,7 +114,7 @@ class _SharedServicesTabState extends State<SharedServicesTab> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => Dialog(
           child: Container(
-            width: 700,
+            width: MediaQuery.of(context).size.width > 700 ? 700 : double.maxFinite,
             padding: const EdgeInsets.all(24),
             child: Form(
               key: formKey,
@@ -166,102 +166,96 @@ class _SharedServicesTabState extends State<SharedServicesTab> {
                     const SizedBox(height: 16),
                     
                     // Pricing Model and Category
-                    Row(
+                    // Pricing Model and Category
+                    Column(
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: pricingModel,
-                            decoration: const InputDecoration(
-                              labelText: 'Pricing Model',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: ['fixed', 'range', 'hourly']
-                                .map((m) => DropdownMenuItem(
-                                    value: m, child: Text(m.toUpperCase())))
-                                .toList(),
-                            onChanged: (val) => setState(() => pricingModel = val!),
+                        DropdownButtonFormField<String>(
+                          value: pricingModel,
+                          decoration: const InputDecoration(
+                            labelText: 'Pricing Model',
+                            border: OutlineInputBorder(),
                           ),
+                          items: ['fixed', 'range', 'hourly']
+                              .map((m) => DropdownMenuItem(
+                                  value: m, child: Text(m.toUpperCase())))
+                              .toList(),
+                          onChanged: (val) => setState(() => pricingModel = val!),
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Consumer<ServiceCategoryProvider>(
-                            builder: (context, provider, _) {
-                              if (provider.serviceCategories.isEmpty) {
-                                return DropdownButtonFormField<String>(
-                                  value: selectedCategory,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Category',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  items: ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Other']
-                                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                                      .toList(),
-                                  onChanged: (val) => setState(() => selectedCategory = val!),
-                                );
-                              }
+                        const SizedBox(height: 16),
+                        Consumer<ServiceCategoryProvider>(
+                          builder: (context, provider, _) {
+                            if (provider.serviceCategories.isEmpty) {
                               return DropdownButtonFormField<String>(
-                                value: provider.serviceCategories
-                                        .any((cat) => cat.name == selectedCategory)
-                                    ? selectedCategory
-                                    : provider.serviceCategories.first.name,
+                                value: selectedCategory,
                                 decoration: const InputDecoration(
                                   labelText: 'Category',
                                   border: OutlineInputBorder(),
                                 ),
-                                items: provider.serviceCategories
-                                    .map((cat) => DropdownMenuItem(
-                                        value: cat.name, child: Text(cat.name)))
+                                items: ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Other']
+                                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                                     .toList(),
                                 onChanged: (val) => setState(() => selectedCategory = val!),
                               );
-                            },
-                          ),
+                            }
+                            return DropdownButtonFormField<String>(
+                              value: provider.serviceCategories
+                                      .any((cat) => cat.name == selectedCategory)
+                                  ? selectedCategory
+                                  : provider.serviceCategories.first.name,
+                              decoration: const InputDecoration(
+                                labelText: 'Category',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: provider.serviceCategories
+                                  .map((cat) => DropdownMenuItem(
+                                      value: cat.name, child: Text(cat.name)))
+                                  .toList(),
+                              onChanged: (val) => setState(() => selectedCategory = val!),
+                            );
+                          },
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     
                     // Base Price and Max Price (conditional)
-                    Row(
+                    // Base Price and Max Price (conditional)
+                    Column(
                       children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: basePriceCtrl,
+                        TextFormField(
+                          controller: basePriceCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Base Price *',
+                            border: OutlineInputBorder(),
+                            prefixText: '₹',
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (v) {
+                            if (v?.isEmpty == true) return 'Required';
+                            final price = double.tryParse(v!);
+                            if (price == null || price <= 0) return 'Invalid price';
+                            return null;
+                          },
+                        ),
+                        if (pricingModel == 'range') ...[
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: maxPriceCtrl,
                             decoration: const InputDecoration(
-                              labelText: 'Base Price *',
+                              labelText: 'Max Price',
                               border: OutlineInputBorder(),
                               prefixText: '₹',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
-                              if (v?.isEmpty == true) return 'Required';
-                              final price = double.tryParse(v!);
-                              if (price == null || price <= 0) return 'Invalid price';
+                              if (v?.isEmpty == true) return null;
+                              final maxPrice = double.tryParse(v!);
+                              final basePrice = double.tryParse(basePriceCtrl.text);
+                              if (maxPrice != null && basePrice != null && maxPrice <= basePrice) {
+                                return 'Must be > Base Price';
+                              }
                               return null;
                             },
-                          ),
-                        ),
-                        if (pricingModel == 'range') ...[
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: maxPriceCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Max Price',
-                                border: OutlineInputBorder(),
-                                prefixText: '₹',
-                              ),
-                              keyboardType: TextInputType.number,
-                              validator: (v) {
-                                if (v?.isEmpty == true) return null;
-                                final maxPrice = double.tryParse(v!);
-                                final basePrice = double.tryParse(basePriceCtrl.text);
-                                if (maxPrice != null && basePrice != null && maxPrice <= basePrice) {
-                                  return 'Must be > Base Price';
-                                }
-                                return null;
-                              },
-                            ),
                           ),
                         ],
                       ],
@@ -434,7 +428,7 @@ class _SharedServicesTabState extends State<SharedServicesTab> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => Dialog(
           child: Container(
-            width: 600,
+            width: MediaQuery.of(context).size.width > 600 ? 600 : double.maxFinite,
             padding: const EdgeInsets.all(24),
             child: Form(
               key: formKey,
@@ -482,92 +476,86 @@ class _SharedServicesTabState extends State<SharedServicesTab> {
                     const SizedBox(height: 16),
                     
                     // Pricing Model and Category
-                    Row(
+                    // Pricing Model and Category
+                    Column(
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: pricingModel,
-                            decoration: const InputDecoration(
-                              labelText: 'Pricing Model',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: ['fixed', 'range', 'hourly']
-                                .map((m) => DropdownMenuItem(value: m, child: Text(m.toUpperCase())))
-                                .toList(),
-                            onChanged: (val) => setState(() => pricingModel = val!),
+                        DropdownButtonFormField<String>(
+                          value: pricingModel,
+                          decoration: const InputDecoration(
+                            labelText: 'Pricing Model',
+                            border: OutlineInputBorder(),
                           ),
+                          items: ['fixed', 'range', 'hourly']
+                              .map((m) => DropdownMenuItem(value: m, child: Text(m.toUpperCase())))
+                              .toList(),
+                          onChanged: (val) => setState(() => pricingModel = val!),
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Consumer<ServiceCategoryProvider>(
-                            builder: (context, provider, _) {
-                               if (provider.serviceCategories.isEmpty) {
-                                return DropdownButtonFormField<String>(
-                                  value: selectedCategory,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Category',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  items: ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Other']
-                                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                                      .toList(),
-                                  onChanged: (val) => setState(() => selectedCategory = val!),
-                                );
-                              }
+                        const SizedBox(height: 16),
+                        Consumer<ServiceCategoryProvider>(
+                          builder: (context, provider, _) {
+                             if (provider.serviceCategories.isEmpty) {
                               return DropdownButtonFormField<String>(
-                                value: provider.serviceCategories
-                                        .any((cat) => cat.name == selectedCategory)
-                                    ? selectedCategory
-                                    : provider.serviceCategories.first.name,
+                                value: selectedCategory,
                                 decoration: const InputDecoration(
                                   labelText: 'Category',
                                   border: OutlineInputBorder(),
                                 ),
-                                items: provider.serviceCategories
-                                    .map((cat) => DropdownMenuItem(
-                                        value: cat.name, child: Text(cat.name)))
+                                items: ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Other']
+                                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                                     .toList(),
                                 onChanged: (val) => setState(() => selectedCategory = val!),
                               );
-                            },
-                          ),
+                            }
+                            return DropdownButtonFormField<String>(
+                              value: provider.serviceCategories
+                                      .any((cat) => cat.name == selectedCategory)
+                                  ? selectedCategory
+                                  : provider.serviceCategories.first.name,
+                              decoration: const InputDecoration(
+                                labelText: 'Category',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: provider.serviceCategories
+                                  .map((cat) => DropdownMenuItem(
+                                      value: cat.name, child: Text(cat.name)))
+                                  .toList(),
+                              onChanged: (val) => setState(() => selectedCategory = val!),
+                            );
+                          },
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     
                     // Base Price and Max Price (conditional)
-                    Row(
+                    // Base Price and Max Price (conditional)
+                    Column(
                       children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: basePriceCtrl,
+                        TextFormField(
+                          controller: basePriceCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Base Price *',
+                            border: OutlineInputBorder(),
+                            prefixText: '₹',
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (v) {
+                            if (v?.isEmpty == true) return 'Required';
+                            final price = double.tryParse(v!);
+                            if (price == null || price <= 0) return 'Invalid price';
+                            return null;
+                          },
+                        ),
+                        if (pricingModel == 'range') ...[
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: maxPriceCtrl,
                             decoration: const InputDecoration(
-                              labelText: 'Base Price *',
+                              labelText: 'Max Price',
                               border: OutlineInputBorder(),
                               prefixText: '₹',
                             ),
                             keyboardType: TextInputType.number,
-                            validator: (v) {
-                              if (v?.isEmpty == true) return 'Required';
-                              final price = double.tryParse(v!);
-                              if (price == null || price <= 0) return 'Invalid price';
-                              return null;
-                            },
-                          ),
-                        ),
-                        if (pricingModel == 'range') ...[
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: maxPriceCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Max Price',
-                                border: OutlineInputBorder(),
-                                prefixText: '₹',
-                              ),
-                              keyboardType: TextInputType.number,
-                            ),
                           ),
                         ],
                       ],
@@ -829,7 +817,7 @@ class _SharedServicesTabState extends State<SharedServicesTab> {
                         ElevatedButton.icon(
                           onPressed: () => _showAddServiceDialog(),
                           icon: const Icon(Icons.add),
-                          label: const Text('Add Service'),
+                          label: const Text('Add'),
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                             backgroundColor: Colors.green,
@@ -1129,38 +1117,55 @@ class _SharedServicesTabState extends State<SharedServicesTab> {
                                   
                                   // Actions
                                   if (widget.canManage && !_isServiceSelectionMode)
-                                     Column(
-                                       children: [
-                                         IconButton(
-                                           icon: const Icon(Icons.edit, size: 20, color: Colors.blue),
-                                           onPressed: () => _showEditServiceDialog(service.id, data),
-                                         ),
-                                         IconButton(
-                                           icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                                           onPressed: () async {
-                                              final confirm = await showDialog<bool>(
-                                                context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                  title: const Text('Delete Service'),
-                                                  content: Text('Are you sure you want to delete "${data['name']}"?'),
-                                                  actions: [
-                                                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                                    ElevatedButton(
-                                                      onPressed: () => Navigator.pop(ctx, true),
-                                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                                                      child: const Text('Delete'),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                              
-                                              if (confirm == true) {
-                                                await FirebaseFirestore.instance.collection('services').doc(service.id).delete();
-                                                if (context.mounted) {
-                                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service deleted')));
-                                                }
+                                     PopupMenuButton<String>(
+                                       onSelected: (value) async {
+                                         if (value == 'edit') {
+                                           _showEditServiceDialog(service.id, data);
+                                         } else if (value == 'delete') {
+                                            final confirm = await showDialog<bool>(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: const Text('Delete Service'),
+                                                content: Text('Are you sure you want to delete "${data['name']}"?'),
+                                                actions: [
+                                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                                  ElevatedButton(
+                                                    onPressed: () => Navigator.pop(ctx, true),
+                                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                                                    child: const Text('Delete'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                            
+                                            if (confirm == true) {
+                                              await FirebaseFirestore.instance.collection('services').doc(service.id).delete();
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service deleted')));
                                               }
-                                           },
+                                            }
+                                         }
+                                       },
+                                       itemBuilder: (context) => [
+                                         const PopupMenuItem(
+                                           value: 'edit',
+                                           child: Row(
+                                             children: [
+                                               Icon(Icons.edit, color: Colors.blue),
+                                               SizedBox(width: 8),
+                                               Text('Edit'),
+                                             ],
+                                           ),
+                                         ),
+                                         const PopupMenuItem(
+                                           value: 'delete',
+                                           child: Row(
+                                             children: [
+                                               Icon(Icons.delete, color: Colors.red),
+                                               SizedBox(width: 8),
+                                               Text('Delete'),
+                                             ],
+                                           ),
                                          ),
                                        ],
                                      ),

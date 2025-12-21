@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../models/product_model.dart';
+import '../providers/category_provider.dart';
 
 class SharedProductsTab extends StatefulWidget {
   final bool canManage;
@@ -31,6 +34,8 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
   String _stockFilter = 'All'; // All, Low, Out, InStock
   final Set<String> _selectedProductCategories = {};
   String _featuredFilter = 'All'; // All, Featured, NonFeatured
+  String _hotDealFilter = 'All'; // All, HotDeal, NonHotDeal
+  String _customerChoiceFilter = 'All'; // All, CustomerChoice, NonCustomerChoice
   DateTime? _productStartDate;
   DateTime? _productEndDate;
 
@@ -153,7 +158,18 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
       // Featured
       final isFeatured = data['isFeatured'] as bool? ?? false;
       if (_featuredFilter == 'Featured' && !isFeatured) return false;
+      if (_featuredFilter == 'Featured' && !isFeatured) return false;
       if (_featuredFilter == 'NonFeatured' && isFeatured) return false;
+
+      // Hot Deal
+      final isHotDeal = data['isHotDeal'] as bool? ?? false;
+      if (_hotDealFilter == 'HotDeal' && !isHotDeal) return false;
+      if (_hotDealFilter == 'NonHotDeal' && isHotDeal) return false;
+
+      // Customer Choice
+      final isCustomerChoice = data['isCustomerChoice'] as bool? ?? false;
+      if (_customerChoiceFilter == 'CustomerChoice' && !isCustomerChoice) return false;
+      if (_customerChoiceFilter == 'NonCustomerChoice' && isCustomerChoice) return false;
       
       // Date Range
       if (_productStartDate != null || _productEndDate != null) {
@@ -218,7 +234,7 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                           ElevatedButton.icon(
                             onPressed: _showAddProductDialog,
                             icon: const Icon(Icons.add),
-                            label: const Text('Add Product'),
+                            label: const Text('Add'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blue,
                               foregroundColor: Colors.white,
@@ -248,7 +264,7 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                           ElevatedButton.icon(
                             onPressed: _showAddProductDialog,
                             icon: const Icon(Icons.add),
-                            label: const Text('Add Product'),
+                            label: const Text('Add'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blue,
                               foregroundColor: Colors.white,
@@ -393,7 +409,11 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                       _maxProductPrice != null ||
                       _stockFilter != 'All' ||
                       _selectedProductCategories.isNotEmpty ||
-                      _featuredFilter != 'All') ...[
+                      _stockFilter != 'All' ||
+                      _selectedProductCategories.isNotEmpty ||
+                      _featuredFilter != 'All' ||
+                      _hotDealFilter != 'All' ||
+                      _customerChoiceFilter != 'All') ...[
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -487,6 +507,34 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                           onChanged: (v) => setState(() => _featuredFilter = v!),
                         ),
                         const SizedBox(height: 16),
+                        // Hot Deal
+                        const Text('Hot Deal Status', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: _hotDealFilter,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                          items: const [
+                             DropdownMenuItem(value: 'All', child: Text('All')),
+                             DropdownMenuItem(value: 'HotDeal', child: Text('Hot Deal Only')),
+                             DropdownMenuItem(value: 'NonHotDeal', child: Text('Non-Hot Deal')),
+                          ],
+                          onChanged: (v) => setState(() => _hotDealFilter = v!),
+                        ),
+                        const SizedBox(height: 16),
+                        // Customer Choice
+                        const Text('Customer Choice Status', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: _customerChoiceFilter,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                          items: const [
+                             DropdownMenuItem(value: 'All', child: Text('All')),
+                             DropdownMenuItem(value: 'CustomerChoice', child: Text('Customer Choice Only')),
+                             DropdownMenuItem(value: 'NonCustomerChoice', child: Text('Non-Customer Choice')),
+                          ],
+                          onChanged: (v) => setState(() => _customerChoiceFilter = v!),
+                        ),
+                        const SizedBox(height: 16),
                         // Clear All
                         Center(
                           child: ElevatedButton.icon(
@@ -496,7 +544,11 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                                 _maxProductPrice = null;
                                 _stockFilter = 'All';
                                 _selectedProductCategories.clear();
+                                _stockFilter = 'All';
+                                _selectedProductCategories.clear();
                                 _featuredFilter = 'All';
+                                _hotDealFilter = 'All';
+                                _customerChoiceFilter = 'All';
                               });
                             },
                             icon: const Icon(Icons.clear_all),
@@ -517,11 +569,11 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
   Widget _buildProductsGrid(List<QueryDocumentSnapshot> products) {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: MediaQuery.of(context).size.width < 600 ? 2 : 3,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.72,
+        childAspectRatio: 0.65, // Slightly taller cards to accommodate details
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {
@@ -591,12 +643,37 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                           ),
                           const SizedBox(height: 8),
                           if (widget.canManage)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                IconButton(icon: const Icon(Icons.edit, size: 20), onPressed: () => _showEditProductDialog(product.id, data), color: Colors.blue, visualDensity: VisualDensity.compact),
-                                IconButton(icon: const Icon(Icons.delete, size: 20), onPressed: () => _deleteProduct(product.id, data['name']), color: Colors.red, visualDensity: VisualDensity.compact),
+                            PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _showEditProductDialog(product.id, data);
+                                } else if (value == 'delete') {
+                                  _deleteProduct(product.id, data['name']);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit, color: Colors.blue),
+                                      SizedBox(width: 8),
+                                      Text('Edit'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Delete'),
+                                    ],
+                                  ),
+                                ),
                               ],
+                              icon: const Icon(Icons.more_vert),
                             ),
                         ],
                       ),
@@ -666,11 +743,27 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
+    final mrpCtrl = TextEditingController();
     final stockCtrl = TextEditingController();
     
-    String selectedCategory = ProductCategory.dailyNeeds;
+    final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
+    final categories = categoryProvider.categories.map((c) => c.name).toList();
+    
+    String selectedCategory = categories.isNotEmpty 
+        ? (categories.contains('Daily Needs') ? 'Daily Needs' : categories.first) 
+        : 'Daily Needs';
+        
+    if (categories.isEmpty) {
+       // Fallback or fetch if empty (though provider should be loaded at app start)
+       // For now, assume loaded or allow user to add?
+       // This might be why "Daily Needs" hardcoded is safer as default?
+       // But we want DYNAMIC.
+    }
+    
     String selectedUnit = 'Pic';
     bool isFeatured = false;
+    bool isHotDeal = false;
+    bool isCustomerChoice = false;
     bool isLoading = false;
     List<Uint8List> selectedImages = [];
 
@@ -718,7 +811,7 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => Dialog(
           child: Container(
-            width: 700,
+            width: MediaQuery.of(context).size.width > 700 ? 700 : double.maxFinite,
             padding: const EdgeInsets.all(24),
             child: Form(
               key: formKey,
@@ -752,10 +845,32 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                       children: [
                         Expanded(
                           child: TextFormField(
+                            controller: mrpCtrl,
+                            decoration: const InputDecoration(labelText: 'MRP (Original Price)', border: OutlineInputBorder(), prefixText: '₹'),
+                            keyboardType: TextInputType.number,
+                            onChanged: (val) {
+                                final p = double.tryParse(priceCtrl.text) ?? 0;
+                                final m = double.tryParse(val) ?? 0;
+                                if (m > p && p > 0) {
+                                   setState(() => isHotDeal = true);
+                                }
+                            }
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
                             controller: priceCtrl,
-                            decoration: const InputDecoration(labelText: 'Price *', border: OutlineInputBorder(), prefixText: '₹'),
+                            decoration: const InputDecoration(labelText: 'Selling Price *', border: OutlineInputBorder(), prefixText: '₹'),
                             keyboardType: TextInputType.number,
                             validator: (v) => (v?.isEmpty == true || double.tryParse(v!) == null) ? 'Invalid Price' : null,
+                            onChanged: (val) {
+                                final p = double.tryParse(val) ?? 0;
+                                final m = double.tryParse(mrpCtrl.text) ?? 0;
+                                if (m > p && p > 0) {
+                                   setState(() => isHotDeal = true);
+                                }
+                            }
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -770,12 +885,30 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Row(
+                    MediaQuery.of(context).size.width < 600
+                    ? Column(
+                        children: [
+                          DropdownButtonFormField<String>(
+                            value: selectedCategory,
+                            decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                            items: Provider.of<CategoryProvider>(context, listen: false).categories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
+                            onChanged: (v) => setState(() => selectedCategory = v!),
+                          ),
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            value: selectedUnit,
+                            decoration: const InputDecoration(labelText: 'Unit', border: OutlineInputBorder()),
+                            items: ['Kg', 'Ltr', 'Pic', 'Pkt', 'Grm'].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                            onChanged: (v) => setState(() => selectedUnit = v!),
+                          ),
+                        ],
+                      )
+                    : Row(
                       children: [
                         Expanded(child: DropdownButtonFormField<String>(
                           value: selectedCategory,
                           decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
-                          items: ProductCategory.all.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                          items: Provider.of<CategoryProvider>(context, listen: false).categories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
                           onChanged: (v) => setState(() => selectedCategory = v!),
                         )),
                         const SizedBox(width: 16),
@@ -789,6 +922,8 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                     ),
                     const SizedBox(height: 16),
                     SwitchListTile(title: const Text('Featured Product'), value: isFeatured, onChanged: (v) => setState(() => isFeatured = v)),
+                    // Auto-calculated Hot Deal based on MRP > Price
+                    // Customer Choice is now based on sales count
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
                       onPressed: () => pickImages(setState),
@@ -830,16 +965,23 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                                  'description': descCtrl.text,
                                  'price': double.parse(priceCtrl.text),
                                  'stock': int.parse(stockCtrl.text),
+                                 'mrp': double.tryParse(mrpCtrl.text) ?? 0.0,
                                  'category': selectedCategory,
                                  'unit': selectedUnit,
                                  'isFeatured': isFeatured,
+                                 'isHotDeal': (double.tryParse(mrpCtrl.text) ?? 0) > double.parse(priceCtrl.text),
+                                 'isCustomerChoice': false, // sales based
+                                 'salesCount': 0,
                                  'sellerId': 'admin', // Or current user? Admin panel implies admin.
                                  'createdAt': FieldValue.serverTimestamp(),
                                  'updatedAt': FieldValue.serverTimestamp(),
                                });
                                if (selectedImages.isNotEmpty) {
                                  final urls = await uploadImages(docRef.id);
-                                 await docRef.update({'images': urls});
+                                 await docRef.update({
+                                   'imageUrls': urls, // Standardized key
+                                   'imageUrl': urls.first, // Main image for backward compat/simple access
+                                 }); 
                                }
                                if (mounted) {
                                   Navigator.pop(context);
@@ -870,11 +1012,20 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
       final nameCtrl = TextEditingController(text: productData['name']);
       final descCtrl = TextEditingController(text: productData['description']);
       final priceCtrl = TextEditingController(text: productData['price'].toString());
+      final mrpCtrl = TextEditingController(text: (productData['mrp'] ?? 0).toString());
       final stockCtrl = TextEditingController(text: productData['stock'].toString());
       
-      String selectedCategory = productData['category'] ?? ProductCategory.dailyNeeds;
+      final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
+      final categories = categoryProvider.categories.map((c) => c.name).toList();
+      String selectedCategory = productData['category'] ?? (categories.isNotEmpty ? categories.first : '');
+      if (categories.isNotEmpty && !categories.contains(selectedCategory)) {
+        selectedCategory = categories.first;
+      }
+      
       String selectedUnit = productData['unit'] ?? 'Pic';
       bool isFeatured = productData['isFeatured'] ?? false;
+      bool isHotDeal = productData['isHotDeal'] ?? false;
+      bool isCustomerChoice = productData['isCustomerChoice'] ?? false;
       bool isLoading = false;
 
       showDialog(
@@ -906,22 +1057,65 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                       const SizedBox(height: 16),
                       Row(
                         children: [
-                          Expanded(child: TextFormField(controller: priceCtrl, decoration: const InputDecoration(labelText: 'Price *', border: OutlineInputBorder(), prefixText: '₹'), keyboardType: TextInputType.number, validator: (v) => double.tryParse(v ?? '') != null ? null : 'Invalid')),
+                          Expanded(child: TextFormField(
+                              controller: mrpCtrl,
+                              decoration: const InputDecoration(labelText: 'MRP (Original Price)', border: OutlineInputBorder(), prefixText: '₹'),
+                              keyboardType: TextInputType.number,
+                              onChanged: (val) {
+                                final p = double.tryParse(priceCtrl.text) ?? 0;
+                                final m = double.tryParse(val) ?? 0;
+                                if (m > p && p > 0) {
+                                   setState(() => isHotDeal = true);
+                                }
+                              }
+                          )),
+                          const SizedBox(width: 16),
+                          Expanded(child: TextFormField(
+                              controller: priceCtrl,
+                              decoration: const InputDecoration(labelText: 'Selling Price *', border: OutlineInputBorder(), prefixText: '₹'),
+                              keyboardType: TextInputType.number,
+                              validator: (v) => double.tryParse(v ?? '') != null ? null : 'Invalid',
+                              onChanged: (val) {
+                                final p = double.tryParse(val) ?? 0;
+                                final m = double.tryParse(mrpCtrl.text) ?? 0;
+                                if (m > p && p > 0) {
+                                   setState(() => isHotDeal = true);
+                                }
+                              }
+                          )),
                           const SizedBox(width: 16),
                           Expanded(child: TextFormField(controller: stockCtrl, decoration: const InputDecoration(labelText: 'Stock *', border: OutlineInputBorder()), keyboardType: TextInputType.number, validator: (v) => int.tryParse(v ?? '') != null ? null : 'Invalid')),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      Row(
+                      MediaQuery.of(context).size.width < 600
+                      ? Column(
+                          children: [
+                            DropdownButtonFormField(
+                              value: selectedCategory,
+                              items: Provider.of<CategoryProvider>(context, listen: false).categories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
+                              onChanged: (v) => setState(() => selectedCategory = v!),
+                              decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder())
+                            ),
+                            const SizedBox(height: 16),
+                            DropdownButtonFormField(
+                              value: selectedUnit,
+                              items: ['Kg','Ltr','Pic','Pkt','Grm'].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                              onChanged: (v) => setState(() => selectedUnit = v!),
+                              decoration: const InputDecoration(labelText: 'Unit', border: OutlineInputBorder())
+                            ),
+                          ],
+                        )
+                      : Row(
                         children: [
-                          Expanded(child: DropdownButtonFormField(value: selectedCategory, items: ProductCategory.all.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(), onChanged: (v) => setState(() => selectedCategory = v!), decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()))),
+                          Expanded(child: DropdownButtonFormField(value: selectedCategory, items: Provider.of<CategoryProvider>(context, listen: false).categories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(), onChanged: (v) => setState(() => selectedCategory = v!), decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()))),
                           const SizedBox(width: 16),
                           Expanded(child: DropdownButtonFormField(value: selectedUnit, items: ['Kg','Ltr','Pic','Pkt','Grm'].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(), onChanged: (v) => setState(() => selectedUnit = v!), decoration: const InputDecoration(labelText: 'Unit', border: OutlineInputBorder()))),
                         ],
                       ),
                       const SizedBox(height: 16),
                       SwitchListTile(title: const Text('Featured Product'), value: isFeatured, onChanged: (v) => setState(() => isFeatured = v)),
-                      const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                         Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -937,9 +1131,12 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                                   'description': descCtrl.text,
                                   'price': double.parse(priceCtrl.text),
                                   'stock': int.parse(stockCtrl.text),
+                                  'mrp': double.tryParse(mrpCtrl.text) ?? 0.0,
                                   'category': selectedCategory,
                                   'unit': selectedUnit,
                                   'isFeatured': isFeatured,
+                                  'isHotDeal': (double.tryParse(mrpCtrl.text) ?? 0) > double.parse(priceCtrl.text),
+                                  // isCustomerChoice not updated manually anymore
                                   'updatedAt': FieldValue.serverTimestamp(),
                                 });
                                 if (mounted) {

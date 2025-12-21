@@ -233,6 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     child: TextField(
                       controller: _searchController,
+                      textAlignVertical: TextAlignVertical.center,
                       decoration: InputDecoration(
                         hintText: 'Search products...',
                         hintStyle: TextStyle(
@@ -266,9 +267,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                        prefixIconConstraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 38,
                         ),
                       ),
                     ),
@@ -344,6 +347,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 context,
                                 '👁️ Recently Viewed',
                                 recommendationService.recentlyViewed,
+                                sectionHeight: 180,
+                                cardWidth: 140,
                               );
                             },
                           ),
@@ -353,7 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
+                              horizontal: 8,
                               vertical: 8,
                             ),
                             child: Builder(
@@ -397,8 +402,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                           const NeverScrollableScrollPhysics(),
                                       crossAxisCount: 3,
                                       mainAxisSpacing: 12,
-                                      crossAxisSpacing: 8,
-                                      childAspectRatio: 0.85,
+                                      crossAxisSpacing: 4,
+                                      childAspectRatio: 0.95,
                                       children: [
                                         ...displayCategories.map(
                                           (cat) => _buildCategoryCard(
@@ -536,35 +541,109 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                         ),
-                        // Trending Products Section
-                        if (_trendingProducts.isNotEmpty)
+                        // Trending Products Section (Logic: Most Viewed)
+                        if (productProvider.products.any((p) => p.viewCount > 0))
                           SliverToBoxAdapter(
                             child: _buildProductCarousel(
                               context,
                               '🔥 Trending Now',
-                              _trendingProducts,
+                              (productProvider.products.where((p) => p.viewCount > 0).toList()
+                                ..sort((a, b) => b.viewCount.compareTo(a.viewCount)))
+                                .take(10)
+                                .toList(),
                             ),
                           ),
-                        // Daily Needs horizontal carousel (hardcoded fallback)
-                        SliverToBoxAdapter(
-                          child: _buildProductCarousel(
-                            context,
-                            'Daily Needs',
-                            productProvider.products
-                                .where((p) => p.category == 'Daily Needs')
-                                .toList(),
+                          
+                        // Daily Needs horizontal carousel
+                        if (productProvider.products.any((p) => p.category == 'Daily Needs'))
+                          SliverToBoxAdapter(
+                            child: _buildProductCarousel(
+                              context,
+                              'Daily Needs',
+                              productProvider.products
+                                  .where((p) => p.category == 'Daily Needs')
+                                  .toList(),
+                            ),
                           ),
-                        ),
-                        // Customer Choices horizontal carousel (hardcoded fallback)
-                        SliverToBoxAdapter(
-                          child: _buildProductCarousel(
-                            context,
-                            'Customer Choices',
-                            productProvider.products
-                                .where((p) => p.category == 'Customer Choice')
+                          
+                        // Customer Choices (Logic: Top selling products)
+                        // Sort by salesCount descending and take top 10
+                         if (productProvider.products.any((p) => p.salesCount > 0)) ...[
+                           SliverToBoxAdapter(
+                            child: _buildProductCarousel(
+                              context,
+                              'Customer Choices',
+                              (productProvider.products.where((p) => p.salesCount > 0).toList()
+                                ..sort((a, b) => b.salesCount.compareTo(a.salesCount)))
+                                .take(10)
                                 .toList(),
+                            ),
                           ),
-                        ),
+                         ],
+                          
+                        // Hot Deals Banner & Section (Logic: isHotDeal == true OR mrp > price)
+                        if (productProvider.products.any((p) => p.isHotDeal || (p.mrp > p.price && p.mrp > 0))) ...[
+                           SliverToBoxAdapter(child: const SizedBox(height: 16)),
+                           SliverToBoxAdapter(
+                                      child: InkWell(
+                                        onTap: () {
+                                          Navigator.pushNamed(
+                                            context,
+                                            CategoryProductsScreen.routeName,
+                                            arguments: ProductCategory.hotDeals,
+                                          );
+                                        },
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          child: Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 20,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(12),
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Color(0xFFFF7043),
+                                                  Color(0xFFE53935),
+                                                ],
+                                                begin: Alignment.centerLeft,
+                                                end: Alignment.centerRight,
+                                              ),
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: const [
+                                                    Icon(Icons.local_fire_department, color: Colors.white, size: 24),
+                                                    SizedBox(width: 8),
+                                                    Text('HOT DEALS', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                                                    SizedBox(width: 8),
+                                                    Icon(Icons.local_fire_department, color: Colors.white, size: 24),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 4),
+                                                const Text('Grab amazing offers today!', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                           ),
+                           SliverToBoxAdapter(
+                              child: _buildProductCarousel(
+                                context,
+                                'Hot Deals',
+                                productProvider.products
+                                    .where((p) => p.isHotDeal || (p.mrp > p.price && p.mrp > 0))
+                                    .toList(),
+                              ),
+                           ),
+                        ],
                         // Gift Finder Banner
                         SliverToBoxAdapter(
                           child: Padding(
@@ -702,10 +781,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             : SliverPadding(
                                 padding: const EdgeInsets.all(10.0),
                                 sliver: SliverGrid(
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                                         crossAxisCount: 2,
-                                        childAspectRatio: 0.65, // Taller ratio to prevent bottom overflow
+                                        childAspectRatio: 0.75, // Ajusted to prevent cropping/overflow
                                         crossAxisSpacing: 10,
                                         mainAxisSpacing: 10,
                                       ),
@@ -769,11 +847,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(0.0),
                 child: isNetworkImage
                     ? Image.network(
                         imagePathOrUrl,
-                        fit: BoxFit.contain,
+                        fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Icon(
                             Icons.category,
@@ -788,7 +866,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       )
                     : Image.asset(
                         imagePathOrUrl,
-                        fit: BoxFit.contain,
+                        fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Icon(
                             Icons.category,
@@ -826,8 +904,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildProductCarousel(
     BuildContext context,
     String title,
-    List<Product> products,
-  ) {
+    List<Product> products, {
+    double sectionHeight = 240,
+    double cardWidth = 160,
+  }) {
     if (products.isEmpty) return const SizedBox.shrink();
 
     return Padding(
@@ -862,14 +942,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: 240,
+          height: sectionHeight,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               itemCount: products.length > 10 ? 10 : products.length,
               itemBuilder: (context, index) {
                 return Container(
-                  width: 160,
+                  width: cardWidth,
                   margin: const EdgeInsets.symmetric(horizontal: 4),
                   child: ProductCard(
                     product: products[index],

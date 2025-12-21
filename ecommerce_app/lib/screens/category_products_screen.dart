@@ -269,14 +269,24 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                   )
                 : Consumer<ProductProvider>(
                     builder: (context, productProvider, _) {
+                      print('DEBUG: checking against "${ProductCategory.hotDeals}"');
+                      print('DEBUG: Total products in provider: ${productProvider.products.length}');
+                      productProvider.products.take(5).forEach((p) {
+                         print('DEBUG PROD: ${p.name} | isHotDeal: ${p.isHotDeal} | mrp: ${p.mrp} | price: ${p.price} | mrp>price: ${p.mrp > p.price}');
+                      });
+
                       List<Product> categoryProducts;
                       if (categoryName.contains('Trending')) {
                         categoryProducts = List.from(productProvider.products)
-                          ..sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
-                      } else if (categoryName == 'Customer Choices') {
+                          ..sort((a, b) => (b.viewCount).compareTo(a.viewCount));
+                      } else if (categoryName.trim() == ProductCategory.hotDeals) {
                         categoryProducts = productProvider.products
-                            .where((product) => product.category == 'Customer Choice')
+                            .where((p) => p.isHotDeal || (p.mrp > p.price))
                             .toList();
+                        print('DEBUG: Hot Deals found: ${categoryProducts.length}');
+                      } else if (categoryName == 'Customer Choices') {
+                        categoryProducts = List.from(productProvider.products)
+                            ..sort((a, b) => b.salesCount.compareTo(a.salesCount));
                       } else {
                         categoryProducts = productProvider.products
                             .where((product) => product.category == categoryName)
