@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:barcode_widget/barcode_widget.dart';
 import '../models/order_model.dart';
 import '../providers/order_provider.dart';
 
@@ -280,6 +281,59 @@ class OrderTrackingScreen extends StatelessWidget {
                         ],
                       ),
                     ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Barcode Section for Scanning
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.qr_code_scanner, size: 20, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Scan for Pickup/Delivery',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: BarcodeWidget(
+                        barcode: Barcode.code128(),
+                        data: order.id,
+                        width: 280,
+                        height: 80,
+                        drawText: true,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Order ID: ${order.id}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ],
                 ),
               ),

@@ -17,6 +17,7 @@ class Product {
   int salesCount;
   int viewCount;
   int stock;
+  final int minimumQuantity; // Added minimum quantity field
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -37,6 +38,7 @@ class Product {
     this.salesCount = 0,
     this.viewCount = 0,
     this.stock = 0, // Added to constructor
+    this.minimumQuantity = 1, // Default to 1
     this.createdAt,
     this.updatedAt, // Added to constructor
   });
@@ -60,6 +62,7 @@ class Product {
       'salesCount': salesCount,
       'viewCount': viewCount,
       'stock': stock,
+      'minimumQuantity': minimumQuantity,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
       'updatedAt': FieldValue.serverTimestamp(),
     };
@@ -85,6 +88,7 @@ class Product {
       salesCount: (map['salesCount'] as num?)?.toInt() ?? 0,
       viewCount: (map['viewCount'] as num?)?.toInt() ?? 0,
       stock: (map['stock'] as num?)?.toInt() ?? 0,
+      minimumQuantity: (map['minimumQuantity'] as num?)?.toInt() ?? 1,
       createdAt: map['createdAt'] is Timestamp 
           ? (map['createdAt'] as Timestamp).toDate() 
           : null,

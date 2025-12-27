@@ -73,7 +73,7 @@ class InvoiceService {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
                pw.Center(
-                child: pw.Text('BONG BAZAR', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                child: pw.Text('DEMANDY', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
               ),
               pw.Divider(),
               pw.SizedBox(height: 10),
@@ -138,7 +138,7 @@ class InvoiceService {
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Text('RETURN / SENDER:', style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-                    pw.Text('BONG BAZAR', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.Text('DEMANDY', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     pw.Text('Admin Office / Seller Hub', style: pw.TextStyle(fontSize: 10)),
                     // Add standard company address here if available
                   ],
@@ -175,7 +175,7 @@ class InvoiceService {
         pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text('BONG BAZAR', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+            pw.Text('DEMANDY', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
             pw.Text('Your Trusted Shopping Partner', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
           ],
         ),
@@ -294,8 +294,8 @@ class InvoiceService {
       child: pw.Column(
         children: [
           pw.Divider(),
-          pw.Text('Thank you for shopping with Bong Bazar!', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-          pw.Text('For support contact: support@bongbazar.com', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+          pw.Text('Thank you for shopping with Demandy!', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+          pw.Text('For support contact: support@demandy.com', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
         ],
       ),
     );

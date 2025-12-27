@@ -1,5 +1,6 @@
 import 'package:ecommerce_app/widgets/search_results.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ecommerce_app/screens/category_products_screen.dart';
@@ -13,6 +14,7 @@ import '../providers/auth_provider.dart';
 import 'cart_screen.dart';
 import 'account_screen.dart';
 import '../services/recommendation_service.dart';
+import '../widgets/marquee_widget.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -147,7 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         // Center: App name
         title: const Text(
-          'Bong Bazar',
+          'Demandy',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -339,6 +341,50 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                         ),
+                        // Free Delivery Marquee
+                        // Dynamic Free Delivery Marquee
+                        StreamBuilder<DocumentSnapshot>(
+                          stream: FirebaseFirestore.instance.collection('app_settings').doc('general').snapshots(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData || !snapshot.data!.exists) {
+                              return const SliverToBoxAdapter(child: SizedBox.shrink());
+                            }
+
+                            final data = snapshot.data!.data() as Map<String, dynamic>?;
+                            final isEnabled = data?['isAnnouncementEnabled'] as bool? ?? false;
+                            final message = data?['announcementText'] as String? ?? '';
+
+                            if (!isEnabled || message.isEmpty) {
+                              return const SliverToBoxAdapter(child: SizedBox.shrink());
+                            }
+
+                            return SliverToBoxAdapter(
+                            child: Container(
+                              margin: EdgeInsets.zero,
+                              height: 30,
+                              color: Colors.transparent,
+                              child: MarqueeWidget(
+                                stepSize: 1.0,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 50),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        message,
+                                        style: const TextStyle(
+                                          color: Color(0xFFE65100),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                          },
+                        ),
                         // Recently Viewed Section
                         SliverToBoxAdapter(
                           child: Consumer<RecommendationService>(
@@ -464,77 +510,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                       ),
                                     ],
-                                    const SizedBox(height: 16),
-                                    // HOTS DEALS full-width banner
-                                    InkWell(
-                                      onTap: () {
-                                        Navigator.pushNamed(
-                                          context,
-                                          CategoryProductsScreen.routeName,
-                                          arguments: ProductCategory.hotDeals,
-                                        );
-                                      },
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 20,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFFFF7043),
-                                              Color(0xFFE53935),
-                                            ],
-                                            begin: Alignment.centerLeft,
-                                            end: Alignment.centerRight,
-                                          ),
-                                        ),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: const [
-                                                Icon(
-                                                  Icons.local_fire_department,
-                                                  color: Colors.white,
-                                                  size: 24,
-                                                ),
-                                                SizedBox(width: 8),
-                                                Text(
-                                                  'HOTS DEALS',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.w800,
-                                                  ),
-                                                ),
-                                                SizedBox(width: 8),
-                                                Icon(
-                                                  Icons.local_fire_department,
-                                                  color: Colors.white,
-                                                  size: 24,
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 4),
-                                            const Text(
-                                              'Grab amazing offers today!',
-                                              style: TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+
                                   ],
                                 );
                               },

@@ -20,6 +20,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   final _upiIdController = TextEditingController();
   final _deliveryFeePercentageController = TextEditingController();
   final _deliveryFeeMaxCapController = TextEditingController();
+  final _announcementController = TextEditingController();
+  bool _isAnnouncementEnabled = false;
   bool _isLoading = true;
   bool _isUploading = false;
   AppSettingsModel? _settings;
@@ -46,6 +48,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           _upiIdController.text = _settings?.upiId ?? '';
           _deliveryFeePercentageController.text = _settings?.deliveryFeePercentage.toString() ?? '0.0';
           _deliveryFeeMaxCapController.text = _settings?.deliveryFeeMaxCap.toString() ?? '0.0';
+          _announcementController.text = _settings?.announcementText ?? '';
+          _isAnnouncementEnabled = _settings?.isAnnouncementEnabled ?? false;
           _isLoading = false;
         });
       } else {
@@ -127,6 +131,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         'upiId': _upiIdController.text.trim(),
         'deliveryFeePercentage': double.tryParse(_deliveryFeePercentageController.text.trim()) ?? 0.0,
         'deliveryFeeMaxCap': double.tryParse(_deliveryFeeMaxCapController.text.trim()) ?? 0.0,
+        'announcementText': _announcementController.text.trim(),
+        'isAnnouncementEnabled': _isAnnouncementEnabled,
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedBy': adminId,
       }, SetOptions(merge: true));
@@ -187,6 +193,51 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 ),
           ),
           const SizedBox(height: 32),
+
+          // Announcement/Marquee Settings
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                       Text(
+                        'Home Page Announcement',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Switch(
+                        value: _isAnnouncementEnabled,
+                        onChanged: (val) => setState(() => _isAnnouncementEnabled = val),
+                      ),
+                    ],
+                   ),
+                   const SizedBox(height: 12),
+                   TextField(
+                     controller: _announcementController,
+                     decoration: const InputDecoration(
+                       labelText: 'Announcement Text',
+                       hintText: 'e.g. Free Delivery on orders above ₹199 ✨',
+                       border: OutlineInputBorder(),
+                       prefixIcon: Icon(Icons.campaign),
+                     ),
+                     maxLines: 2,
+                   ),
+                   const SizedBox(height: 8),
+                   Text(
+                     'This text will scroll horizontally on the home screen.',
+                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
 
           // Current QR Code Section
           if (_settings?.upiQRCodeUrl != null) ...[
@@ -444,6 +495,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     _upiIdController.dispose();
     _deliveryFeePercentageController.dispose();
     _deliveryFeeMaxCapController.dispose();
+    _announcementController.dispose();
     super.dispose();
   }
 }

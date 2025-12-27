@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/order_model.dart';
-import '../models/transaction_model.dart';
-import '../services/transaction_service.dart';
-import '../services/transaction_service.dart';
 import '../services/notification_service.dart';
 import 'auth_provider.dart';
 
@@ -151,15 +148,9 @@ class OrderProvider extends ChangeNotifier {
 
       await _firestore.collection('orders').doc(orderId).update(updates);
 
-      // Record transaction if order is delivered
-      if (newStatus == 'delivered') {
-        final orderDoc = await _firestore.collection('orders').doc(orderId).get();
-        if (orderDoc.exists) {
-          final orderData = orderDoc.data()!;
-          await _processSellerTransactions(orderId, orderData, TransactionType.credit);
-        }
-      } 
-      else if (newStatus == 'return_requested') {
+
+
+      if (newStatus == 'return_requested') {
         debugPrint('DEBUG: Processing return request for order $orderId');
         // Fetch order details for notification
         final orderDoc = await _firestore.collection('orders').doc(orderId).get();
@@ -201,9 +192,7 @@ class OrderProvider extends ChangeNotifier {
              }
            }
         }
-      }
-      // Record debit transaction if order is returned
-      else if (newStatus == 'returned') {
+      } else if (newStatus == 'returned') {
         // Notify Admin for Refund
         final notificationService = NotificationService();
         await notificationService.notifyAdmins(
@@ -212,14 +201,9 @@ class OrderProvider extends ChangeNotifier {
           type: 'refund_request',
           relatedId: orderId,
         );
-
-        final orderDoc = await _firestore.collection('orders').doc(orderId).get();
-        if (orderDoc.exists) {
-          final orderData = orderDoc.data()!;
-          // Only debit if it was previously delivered (meaning they were credited)
-          await _processSellerTransactions(orderId, orderData, TransactionType.refund);
-        }
       }
+
+
 
       await fetchUserOrders();
     } catch (e) {
@@ -240,57 +224,7 @@ class OrderProvider extends ChangeNotifier {
     return null;
   }
 
-  Future<void> _processSellerTransactions(
-    String orderId, 
-    Map<String, dynamic> orderData, 
-    TransactionType type
-  ) async {
-    final items = (orderData['items'] as List<dynamic>?) ?? [];
-    final Map<String, double> sellerAmounts = {};
 
-    for (var item in items) {
-      final sellerId = item['sellerId'] as String?;
-      if (sellerId != null && sellerId.isNotEmpty) {
-        final price = (item['price'] as num).toDouble();
-        final quantity = (item['quantity'] as num).toInt();
-        final total = price * quantity;
-        sellerAmounts[sellerId] = (sellerAmounts[sellerId] ?? 0) + total;
-      }
-    }
-
-    final transactionService = TransactionService();
-    for (var entry in sellerAmounts.entries) {
-      final sellerId = entry.key;
-      final amount = entry.value;
-      
-      String description;
-      switch (type) {
-        case TransactionType.credit:
-          description = 'Earnings for Order #$orderId';
-          break;
-        case TransactionType.refund:
-          description = 'Refund for Order #$orderId';
-          break;
-        case TransactionType.debit:
-        default:
-          description = 'Debit for Order #$orderId';
-          break;
-      }
-
-      final transaction = TransactionModel(
-        id: '', // Firestore will generate ID
-        userId: sellerId,
-        amount: amount,
-        type: type,
-        description: description,
-        status: TransactionStatus.completed,
-        referenceId: orderId,
-        createdAt: DateTime.now(),
-      );
-
-      await transactionService.recordTransaction(transaction);
-    }
-  }
 
   void clear() {
     _orders = [];

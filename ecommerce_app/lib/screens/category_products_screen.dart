@@ -9,6 +9,9 @@ import '../screens/cart_screen.dart';
 import '../widgets/product_card.dart';
 import '../widgets/more_bottom_sheet.dart';
 import '../models/product_model.dart';
+import '../services/recommendation_service.dart';
+import '../utils/currency.dart';
+import '../screens/product_detail_screen.dart';
 
 class CategoryProductsScreen extends StatefulWidget {
   static const routeName = '/category-products';
@@ -56,7 +59,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
         // Left: Back button (default)
         // Center: Category name
         title: const Text(
-          'Bong Bazar',
+          'Demandy',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -129,13 +132,13 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
           // Gift filters (only for Gifts category)
           if (isGiftCategory)
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
               child: GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
-                  childAspectRatio: 2.5,
+                  childAspectRatio: 2.8,
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
                 ),
@@ -257,8 +260,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                         padding: const EdgeInsets.all(16),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              childAspectRatio: 0.55,
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.65,
                               crossAxisSpacing: 12,
                               mainAxisSpacing: 12,
                             ),
@@ -287,6 +290,12 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                       } else if (categoryName == 'Customer Choices') {
                         categoryProducts = List.from(productProvider.products)
                             ..sort((a, b) => b.salesCount.compareTo(a.salesCount));
+                      } else if (categoryName == '👁️ Recently Viewed') {
+                        // Use RecommendationService for recently viewed
+                        final recommendationService = Provider.of<RecommendationService>(context, listen: false);
+                        // Ensure we have the list (it should be loaded by home, but good to check)
+                        categoryProducts = recommendationService.recentlyViewed;
+                        print('DEBUG: Recently Viewed products: ${categoryProducts.length}');
                       } else {
                         categoryProducts = productProvider.products
                             .where((product) => product.category == categoryName)
@@ -331,13 +340,13 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: 3,
-                              childAspectRatio: 0.75,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
+                              childAspectRatio: 0.62, // Taller to accommodate text below image
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 16,
                             ),
                         itemCount: categoryProducts.length,
                         itemBuilder: (ctx, index) =>
-                            ProductCard(product: categoryProducts[index]),
+                            _buildProductGridItem(categoryProducts[index]),
                       );
                     },
                   ),
@@ -372,6 +381,146 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
             icon: Icon(Icons.more_horiz),
             activeIcon: Icon(Icons.menu),
             label: 'MORE',
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _buildProductGridItem(Product product) {
+    // Logic copied from ProductCard but with different layout
+    final hasDiscount = product.mrp > product.price;
+    final discountPercent = hasDiscount 
+        ? ((product.mrp - product.price) / product.mrp * 100).round() 
+        : 0;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(
+          context,
+          ProductDetailScreen.routeName,
+          arguments: product,
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image in Card
+          Expanded(
+            child: Card(
+              elevation: 4.0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0),
+              ),
+              margin: EdgeInsets.zero,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10.0),
+                child: Stack(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      color: Colors.white,
+                      child: Hero(
+                        tag: 'cat-product-image-${product.id}',
+                        child: Image.network(
+                          (product.imageUrls != null && product.imageUrls!.isNotEmpty)
+                              ? product.imageUrls!.first
+                              : product.imageUrl,
+                          fit: BoxFit.contain, // Contain to show full product
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                        ),
+                      ),
+                    ),
+                    if (hasDiscount)
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '$discountPercent% OFF',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Name
+          Text(
+            product.name,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          // Price and Cart below
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (hasDiscount)
+                      Text(
+                        formatINR(product.mrp),
+                        style: const TextStyle(
+                          fontSize: 9.0,
+                          color: Colors.grey,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                    Text(
+                      formatINR(product.price),
+                      style: TextStyle(
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                   context.read<CartProvider>().addProduct(product);
+                   ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     SnackBar(
+                       content: Text('${product.name} added to cart'),
+                       duration: const Duration(seconds: 1),
+                     ),
+                   );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    Icons.add_shopping_cart,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

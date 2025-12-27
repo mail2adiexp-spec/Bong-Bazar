@@ -275,10 +275,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             onPressed: () => Scaffold.of(context).openDrawer(),
                           ),
                         ),
-                      // Center: Bong Bazar
+                      // Center: Demandy
                       Center(
                         child: Text(
-                          'Bong Bazar',
+                          'Demandy',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -2488,7 +2488,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                       itemCount: serviceCategories.length,
                       itemBuilder: (context, index) {
                         final category = serviceCategories[index];
@@ -6780,10 +6780,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: GridView.count(
-              crossAxisCount: 4,
+              crossAxisCount: MediaQuery.of(context).size.width < 600 ? 2 : 4,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              childAspectRatio: 1.5,
+              childAspectRatio: MediaQuery.of(context).size.width < 600 ? 1.0 : 1.5,
               children: [
                 // Total Revenue Card
                 FutureBuilder<double>(
@@ -7085,7 +7085,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           gradient: LinearGradient(
@@ -7120,7 +7120,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Text(
               title,
               style: TextStyle(
@@ -7129,7 +7129,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               value,
               style: TextStyle(

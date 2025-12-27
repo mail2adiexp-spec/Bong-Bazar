@@ -82,7 +82,7 @@ class _ContactScreenState extends State<ContactScreen> {
         ),
         // Center: App name
         title: const Text(
-          'Bong Bazar',
+          'Demandy',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,

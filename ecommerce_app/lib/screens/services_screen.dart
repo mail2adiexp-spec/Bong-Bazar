@@ -9,6 +9,7 @@ import '../models/service_category_model.dart';
 import 'account_screen.dart';
 import 'cart_screen.dart';
 import 'book_service_screen.dart';
+import 'category_service_providers_screen.dart';
 
 class ServicesScreen extends StatefulWidget {
   const ServicesScreen({super.key});
@@ -18,7 +19,7 @@ class ServicesScreen extends StatefulWidget {
 }
 
 class _ServicesScreenState extends State<ServicesScreen> {
-  ServiceCategory? _selectedCategory;
+  ServiceCategory? _selectedCategory; // Keeping this for now if strictly needed, though we navigate away
   late final TextEditingController _searchController;
   String _searchQuery = '';
 
@@ -66,7 +67,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
         ),
         // Center: App name
         title: const Text(
-          'Bong Bazar',
+          'Demandy',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -288,7 +289,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     children: [
                       // Service Categories Grid
                       Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -317,198 +318,6 @@ class _ServicesScreenState extends State<ServicesScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-
-                      // Service Details/Info
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _selectedCategory != null
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Available ${_selectedCategory!.name} Services',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  // Real service providers from Firestore
-                                  StreamBuilder<QuerySnapshot>(
-                                    stream: FirebaseFirestore.instance
-                                        .collection('users')
-                                        .where(
-                                          'role',
-                                          isEqualTo: 'service_provider',
-                                        )
-                                        .where(
-                                          'serviceCategoryId',
-                                          isEqualTo: _selectedCategory!.id,
-                                        )
-                                        .snapshots(),
-                                    builder: (context, snapshot) {
-                                      if (snapshot.connectionState ==
-                                          ConnectionState.waiting) {
-                                        return const Center(
-                                          child: CircularProgressIndicator(),
-                                        );
-                                      }
-
-                                      if (snapshot.hasError) {
-                                        return Padding(
-                                          padding: const EdgeInsets.all(16.0),
-                                          child: Text(
-                                            'Error loading providers: ${snapshot.error}',
-                                            style: const TextStyle(
-                                              color: Colors.red,
-                                            ),
-                                          ),
-                                        );
-                                      }
-
-                                      final providers =
-                                          snapshot.data?.docs ?? [];
-
-                                      // Filter providers based on search query
-                                      final filteredProviders =
-                                          _searchQuery.isEmpty
-                                          ? providers
-                                          : providers.where((doc) {
-                                              final data =
-                                                  doc.data()
-                                                      as Map<String, dynamic>;
-                                              final name = (data['name'] ?? '')
-                                                  .toString()
-                                                  .toLowerCase();
-                                              final businessName =
-                                                  (data['businessName'] ?? '')
-                                                      .toString()
-                                                      .toLowerCase();
-                                              final district =
-                                                  (data['district'] ?? '')
-                                                      .toString()
-                                                      .toLowerCase();
-                                              return name.contains(
-                                                    _searchQuery,
-                                                  ) ||
-                                                  businessName.contains(
-                                                    _searchQuery,
-                                                  ) ||
-                                                  district.contains(
-                                                    _searchQuery,
-                                                  );
-                                            }).toList();
-
-                                      if (filteredProviders.isEmpty) {
-                                        return Padding(
-                                          padding: const EdgeInsets.all(32.0),
-                                          child: Column(
-                                            children: [
-                                              Icon(
-                                                _searchQuery.isEmpty
-                                                    ? Icons.person_off_outlined
-                                                    : Icons.search_off,
-                                                size: 64,
-                                                color: Colors.grey[400],
-                                              ),
-                                              const SizedBox(height: 16),
-                                              Text(
-                                                _searchQuery.isEmpty
-                                                    ? 'Koi ${_selectedCategory!.name} abhi available nahi hai'
-                                                    : 'No providers found for "$_searchQuery"',
-                                                textAlign: TextAlign.center,
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                _searchQuery.isEmpty
-                                                    ? 'Jald hi providers add honge!'
-                                                    : 'Try a different search term',
-                                                style: const TextStyle(
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }
-
-                                      return Column(
-                                        children: filteredProviders.map((doc) {
-                                          final data =
-                                              doc.data()
-                                                  as Map<String, dynamic>;
-                                          final name =
-                                              data['name'] ?? 'Unknown';
-                                          final businessName =
-                                              data['businessName'] ?? name;
-                                          final minCharge =
-                                              (data['minCharge'] ??
-                                                      _selectedCategory!
-                                                          .basePrice)
-                                                  .toDouble();
-                                          final district =
-                                              data['district'] ?? '';
-                                          final photoURL =
-                                              data['photoURL'] as String?;
-
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              bottom: 12,
-                                            ),
-                                            child: _buildServiceProviderCard(
-                                              name: name,
-                                              businessName: businessName,
-                                              description: district.isNotEmpty
-                                                  ? 'District: $district'
-                                                  : _selectedCategory!
-                                                        .description,
-                                              price:
-                                                  '₹${minCharge.toStringAsFixed(0)}/service',
-                                              categoryName:
-                                                  _selectedCategory!.name,
-                                              minCharge: minCharge >= 50
-                                                  ? minCharge
-                                                  : 50.0,
-                                              photoURL: photoURL,
-                                            ),
-                                          );
-                                        }).toList(),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              )
-                            : Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(32.0),
-                                  child: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.touch_app,
-                                        size: 64,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary.withOpacity(0.5),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'Select a service category to view available services',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                      ),
-                      const SizedBox(height: 24),
                     ],
                   ),
                 );
@@ -529,9 +338,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
 
     return InkWell(
       onTap: () {
-        setState(() {
-          _selectedCategory = isSelected ? null : category;
-        });
+        Navigator.pushNamed(
+          context,
+          CategoryServiceProvidersScreen.routeName,
+          arguments: category,
+        );
       },
       borderRadius: BorderRadius.circular(12),
       child: Column(
@@ -540,41 +351,39 @@ class _ServicesScreenState extends State<ServicesScreen> {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: isSelected
-                    ? color.withOpacity(0.2)
-                    : Theme.of(context).colorScheme.surfaceVariant,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected ? color : Colors.transparent,
+                  color: Colors.transparent,
                   width: 2,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                    spreadRadius: 0,
+                  ),
+                ],
               ),
               child: Center(
                 child: hasImage
                     ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         child: Image.network(
                           category.imageUrl!,
                           width: double.infinity,
                           height: double.infinity,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: color.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(Icons.person, size: 40, color: color),
-                            );
+                            return Icon(Icons.broken_image, size: 40, color: color);
                           },
                         ),
                       )
-                    : Container(
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(Icons.person, size: 40, color: color),
+                    : Icon(
+                        Icons.design_services, 
+                        size: 40, 
+                        color: color
                       ),
               ),
             ),
@@ -584,89 +393,14 @@ class _ServicesScreenState extends State<ServicesScreen> {
             category.name,
             style: TextStyle(
               fontSize: 12,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.normal,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildServiceProviderCard({
-    required String name,
-    required String businessName,
-    required String description,
-    required String price,
-    required String categoryName,
-    required double minCharge,
-    String? photoURL,
-  }) {
-    return Card(
-      elevation: 2,
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: CircleAvatar(
-          radius: 28,
-          backgroundColor: Theme.of(
-            context,
-          ).colorScheme.primary.withOpacity(0.1),
-          backgroundImage: photoURL != null && photoURL.isNotEmpty
-              ? NetworkImage(photoURL)
-              : null,
-          child: photoURL == null || photoURL.isEmpty
-              ? Icon(
-                  Icons.person,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 28,
-                )
-              : null,
-        ),
-        title: Text(
-          businessName,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                description,
-                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                price,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        trailing: ElevatedButton(
-          onPressed: () {
-            Navigator.pushNamed(
-              context,
-              BookServiceScreen.routeName,
-              arguments: {
-                'serviceName': categoryName,
-                'providerName': businessName,
-                'providerImage': photoURL,
-                'minCharge': minCharge,
-              },
-            );
-          },
-          child: const Text('Book'),
-        ),
       ),
     );
   }

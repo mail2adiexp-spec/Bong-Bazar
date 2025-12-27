@@ -304,8 +304,8 @@ service cloud.firestore {
         isAdmin() ||
         isCoreStaff()
       );
-      // Allow creation by authenticated users (for now, to facilitate orders/payments)
-      allow create: if isAuthenticated();
+      // Deny client-side creation - Backend (Cloud Functions) uses Admin SDK to create
+      allow create: if false;
       allow update: if isAdmin() || isCoreStaff(); // Only admin should modify history
     }
     

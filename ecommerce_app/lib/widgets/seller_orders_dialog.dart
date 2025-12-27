@@ -1,8 +1,14 @@
 
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:barcode_widget/barcode_widget.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/barcode_scanner_screen.dart';
+import '../utils/shipping_label_generator.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
+
 
 class SellerOrdersDialog extends StatefulWidget {
   final AppUser user;
@@ -231,6 +237,109 @@ class _SellerOrdersDialogState extends State<SellerOrdersDialog> {
                                   ],
                                 ),
                                 const SizedBox(height: 16),
+                                
+                                // Barcode for Scanning
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.qr_code_scanner, size: 18, color: Colors.blue),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Scan for Pickup/Delivery',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey[700],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: BarcodeWidget(
+                                          barcode: Barcode.code128(),
+                                          data: orderId,
+                                          width: 220,
+                                          height: 60,
+                                          drawText: true,
+                                          style: const TextStyle(fontSize: 10),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Order ID: $orderId',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                
+                                // Download Shipping Label Button
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(Icons.download),
+                                    label: const Text('Download Shipping Label'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.blue,
+                                      side: const BorderSide(color: Colors.blue),
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                    ),
+                                    onPressed: () async {
+                                      try {
+                                        // Generate shipping label PDF
+                                        final pdfBytes = await ShippingLabelGenerator.generateShippingLabel(
+                                          orderData: orderData,
+                                          orderId: orderId,
+                                          sellerItems: sellerItems,
+                                          sellerId: widget.user.uid,
+                                        );
+                                        
+                                        // Download/Print the PDF
+                                        await Printing.layoutPdf(
+                                          onLayout: (format) async => pdfBytes,
+                                        );
+                                        
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('✓ Shipping label ready!'),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Error generating label: $e'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
                                 if (status == 'pending' || status == 'confirmed')
                                   SizedBox(
                                     width: double.infinity,
@@ -242,25 +351,41 @@ class _SellerOrdersDialogState extends State<SellerOrdersDialog> {
                                         foregroundColor: Colors.white,
                                       ),
                                       onPressed: () async {
-                                        try {
-                                          await FirebaseFirestore.instance
-                                              .collection('orders')
-                                              .doc(orderId)
-                                              .update({
-                                            'status': 'packed',
-                                            'statusHistory.packed': FieldValue.serverTimestamp(),
-                                            'updatedBy': widget.user.uid,
-                                          });
-                                          if (context.mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('Order marked as Packed')),
-                                            );
-                                          }
-                                        } catch (e) {
-                                          if (context.mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text('Error: $e')),
-                                            );
+                                        // Open barcode scanner
+                                        final result = await Navigator.push<bool>(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => BarcodeScannerScreen(
+                                              expectedOrderId: orderId,
+                                            ),
+                                          ),
+                                        );
+
+                                        // If barcode scan was successful, mark as packed
+                                        if (result == true && context.mounted) {
+                                          try {
+                                            await FirebaseFirestore.instance
+                                                .collection('orders')
+                                                .doc(orderId)
+                                                .update({
+                                              'status': 'packed',
+                                              'statusHistory.packed': FieldValue.serverTimestamp(),
+                                              'updatedBy': widget.user.uid,
+                                            });
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('✓ Order verified and marked as Packed'),
+                                                  backgroundColor: Colors.green,
+                                                ),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('Error: $e')),
+                                              );
+                                            }
                                           }
                                         }
                                       },

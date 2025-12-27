@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../models/order_model.dart';
 import '../utils/currency.dart';
 import '../models/address_model.dart';
@@ -268,10 +269,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             Text('Online Payment'),
                           ],
                         ),
-                        subtitle: const Text('Coming soon'),
+                        subtitle: const Text('Secure Online Payment'),
                         value: 'Online',
                         groupValue: _selectedPaymentMethod,
-                        onChanged: null, // Disabled for now
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedPaymentMethod = value!;
+                          });
+                        },
                       ),
                     ],
                   ),

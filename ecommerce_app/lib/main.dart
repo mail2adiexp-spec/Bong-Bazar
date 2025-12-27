@@ -19,6 +19,8 @@ import 'package:ecommerce_app/screens/book_service_screen.dart';
 import 'package:ecommerce_app/screens/service_provider_dashboard_screen.dart';
 import 'package:ecommerce_app/screens/delivery_partner_dashboard_screen.dart';
 import 'package:ecommerce_app/screens/core_staff_dashboard_screen.dart';
+import 'package:ecommerce_app/screens/category_service_providers_screen.dart';
+import 'package:ecommerce_app/models/service_category_model.dart';
 
 import 'package:ecommerce_app/screens/my_orders_screen.dart';
 import 'package:ecommerce_app/screens/manage_addresses_screen.dart';
@@ -133,7 +135,7 @@ class MyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp(
-            title: 'E-Commerce App',
+            title: 'Demandy',
             themeMode: themeProvider.themeMode,
             scrollBehavior: NoHoverScrollBehavior(),
             theme: ThemeData(
@@ -225,6 +227,17 @@ class MyApp extends StatelessWidget {
               if (settings.name == ManageAddressesScreen.routeName) {
                 return MaterialPageRoute(
                   builder: (_) => const ManageAddressesScreen(),
+                );
+              }
+              if (settings.name == ManageAddressesScreen.routeName) {
+                return MaterialPageRoute(
+                  builder: (_) => const ManageAddressesScreen(),
+                );
+              }
+              if (settings.name == CategoryServiceProvidersScreen.routeName) {
+                final category = settings.arguments as ServiceCategory;
+                return MaterialPageRoute(
+                  builder: (_) => CategoryServiceProvidersScreen(category: category),
                 );
               }
               return null;

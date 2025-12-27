@@ -6,6 +6,7 @@ import '../models/order_model.dart';
 import '../models/app_settings_model.dart';
 import '../widgets/qr_code_display_dialog.dart';
 import '../widgets/payment_proof_upload_widget.dart';
+import '../widgets/barcode_scanner_screen.dart';
 import 'package:intl/intl.dart';
 
 class DeliveryPartnerDashboardScreen extends StatefulWidget {
@@ -1007,6 +1008,31 @@ class _DeliveryPartnerDashboardScreenState
   Future<void> _updateOrderStatus(String orderId, String currentStatus) async {
     final nextStatus = _getNextStatus(currentStatus);
 
+    // If moving to 'shipped' (picked), 'delivered', or 'returned', require barcode scan first
+    if (nextStatus == 'shipped' || nextStatus == 'delivered' || nextStatus == 'returned') {
+      final scanResult = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BarcodeScannerScreen(
+            expectedOrderId: orderId,
+          ),
+        ),
+      );
+
+      // If scan was cancelled or failed, don't proceed
+      if (scanResult != true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Order verification cancelled'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return; // Exit without updating status
+      }
+    }
+
     try {
       await FirebaseFirestore.instance
           .collection('orders')
@@ -1016,6 +1042,10 @@ class _DeliveryPartnerDashboardScreenState
             'statusHistory.$nextStatus': FieldValue.serverTimestamp(),
             if (nextStatus == 'delivered')
               'actualDelivery': DateTime.now().toIso8601String(),
+            if (nextStatus == 'delivered')
+              'deliveredAt': FieldValue.serverTimestamp(),
+            if (nextStatus == 'delivered')
+              'deliveryStatus': 'delivered',
           });
 
       // Special handling for QR payment verification
@@ -1029,6 +1059,8 @@ class _DeliveryPartnerDashboardScreenState
               'status': 'out_for_delivery',
               'statusHistory.delivered': FieldValue.delete(),
               'actualDelivery': FieldValue.delete(),
+              'deliveredAt': FieldValue.delete(),
+              'deliveryStatus': FieldValue.delete(),
             });
             throw 'Payment proof required for QR payment before marking delivered';
           }
@@ -1038,7 +1070,7 @@ class _DeliveryPartnerDashboardScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Status updated: ${_getStatusLabel(nextStatus)}'),
+            content: Text('✓ Order verified and marked as ${_getStatusLabel(nextStatus)}'),
             backgroundColor: Colors.green,
           ),
         );

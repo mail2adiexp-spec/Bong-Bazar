@@ -28,7 +28,7 @@ class InvoiceGenerator {
     final taxAmount = subtotal - taxableAmount;
     
     // Seller details
-    final sellerName = sellerData['businessName'] ?? sellerData['name'] ?? 'Bong Bazar';
+    final sellerName = sellerData['businessName'] ?? sellerData['name'] ?? 'Demandy';
     final sellerPhone = sellerData['phone'] ?? 'N/A';
     final sellerEmail = sellerData['email'] ?? 'N/A';
     

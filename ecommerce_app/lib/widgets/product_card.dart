@@ -110,7 +110,7 @@ class ProductCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(left: 8.0, right: 8.0, top: 4.0, bottom: 0.0),
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
               child: Text(
                 product.name,
                 style: const TextStyle(
@@ -122,7 +122,7 @@ class ProductCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(left: 8.0, right: 4.0, bottom: 8.0),
+              padding: const EdgeInsets.fromLTRB(8, 0, 4, 4), // Reduced bottom padding
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [

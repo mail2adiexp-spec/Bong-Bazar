@@ -92,17 +92,20 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
         // Client-side filtering
         products = _filterProducts(products);
 
-        return Column(
-          children: [
+        return CustomScrollView(
+          slivers: [
             // Header with Search, Filters, and Actions
-            _buildHeader(products),
+            SliverToBoxAdapter(
+              child: _buildHeader(products),
+            ),
             
             // Products Grid
-            Expanded(
-              child: products.isEmpty
-                  ? _buildEmptyState()
-                  : _buildProductsGrid(products),
-            ),
+            if (products.isEmpty)
+              SliverFillRemaining(
+                child: _buildEmptyState(),
+              )
+            else
+              _buildProductsGrid(products),
           ],
         );
       },
@@ -355,9 +358,10 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
                       value: _selectedProductCategory,
+                      menuMaxHeight: 300,
                       items: [
                         const DropdownMenuItem(value: null, child: Text('All Categories')),
-                        ...ProductCategory.all.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                        ...Provider.of<CategoryProvider>(context).categories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))),
                       ],
                       onChanged: (val) => setState(() => _selectedProductCategory = val),
                     ),
@@ -387,9 +391,10 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         ),
                         value: _selectedProductCategory,
+                        menuMaxHeight: 300,
                         items: [
                           const DropdownMenuItem(value: null, child: Text('All Categories')),
-                          ...ProductCategory.all.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                          ...Provider.of<CategoryProvider>(context).categories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))),
                         ],
                         onChanged: (val) => setState(() => _selectedProductCategory = val),
                       ),
@@ -476,16 +481,16 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: ProductCategory.all.map((cat) {
+                          children: Provider.of<CategoryProvider>(context).categories.map((cat) {
                             return FilterChip(
-                              label: Text(cat),
-                              selected: _selectedProductCategories.contains(cat),
+                              label: Text(cat.name),
+                              selected: _selectedProductCategories.contains(cat.name),
                               onSelected: (selected) {
                                 setState(() {
                                   if (selected) {
-                                    _selectedProductCategories.add(cat);
+                                    _selectedProductCategories.add(cat.name);
                                   } else {
-                                    _selectedProductCategories.remove(cat);
+                                    _selectedProductCategories.remove(cat.name);
                                   }
                                 });
                               },
@@ -567,23 +572,24 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
   }
 
   Widget _buildProductsGrid(List<QueryDocumentSnapshot> products) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80), // Added 80 bottom padding
+      sliver: SliverGrid(
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: MediaQuery.of(context).size.width < 600 ? 2 : 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.65, // Slightly taller cards to accommodate details
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        final data = product.data() as Map<String, dynamic>;
-        final images = data['images'] as List<dynamic>? ?? [];
-        final imageUrl = images.isNotEmpty ? images[0] : null;
-        
-        return Stack(
-          children: [
+          crossAxisCount: MediaQuery.of(context).size.width < 600 ? 2 : 3,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.65, // Slightly taller cards to accommodate details
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final product = products[index];
+            final data = product.data() as Map<String, dynamic>;
+            final images = data['images'] as List<dynamic>? ?? [];
+            final imageUrl = images.isNotEmpty ? images[0] : null;
+            
+            return Stack(
+              children: [
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -705,7 +711,10 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                ),
           ],
         );
-      },
+          },
+          childCount: products.length,
+        ),
+      ),
     );
   }
 
@@ -745,6 +754,7 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
     final priceCtrl = TextEditingController();
     final mrpCtrl = TextEditingController();
     final stockCtrl = TextEditingController();
+    final minQtyCtrl = TextEditingController(text: '1');
     
     final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
     final categories = categoryProvider.categories.map((c) => c.name).toList();
@@ -885,6 +895,13 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                       ],
                     ),
                     const SizedBox(height: 16),
+                    TextFormField(
+                       controller: minQtyCtrl,
+                       decoration: const InputDecoration(labelText: 'Minimum Quantity', border: OutlineInputBorder()),
+                       keyboardType: TextInputType.number,
+                       validator: (v) => (v?.isEmpty == true || int.tryParse(v!) == null || int.parse(v) < 1) ? 'Min 1' : null,
+                    ),
+                    const SizedBox(height: 16),
                     MediaQuery.of(context).size.width < 600
                     ? Column(
                         children: [
@@ -965,6 +982,7 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                                  'description': descCtrl.text,
                                  'price': double.parse(priceCtrl.text),
                                  'stock': int.parse(stockCtrl.text),
+                                 'minimumQuantity': int.parse(minQtyCtrl.text),
                                  'mrp': double.tryParse(mrpCtrl.text) ?? 0.0,
                                  'category': selectedCategory,
                                  'unit': selectedUnit,
@@ -1014,6 +1032,7 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
       final priceCtrl = TextEditingController(text: productData['price'].toString());
       final mrpCtrl = TextEditingController(text: (productData['mrp'] ?? 0).toString());
       final stockCtrl = TextEditingController(text: productData['stock'].toString());
+      final minQtyCtrl = TextEditingController(text: (productData['minimumQuantity'] ?? 1).toString());
       
       final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
       final categories = categoryProvider.categories.map((c) => c.name).toList();
@@ -1088,6 +1107,13 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                         ],
                       ),
                       const SizedBox(height: 16),
+                      TextFormField(
+                         controller: minQtyCtrl,
+                         decoration: const InputDecoration(labelText: 'Minimum Quantity', border: OutlineInputBorder()),
+                         keyboardType: TextInputType.number,
+                         validator: (v) => (v?.isEmpty == true || int.tryParse(v!) == null || int.parse(v) < 1) ? 'Min 1' : null,
+                      ),
+                      const SizedBox(height: 16),
                       MediaQuery.of(context).size.width < 600
                       ? Column(
                           children: [
@@ -1131,6 +1157,7 @@ class _SharedProductsTabState extends State<SharedProductsTab> {
                                   'description': descCtrl.text,
                                   'price': double.parse(priceCtrl.text),
                                   'stock': int.parse(stockCtrl.text),
+                                  'minimumQuantity': int.parse(minQtyCtrl.text),
                                   'mrp': double.tryParse(mrpCtrl.text) ?? 0.0,
                                   'category': selectedCategory,
                                   'unit': selectedUnit,

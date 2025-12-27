@@ -49,6 +49,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _quantity = widget.product.minimumQuantity > 0 ? widget.product.minimumQuantity : 1;
     _trackView();
     _loadRecommendations();
   }
@@ -87,7 +88,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Bong Bazar',
+          'Demandy',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -156,7 +157,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 200),
           child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -248,8 +249,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         padding: const EdgeInsets.all(4),
                         constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                         onPressed: () {
-                          if (_quantity > 1) {
+                          if (_quantity > widget.product.minimumQuantity) {
                             setState(() => _quantity--);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Minimum quantity is ${widget.product.minimumQuantity}'),
+                                backgroundColor: Colors.red,
+                                duration: const Duration(seconds: 1),
+                              ),
+                            );
                           }
                         },
                       ),
@@ -275,8 +284,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
+                      debugPrint('Add to Cart pressed. Quantity: $_quantity, MinQty: ${widget.product.minimumQuantity}');
+                      if (_quantity < widget.product.minimumQuantity) {
+                         debugPrint('Quantity too low');
+                         ScaffoldMessenger.of(context).showSnackBar(
+                           SnackBar(
+                             content: Text('Minimum quantity required is ${widget.product.minimumQuantity}'),
+                             backgroundColor: Colors.red,
+                           ),
+                         );
+                         return;
+                      }
                       final cart = context.read<CartProvider>();
                       for (int i = 0; i < _quantity; i++) {
+                        debugPrint('Adding product iteration: $i');
                         cart.addProduct(product);
                       }
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -285,7 +306,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           duration: const Duration(seconds: 1),
                         ),
                       );
-                      setState(() => _quantity = 1);
+                      setState(() => _quantity = widget.product.minimumQuantity > 0 ? widget.product.minimumQuantity : 1);
                     },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -364,7 +385,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 ],
               ),
               const SizedBox(height: 6),
-              Expanded(
+              SizedBox(
+                height: 180,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: _recommendedProducts.length,
@@ -382,7 +404,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         );
                       },
                       child: Container(
-                        width: 100,
+                        width: 120,
                         margin: const EdgeInsets.only(right: 8),
                         child: Card(
                           child: Column(
@@ -393,15 +415,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   borderRadius: const BorderRadius.vertical(
                                     top: Radius.circular(4),
                                   ),
-                                  child: Image.network(
-                                    prod.imageUrl,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (c, e, s) => const Icon(
-                                      Icons.broken_image,
-                                      size: 24,
-                                    ),
-                                  ),
+                                  child: (prod.imageUrl.isNotEmpty)
+                                      ? Image.network(
+                                          prod.imageUrl,
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (c, e, s) => const Icon(
+                                            Icons.broken_image,
+                                            size: 24,
+                                            color: Colors.grey,
+                                          ),
+                                        )
+                                      : const Center(
+                                          child: Icon(
+                                            Icons.image_not_supported,
+                                            size: 24,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
                                 ),
                               ),
                               Padding(

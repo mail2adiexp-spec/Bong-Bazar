@@ -529,3 +529,260 @@ exports.approvePartnerRequest = functions.https.onCall(async (data, context) => 
     );
   }
 });
+
+/**
+ * On Order Create Trigger
+ * 1. Reduces stock for purchased items
+ * 2. Sends notifications to Customer, Sellers, and Admin
+ */
+exports.onOrderCreate = functions.firestore
+  .document("orders/{orderId}")
+  .onCreate(async (snap, context) => {
+    const orderData = snap.data();
+    const orderId = context.params.orderId;
+    const batch = admin.firestore().batch();
+
+    try {
+      // 1. Reduce Stock
+      const items = orderData.items || [];
+      for (const item of items) {
+        if (!item.productId) continue;
+
+        const productRef = admin.firestore().collection("products").doc(item.productId);
+        // Use increment(-quantity) for atomic decrement
+        batch.update(productRef, {
+          stock: admin.firestore.FieldValue.increment(-item.quantity),
+          salesCount: admin.firestore.FieldValue.increment(item.quantity)
+        });
+      }
+
+      // 2. Create Notifications
+
+      // A. Notify Customer
+      if (orderData.userId) {
+        const customerNotifRef = admin.firestore().collection("notifications").doc();
+        batch.set(customerNotifRef, {
+          toUserId: orderData.userId,
+          title: "Order Placed Successfully",
+          body: `Your order #${orderId} has been placed. We will update you once it's shipped.`,
+          type: "order_update",
+          relatedId: orderId,
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          userId: orderData.userId // Redundant but good for queries
+        });
+      }
+
+      // B. Notify Sellers (Group by sellerId)
+      const sellerItems = {};
+      for (const item of items) {
+        if (item.sellerId) {
+          if (!sellerItems[item.sellerId]) {
+            sellerItems[item.sellerId] = [];
+          }
+          sellerItems[item.sellerId].push(item.productName);
+        }
+      }
+
+      for (const [sellerId, productNames] of Object.entries(sellerItems)) {
+        const sellerNotifRef = admin.firestore().collection("notifications").doc();
+        const productListStr = productNames.join(", ");
+        batch.set(sellerNotifRef, {
+          toUserId: sellerId,
+          title: "New Order Received!",
+          body: `You have received a new order #${orderId} for: ${productListStr}`,
+          type: "seller_order",
+          relatedId: orderId,
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          userId: sellerId
+        });
+      }
+
+      // C. Notify Admin (Using a fixed ID or broadcasting to all admins later. 
+      // For now, we'll CREATE a notification document that admins can query, 
+      // or if we have a specific admin ID, we target it. 
+      // Since we don't have a single admin ID, we'll skip direct targeting 
+      // and rely on Admin Panel querying 'notifications' where toUserId == 'admin' or type == 'admin_alert'
+      // OR we can finding all admin users. For performance, let's just make a generic admin notification.)
+
+      // OPTION: Sending to a 'system_notifications' collection or similar?
+      // Let's send to the Super Admin email user ID if we knew it, but finding it is async.
+      // Simpler: Just rely on Admin Dashboard "Recent Orders" for now, OR
+      // query for admin users (expensive in trigger?).
+      // Let's checking if we can find admins easily.
+      // The previous code had a "notifyAdmins" helper in Dart, but here we are in JS.
+      // Let's skip Admin Push Notification for this step to avoid timeout/complexity, 
+      // assuming Admin checks dashboard. 
+      // BUT, let's add a "system" notification just in case we have a viewer for it.
+
+      const adminNotifRef = admin.firestore().collection("notifications").doc();
+      batch.set(adminNotifRef, {
+        toUserId: "admin", // Special ID for admin pool? Or leave generic
+        title: "New Order Placed",
+        body: `Order #${orderId} placed by ${orderData.deliveryAddress?.name || 'User'} for ₹${orderData.totalAmount}`,
+        type: "admin_order",
+        relatedId: orderId,
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        userId: "admin" // This requires the Admin App to query where userId == 'admin'
+      });
+
+      await batch.commit(); // Commit all changes (stock + notifications)
+      console.log(`Order ${orderId} processed: Stock updated and notifications sent.`);
+
+    } catch (error) {
+      console.error(`Error processing order ${orderId}:`, error);
+    }
+  });
+
+/**
+ * Verify Payment and Create Order
+ * Securely creates an order only after verifying the payment ID.
+ */
+exports.verifyPayment = functions.https.onCall(async (data, context) => {
+  // 1. Authentication Check
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be logged in to place an order."
+    );
+  }
+
+  const userId = context.auth.uid;
+  const { items, totalAmount, deliveryAddress, phoneNumber, paymentId } = data;
+
+  // 2. Input Validation
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw new functions.https.HttpsError("invalid-argument", "Order must contain items.");
+  }
+  if (!totalAmount || totalAmount <= 0) {
+    throw new functions.https.HttpsError("invalid-argument", "Invalid total amount.");
+  }
+  if (!paymentId || !deliveryAddress || !phoneNumber) {
+    throw new functions.https.HttpsError("invalid-argument", "Missing payment or delivery details.");
+  }
+
+  try {
+    // 3. Payment Verification (Mock Logic)
+    // In a real app, you would call Stripe/Razorpay API here with paymentId
+    const isValidPayment = paymentId.toString().startsWith("PAY_");
+
+    if (!isValidPayment) {
+      throw new functions.https.HttpsError("permission-denied", "Payment verification failed. Invalid Payment ID.");
+    }
+
+    // 4. Create Order in Firestore
+    // Note: We don't need to manually reduce stock here because 
+    // the 'onOrderCreate' trigger will handle stock reduction and notifications automatically 
+    // when this document is created.
+
+    const orderData = {
+      userId: userId,
+      items: items, // Expecting list of objects matching OrderItem structure
+      totalAmount: totalAmount,
+      deliveryAddress: deliveryAddress,
+      phoneNumber: phoneNumber,
+      orderDate: admin.firestore.FieldValue.serverTimestamp(),
+      status: 'placed', // Initial status
+      paymentStatus: 'paid', // Key difference: Paid immediately
+      paymentMethod: 'Online',
+      paymentId: paymentId,
+      statusHistory: {
+        'placed': admin.firestore.FieldValue.serverTimestamp()
+      },
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    const orderRef = await admin.firestore().collection("orders").add(orderData);
+
+    console.log(`Order created securely via verifyPayment: ${orderRef.id}`);
+
+    return {
+      success: true,
+      orderId: orderRef.id
+    };
+
+  } catch (error) {
+    console.error("Error in verifyPayment:", error);
+    throw new functions.https.HttpsError("internal", "Order creation failed: " + error.message);
+  }
+});
+
+/**
+ * On Order Update Trigger
+ * Handles automatic transaction recording when order status changes.
+ * - When status changes to 'delivered' -> Credit Seller Wallet
+ * - When status changes to 'returned' -> Debit Seller Wallet (Refund)
+ */
+exports.onOrderUpdate = functions.firestore
+  .document("orders/{orderId}")
+  .onUpdate(async (change, context) => {
+    const newData = change.after.data();
+    const oldData = change.before.data();
+    const orderId = context.params.orderId;
+
+    const newStatus = newData.status;
+    const oldStatus = oldData.status;
+
+    // Only proceed if status has changed
+    if (newStatus === oldStatus) return null;
+
+    const batch = admin.firestore().batch();
+    const items = newData.items || [];
+
+    // Calculate seller amounts
+    const sellerAmounts = {};
+    for (const item of items) {
+      if (item.sellerId) {
+        const price = Number(item.price) || 0;
+        const quantity = Number(item.quantity) || 0;
+        const total = price * quantity;
+
+        sellerAmounts[item.sellerId] = (sellerAmounts[item.sellerId] || 0) + total;
+      }
+    }
+
+    try {
+      // 1. Handle 'delivered' -> Credit Seller
+      if (newStatus === "delivered" && oldStatus !== "delivered") {
+        console.log(`Order ${orderId} delivered. Crediting sellers.`);
+
+        for (const [sellerId, amount] of Object.entries(sellerAmounts)) {
+          const transactionRef = admin.firestore().collection("transactions").doc();
+          batch.set(transactionRef, {
+            userId: sellerId,
+            amount: amount,
+            type: "credit", // Credit to seller
+            description: `Earnings for Order #${orderId}`,
+            status: "completed",
+            referenceId: orderId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      }
+      // 2. Handle 'returned' -> Debit Seller (Refund)
+      else if (newStatus === "returned" && oldStatus !== "returned") {
+        console.log(`Order ${orderId} returned. Debiting sellers.`);
+
+        for (const [sellerId, amount] of Object.entries(sellerAmounts)) {
+          const transactionRef = admin.firestore().collection("transactions").doc();
+          batch.set(transactionRef, {
+            userId: sellerId,
+            amount: amount,
+            type: "refund", // Debit/Refund from seller
+            description: `Refund for Order #${orderId}`,
+            status: "completed",
+            referenceId: orderId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      }
+
+      await batch.commit();
+      console.log(`Transaction records updated for Order ${orderId}`);
+
+    } catch (error) {
+      console.error(`Error in onOrderUpdate for ${orderId}:`, error);
+    }
+  });

@@ -24,6 +24,7 @@ class _EditProductDialogState extends State<EditProductDialog> {
   late TextEditingController _descriptionController;
   late TextEditingController _priceController;
   late TextEditingController _stockController;
+  late TextEditingController _minQtyController;
   
   late String _selectedCategory;
   late String _selectedUnit;
@@ -39,7 +40,9 @@ class _EditProductDialogState extends State<EditProductDialog> {
     _nameController = TextEditingController(text: widget.productData['name']);
     _descriptionController = TextEditingController(text: widget.productData['description']);
     _priceController = TextEditingController(text: widget.productData['price'].toString());
+    _priceController = TextEditingController(text: widget.productData['price'].toString());
     _stockController = TextEditingController(text: widget.productData['stock'].toString());
+    _minQtyController = TextEditingController(text: (widget.productData['minimumQuantity'] ?? 1).toString());
     _selectedCategory = widget.productData['category'] ?? 'Daily Needs';
     _selectedUnit = widget.productData['unit'] ?? 'Pic';
     _existingImageUrls = List<String>.from(widget.productData['imageUrls'] ?? [widget.productData['imageUrl']]);
@@ -50,7 +53,9 @@ class _EditProductDialogState extends State<EditProductDialog> {
     _nameController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
+    _priceController.dispose();
     _stockController.dispose();
+    _minQtyController.dispose();
     super.dispose();
   }
 
@@ -110,7 +115,9 @@ class _EditProductDialogState extends State<EditProductDialog> {
         'name': _nameController.text.trim(),
         'description': _descriptionController.text.trim(),
         'price': double.parse(_priceController.text),
+        'price': double.parse(_priceController.text),
         'stock': int.parse(_stockController.text),
+        'minimumQuantity': int.parse(_minQtyController.text),
         'category': _selectedCategory,
         'unit': _selectedUnit,
         'imageUrls': allUrls,
@@ -137,7 +144,9 @@ class _EditProductDialogState extends State<EditProductDialog> {
       title: const Text('Edit Product'),
       content: SingleChildScrollView(
         child: SizedBox(
-          width: 500,
+          width: MediaQuery.of(context).size.width > 600
+              ? 500
+              : MediaQuery.of(context).size.width * 0.95,
           child: Form(
             key: _formKey,
             child: Column(
@@ -253,32 +262,34 @@ class _EditProductDialogState extends State<EditProductDialog> {
                   maxLines: 3,
                 ),
                 const SizedBox(height: 12),
-                Row(
+                Column(
                   children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _priceController,
-                        decoration: const InputDecoration(labelText: 'Price', prefixText: '₹', border: OutlineInputBorder()),
-                        keyboardType: TextInputType.number,
-                        validator: (v) => double.tryParse(v ?? '') == null ? 'Invalid' : null,
-                      ),
+                    TextFormField(
+                      controller: _priceController,
+                      decoration: const InputDecoration(labelText: 'Price', prefixText: '₹', border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      validator: (v) => double.tryParse(v ?? '') == null ? 'Invalid' : null,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _stockController,
-                        decoration: const InputDecoration(labelText: 'Stock', border: OutlineInputBorder()),
-                        keyboardType: TextInputType.number,
-                        validator: (v) => int.tryParse(v ?? '') == null ? 'Invalid' : null,
-                      ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _stockController,
+                      decoration: const InputDecoration(labelText: 'Stock', border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      validator: (v) => int.tryParse(v ?? '') == null ? 'Invalid' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                       controller: _minQtyController,
+                       decoration: const InputDecoration(labelText: 'Min Quantity', border: OutlineInputBorder()),
+                       keyboardType: TextInputType.number,
+                       validator: (v) => (v?.isEmpty == true || int.tryParse(v!) == null || int.parse(v) < 1) ? 'Min 1' : null,
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
+                Column(
                   children: [
-                     Expanded(
-                      child: DropdownButtonFormField<String>(
+                     DropdownButtonFormField<String>(
                         value: _selectedCategory,
                         items: ['Daily Needs', 'Groceries', 'Snacks', 'Beverages', 'Personal Care', 'Household'] // Sync with ProductModel
                             .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -286,10 +297,8 @@ class _EditProductDialogState extends State<EditProductDialog> {
                         onChanged: (v) => setState(() => _selectedCategory = v!),
                         decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
                         value: _selectedUnit,
                         items: ['Kg', 'Ltr', 'Pic', 'Pkt', 'Grm']
                             .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -297,7 +306,6 @@ class _EditProductDialogState extends State<EditProductDialog> {
                         onChanged: (v) => setState(() => _selectedUnit = v!),
                         decoration: const InputDecoration(labelText: 'Unit', border: OutlineInputBorder()),
                       ),
-                    ),
                   ],
                 ),
               ],

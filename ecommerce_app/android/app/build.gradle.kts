@@ -10,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.example.ecommerce_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36  // Required for latest plugins (mobile_scanner, image_picker, etc.)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -27,8 +27,8 @@ android {
         applicationId = "com.example.ecommerce_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = flutter.minSdkVersion  // Required for mobile_scanner
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

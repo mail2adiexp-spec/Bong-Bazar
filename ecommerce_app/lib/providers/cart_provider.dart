@@ -52,6 +52,7 @@ class CartProvider extends ChangeNotifier {
   bool get isEmpty => _items.isEmpty;
 
   void addProduct(Product product) {
+    debugPrint('CartProvider: addProduct called for ${product.id}');
     final id = product.id;
     if (_items.containsKey(id)) {
       _items[id]!.quantity += 1;

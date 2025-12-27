@@ -59,7 +59,20 @@ class CartScreen extends StatelessWidget {
                       children: [
                         IconButton(
                           icon: const Icon(Icons.remove_circle_outline),
-                          onPressed: () => cart.removeOne(p.id),
+                          onPressed: () {
+                            if (item.quantity > item.product.minimumQuantity) {
+                              cart.removeOne(p.id);
+                            } else {
+                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Minimum quantity is ${item.product.minimumQuantity}. Use delete to remove.'),
+                                  backgroundColor: Colors.red,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
                         ),
                         Text(item.quantity.toString()),
                         IconButton(
